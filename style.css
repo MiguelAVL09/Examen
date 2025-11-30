@@ -1,0 +1,249 @@
+:root {
+  --primary-color: #0f172a; /* Azul noche profundo */
+  --accent-color: #2563eb; /* Azul brillante corporativo */
+  --accent-hover: #1d4ed8;
+  --bg-color: #f1f5f9; /* Gris azulado muy claro */
+  --card-bg: #ffffff;
+  --text-main: #334155;
+  --text-light: #64748b;
+  --border-color: #e2e8f0;
+  --error-color: #ef4444;
+  --success-color: #10b981;
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-main);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* Layout */
+.main-wrapper {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.app-header {
+  background-color: var(--primary-color);
+  color: white;
+  padding: 2rem 1rem;
+  text-align: center;
+  box-shadow: var(--shadow-md);
+}
+
+.app-header h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.app-header p {
+  opacity: 0.8;
+  font-size: 0.9rem;
+}
+
+.container {
+  width: 100%;
+  max-width: 600px;
+  margin: -2rem auto 2rem; /* Efecto de superposición */
+  padding: 0 1rem;
+  flex: 1;
+}
+
+.app-footer {
+  text-align: center;
+  padding: 1.5rem;
+  color: var(--text-light);
+  font-size: 0.8rem;
+  border-top: 1px solid var(--border-color);
+}
+
+/* Cards */
+.card {
+  background: var(--card-bg);
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: var(--shadow-md);
+  margin-bottom: 2rem;
+  border: 1px solid var(--border-color);
+  transition: transform 0.2s ease;
+}
+
+.card-header {
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+.card-header h2 {
+  color: var(--primary-color);
+  font-size: 1.5rem;
+}
+
+.subtitle {
+  color: var(--text-light);
+  font-size: 0.9rem;
+}
+
+/* Forms */
+.form-group {
+  margin-bottom: 1.2rem;
+}
+
+label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+  color: var(--text-main);
+}
+
+input[type="text"] {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  font-family: inherit;
+}
+
+input[type="text"]:focus {
+  outline: none;
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+/* Buttons */
+.btn-primary, .btn-secondary {
+  width: 100%;
+  padding: 0.85rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.btn-primary {
+  background-color: var(--accent-color);
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: var(--accent-hover);
+}
+
+.btn-secondary {
+  background-color: transparent;
+  color: var(--text-light);
+  border: 1px solid var(--border-color);
+  margin-top: 1rem;
+}
+
+.btn-secondary:hover {
+  background-color: var(--bg-color);
+  color: var(--text-main);
+}
+
+/* Questions */
+.question-block {
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.question-block:last-child {
+  border-bottom: none;
+}
+
+.question-title {
+  font-weight: 600;
+  margin-bottom: 1rem;
+  display: block;
+  color: var(--primary-color);
+}
+
+.option-label {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  border: 1px solid transparent;
+}
+
+.option-label:hover {
+  background-color: var(--bg-color);
+}
+
+.option-label input {
+  margin-right: 10px;
+  accent-color: var(--accent-color);
+  width: 1.2em;
+  height: 1.2em;
+}
+
+/* Results */
+.result-content {
+  text-align: center;
+}
+
+.icon-result {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.score-box {
+  background-color: var(--bg-color);
+  display: inline-block;
+  padding: 1rem 2rem;
+  border-radius: 12px;
+  margin: 1.5rem 0;
+}
+
+#scoreDisplay {
+  display: block;
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: var(--accent-color);
+  line-height: 1;
+}
+
+.score-label {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-light);
+}
+
+.error-message {
+  color: var(--error-color);
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+  text-align: center;
+  min-height: 1.2em;
+}
+
+/* Utilities */
+.hidden { display: none !important; }
+
+.fade-in {
+  animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
