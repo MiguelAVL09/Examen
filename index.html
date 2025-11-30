@@ -4,9 +4,17 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Evaluación de Seguridad Legal</title>
+  
+  <!-- Fuentes -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Librerías para Generar PDF (Requeridas para el Admin) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+
+  <!-- Estilos -->
   <link rel="stylesheet" href="style.css">
 </head>
 
@@ -14,16 +22,18 @@
   <div class="main-wrapper">
     <header class="app-header">
       <div class="header-content">
-        <h1>🛡️ Examen: Seguridad Legal en TI</h1>
-        <p>Evaluación de Seguridad Legal y Normativa</p>
+        <h1>🛡️ Portal de Cumplimiento</h1>
+        <p>Seguridad Legal y Normativa en TI</p>
       </div>
     </header>
 
     <main class="container">
+      
+      <!-- SECCIÓN 1: LOGIN (Único para todos) -->
       <section id="login" class="card fade-in">
         <div class="card-header">
           <h2>Identificación</h2>
-          <p class="subtitle">Acceso restringido a personal autorizado</p>
+          <p class="subtitle">Ingrese sus credenciales institucionales</p>
         </div>
         <div class="form-group">
           <label for="nombre">Nombre Completo</label>
@@ -31,16 +41,17 @@
         </div>
         <div class="form-group">
           <label for="control">Número de Control</label>
-          <input type="text" id="control" placeholder="8 dígitos (Ej. 12345678)" maxlength="8" inputmode="numeric" />
+          <input type="text" id="control" placeholder="8 dígitos" maxlength="8" inputmode="numeric" />
         </div>
-        <button id="btnLogin" class="btn-primary">Iniciar Evaluación</button>
+        <button id="btnLogin" class="btn-primary">Ingresar</button>
         <p id="loginError" class="error-message"></p>
       </section>
 
+      <!-- SECCIÓN 2: EXAMEN (Solo Alumnos) -->
       <section id="exam" class="card hidden">
         <div class="card-header">
           <h2>Examen en Curso</h2>
-          <p class="subtitle">Responda todas las preguntas con atención</p>
+          <p class="subtitle">Evita salir de la pantalla completa (Monitoreo activo)</p>
         </div>
         <form id="examForm" class="exam-content"></form>
         <div class="card-footer">
@@ -48,6 +59,7 @@
         </div>
       </section>
 
+      <!-- SECCIÓN 3: RESULTADOS ALUMNO -->
       <section id="resultado" class="card hidden">
         <div class="result-content">
           <div class="icon-result">📊</div>
@@ -61,10 +73,43 @@
           <button onclick="location.reload()" class="btn-secondary">Volver al Inicio</button>
         </div>
       </section>
+
+      <!-- SECCIÓN 4: DASHBOARD ADMIN (Solo Admin) -->
+      <section id="adminDashboard" class="card hidden admin-panel">
+        <div class="header-actions">
+          <div>
+            <h2>👨‍💻 Panel de Resultados</h2>
+            <p class="subtitle">Monitor de evaluaciones en tiempo real</p>
+          </div>
+          <button id="btnDescargarPDF" class="btn-primary btn-sm">
+            📄 Descargar PDF
+          </button>
+        </div>
+
+        <div class="table-responsive">
+          <table id="resultsTable">
+            <thead>
+              <tr>
+                <th>No. Control</th>
+                <th>Nombre</th>
+                <th>Calif.</th>
+                <th>Aciertos</th>
+                <th>Integridad</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Se llena con JS -->
+            </tbody>
+          </table>
+        </div>
+        
+        <button onclick="location.reload()" class="btn-secondary">Cerrar Sesión Admin</button>
+      </section>
+
     </main>
 
     <footer class="app-footer">
-      <p>&copy; 2025 Página hecha por Miguel XD</p>
+      <p>&copy; 2023 Departamento de Seguridad de la Información</p>
     </footer>
   </div>
 
