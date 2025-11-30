@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Panel Administrativo - Seguridad Legal</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    /* Estilos extra específicos para la tabla del admin */
+    .admin-container { max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+    .table-responsive { overflow-x: auto; margin-top: 1rem; }
+    table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; }
+    th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+    th { background-color: #0f172a; color: white; }
+    tr:hover { background-color: #f8fafc; }
+    .badge { padding: 4px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: bold; }
+    .badge-clean { background: #dcfce7; color: #166534; } /* Verde */
+    .badge-cheat { background: #fee2e2; color: #991b1b; } /* Rojo */
+    .header-actions { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+  </style>
+  
+  <!-- Librerías para PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body>
+
+  <!-- Login Admin -->
+  <div id="adminLogin" class="container" style="max-width: 400px; margin-top: 10vh;">
+    <div class="card fade-in">
+      <div class="card-header">
+        <h2>Acceso Administrativo</h2>
+        <p class="subtitle">Solo personal autorizado</p>
+      </div>
+      <div class="form-group">
+        <label>Nombre de Administrador</label>
+        <input type="text" id="adminName" placeholder="Nombre completo">
+      </div>
+      <div class="form-group">
+        <label>Número de Control</label>
+        <input type="password" id="adminControl" placeholder="Clave de acceso">
+      </div>
+      <button id="btnAdminLogin" class="btn-primary">Ingresar al Panel</button>
+      <p id="adminError" class="error-message"></p>
+    </div>
+  </div>
+
+  <!-- Dashboard -->
+  <div id="adminDashboard" class="admin-container hidden">
+    <div class="header-actions">
+      <div>
+        <h1>👨‍💻 Panel de Resultados</h1>
+        <p>Monitor de evaluaciones en tiempo real</p>
+      </div>
+      <button id="btnDescargarPDF" class="btn-primary" style="width: auto;">
+        📄 Descargar Reporte PDF
+      </button>
+    </div>
+
+    <div class="card">
+      <div class="table-responsive">
+        <table id="resultsTable">
+          <thead>
+            <tr>
+              <th>No. Control</th>
+              <th>Nombre del Alumno</th>
+              <th>Calif.</th>
+              <th>Aciertos</th>
+              <th>Estado (Trampa)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Aquí se llenan los datos dinámicamente -->
+            <tr><td colspan="5" style="text-align:center;">Cargando datos...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    
+    <button onclick="location.reload()" class="btn-secondary" style="width:auto">Cerrar Sesión</button>
+  </div>
+
+  <script type="module" src="admin.js"></script>
+</body>
+</html>
