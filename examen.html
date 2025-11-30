@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Examen de Seguridad Legal</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f4f4f4; margin: 0; padding: 0; }
+    .container { width: 90%; max-width: 700px; margin: auto; padding-top: 40px; }
+    .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+    input, button { width: 100%; padding: 10px; margin-top: 10px; border-radius: 6px; border: 1px solid #ccc; }
+    button { background: #0077cc; color: white; cursor: pointer; }
+    button:hover { background: #005fa3; }
+    .question { margin-bottom: 20px; }
+    .hidden { display: none; }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div id="login" class="card">
+      <h2>Inicio de Sesión</h2>
+      <p>Ingresa tu nombre completo y número de control (8 dígitos).</p>
+      <input type="text" id="nombre" placeholder="Nombre completo" />
+      <input type="text" id="control" placeholder="Número de control" maxlength="8" />
+      <button onclick="iniciarSesion()">Entrar</button>
+      <p id="loginError" style="color:red"></p>
+    </div>
+
+    <div id="exam" class="card hidden">
+      <h2>Examen de Seguridad Legal</h2>
+      <form id="examForm"></form>
+      <button onclick="enviarExamen()">Enviar Examen</button>
+    </div>
+
+    <div id="resultado" class="card hidden">
+      <h2>Resultados</h2>
+      <p id="score"></p>
+    </div>
+  </div>
+
+  <script>
+    const preguntas = [
+      { p: "¿Qué es la seguridad legal?", o: ["Control físico", "Cumplir leyes y políticas", "Diseño de red"], c: 1 },
+      { p: "Ley principal de datos personales en México", o: ["LFT", "LFPDPPP", "ISO 27001"], c: 1 },
+      { p: "Documento que regula uso de la red", o: ["Política de seguridad", "Acta constitutiva", "Inventario"], c: 0 },
+      { p: "¿Qué es una brecha de cumplimiento?", o: ["Ataque", "Diferencia ley vs práctica", "Error eléctrico"], c: 1 }
+    ];
+
+    function iniciarSesion() {
+      const nombre = document.getElementById("nombre").value.trim();
+      const control = document.getElementById("control").value.trim();
+
+      if (!nombre || control.length !== 8 || isNaN(control)) {
+        document.getElementById("loginError").innerText = "Datos inválidos";
+        return;
+      }
+
+      if (localStorage.getItem("examen_" + control)) {
+        document.getElementById("loginError").innerText = "Ya presentaste el examen.";
+        return;
+      }
+
+      document.getElementById("login").classList.add("hidden");
+      document.getElementById("exam").classList.remove("hidden");
+
+      cargarPreguntas();
+    }
+
+    function cargarPreguntas() {
+      const form = document.getElementById("examForm");
+      form.innerHTML = "";
+
+      preguntas.forEach((q, i) => {
+        let block = `<div class='question'><strong>${i+1}. ${q.p}</strong><br>`;
+        q.o.forEach((op, j) => {
+          block += `<label><input type='radio' name='p${i}' value='${j}'> ${op}</label><br>`;
+        });
+        block += `</div>`;
+        form.innerHTML += block;
+      });
+    }
+
+    function enviarExamen() {
+      let aciertos = 0;
+      preguntas.forEach((q, i) => {
+        const r = document.querySelector(`input[name='p${i}']:checked`);
+        if (r && parseInt(r.value) === q.c) aciertos++;
+      });
+
+      const control = document.getElementById("control").value.trim();
+      localStorage.setItem("examen_" + control, true);
+
+      document.getElementById("exam").classList.add("hidden");
+      document.getElementById("resultado").classList.remove("hidden");
+      document.getElementById("score").innerText = "Tu calificación es: " + aciertos + " / " + preguntas.length;
+    }
+  </script>
+</body>
+</html>
