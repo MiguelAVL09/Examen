@@ -99,7 +99,7 @@ async function iniciarSesion() {
   if (!/^\d{8}$/.test(control)) return mostrarError("El número de control debe ser de 8 dígitos.");
 
   // MODO ADMINISTRADOR (Backdoor simple)
-  if (control === "00000000") {
+  if (control === "21070413") {
     cargarPanelAdmin();
     return;
   }
