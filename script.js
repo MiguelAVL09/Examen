@@ -1,80 +1,48 @@
-// Base de datos de preguntas
-// Base de datos de preguntas ampliada (Seguridad Legal y Normativa)
+// ==========================================
+// 1. CONFIGURACIÓN DE FIREBASE
+// ==========================================
+// Importamos las funciones necesarias desde los servidores de Google
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+// --- AQUÍ PEGA TU CONFIGURACIÓN DE FIREBASE (Del Paso 1) ---
+const firebaseConfig = {
+  apiKey: "AIzaSyBP-69PjxX9edB0OpBHRieBGF5f5bMPVe8",
+  authDomain: "examen-seguridad-legal.firebaseapp.com",
+  projectId: "examen-seguridad-legal",
+  storageBucket: "examen-seguridad-legal.firebasestorage.app",
+  messagingSenderId: "303945589350",
+  appId: "1:303945589350:web:1bd50af3d73ad5981803a7"
+};
+// -----------------------------------------------------------
+
+// Inicializar Firebase
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+
+// ==========================================
+// 2. DATOS DEL EXAMEN (Tus preguntas)
+// ==========================================
 const preguntas = [
-  // --- Conceptos Básicos ---
-  { 
-    p: "¿Qué es la seguridad legal en TI?", 
-    o: ["Instalación de cámaras de vigilancia", "Cumplimiento de leyes, normas y políticas", "Diseño de topologías de red"], 
-    c: 1 
-  },
-  
-  // --- Leyes y Normativas en México ---
-  { 
-    p: "¿Cuál es la ley principal que protege los datos personales en posesión de empresas en México?", 
-    o: ["Ley Federal del Trabajo (LFT)", "LFPDPPP", "Norma Oficial Mexicana 035"], 
-    c: 1 
-  },
-  { 
-    p: "Según el Código Penal Federal, ¿qué delito comete quien accede sin autorización a sistemas informáticos?", 
-    o: ["Acceso ilícito a sistemas y equipos", "Abuso de confianza administrativo", "Daño en propiedad ajena"], 
-    c: 0 
-  },
-  { 
-    p: "¿Qué documento legal deben firmar los empleados para proteger la información confidencial de la empresa?", 
-    o: ["Contrato de arrendamiento", "Acuerdo de Confidencialidad (NDA)", "Manual de bienvenida"], 
-    c: 1 
-  },
-
-  // --- Políticas Internas ---
-  { 
-    p: "¿Qué es una Política de Uso Aceptable (AUP)?", 
-    o: ["Un documento que define cómo se deben usar los recursos informáticos", "Un software antivirus", "La lista de precios de la empresa"], 
-    c: 0 
-  },
-  { 
-    p: "¿Qué documento interno define las consecuencias de violar las normas de seguridad?", 
-    o: ["Política de Sanciones", "Inventario de Hardware", "Diagrama de Red"], 
-    c: 0 
-  },
-
-  // --- Gestión de Riesgos Legales ---
-  { 
-    p: "En gestión de riesgos legales, ¿qué es la 'debida diligencia' (due diligence)?", 
-    o: ["Ignorar los riesgos hasta que ocurra un problema", "Tomar medidas razonables para prevenir daños y cumplir leyes", "Contratar hackers para atacar a la competencia"], 
-    c: 1 
-  },
-  { 
-    p: "¿Qué consecuencia legal puede tener el uso de software pirata en una organización?", 
-    o: ["Multas por violación de derechos de autor (Propiedad Intelectual)", "Solo que la computadora sea lenta", "No tiene consecuencias legales"], 
-    c: 0 
-  },
-
-  // --- Brechas de Cumplimiento y Auditorías ---
-  { 
-    p: "¿Qué es una brecha de cumplimiento?", 
-    o: ["Un corte de energía eléctrica", "La diferencia entre lo que exige la ley y lo que realmente hace la empresa", "Un virus informático"], 
-    c: 1 
-  },
-  { 
-    p: "¿Cuál es el objetivo principal de una auditoría legal de TI?", 
-    o: ["Buscar culpables para despedirlos", "Verificar que los controles y procesos cumplan con la normativa vigente", "Aumentar la velocidad del internet"], 
-    c: 1 
-  },
-
-  // --- Sanciones y Responsabilidades ---
-  { 
-    p: "¿Quién es el responsable final de la seguridad de la información ante la ley?", 
-    o: ["El proveedor de internet", "El becario de sistemas", "La organización y sus representantes legales"], 
-    c: 2 
-  },
-  { 
-    p: "Las sanciones por incumplir la LFPDPPP pueden incluir:", 
-    o: ["Solo una amonestación verbal", "Multas económicas significativas y penas de prisión en casos graves", "Suspensión de la cuenta de Facebook"], 
-    c: 1 
-  }
+  { p: "¿Qué es la seguridad legal en TI?", o: ["Instalación de cámaras", "Cumplimiento de leyes y políticas", "Diseño de red"], c: 1 },
+  { p: "¿Cuál es la ley principal de datos personales en México?", o: ["LFT", "LFPDPPP", "NOM-035"], c: 1 },
+  { p: "Delito al acceder sin permiso a sistemas (Código Penal):", o: ["Acceso ilícito a sistemas", "Abuso de confianza", "Daño en propiedad"], c: 0 },
+  { p: "¿Qué documento protege la confidencialidad?", o: ["Contrato de renta", "NDA (Acuerdo de Confidencialidad)", "Manual de bienvenida"], c: 1 },
+  { p: "¿Qué es una Política de Uso Aceptable (AUP)?", o: ["Reglas de uso de recursos informáticos", "Un antivirus", "Lista de precios"], c: 0 },
+  { p: "¿Dónde se definen las consecuencias de violar normas?", o: ["Política de Sanciones", "Inventario", "Diagrama de Red"], c: 0 },
+  { p: "En riesgos legales, ¿qué es 'debida diligencia'?", o: ["Ignorar riesgos", "Medidas razonables para prevenir daños", "Contratar hackers"], c: 1 },
+  { p: "Consecuencia legal de usar software pirata:", o: ["Multas por Propiedad Intelectual", "Lentitud de PC", "Ninguna"], c: 0 },
+  { p: "¿Qué es una brecha de cumplimiento?", o: ["Corte de luz", "Diferencia entre ley y práctica real", "Virus"], c: 1 },
+  { p: "Objetivo de una auditoría legal TI:", o: ["Despedir gente", "Verificar cumplimiento normativo", "Mejorar internet"], c: 1 },
+  { p: "¿Quién es el responsable legal de la seguridad?", o: ["Proveedor de internet", "Becario", "La organización y representantes"], c: 2 },
+  { p: "Sanciones por incumplir LFPDPPP:", o: ["Amonestación verbal", "Multas millonarias y prisión", "Bloqueo de Facebook"], c: 1 }
 ];
 
-// Referencias al DOM
+// ==========================================
+// 3. LÓGICA DE LA APLICACIÓN
+// ==========================================
+
 const dom = {
   loginSection: document.getElementById("login"),
   examSection: document.getElementById("exam"),
@@ -96,75 +64,82 @@ document.addEventListener('DOMContentLoaded', () => {
   dom.btnEnviar.addEventListener('click', enviarExamen);
 });
 
-function iniciarSesion() {
+// Función ASÍNCRONA para verificar en la nube
+async function iniciarSesion() {
   const nombre = dom.nombreInput.value.trim();
   const control = dom.controlInput.value.trim();
 
-  // Validaciones
-  if (!nombre) {
-    mostrarError("Por favor, ingresa tu nombre completo.");
-    return;
-  }
-  
-  // Validación estricta: 8 dígitos numéricos
-  if (!/^\d{8}$/.test(control)) {
-    mostrarError("El número de control debe tener exactamente 8 dígitos.");
-    return;
-  }
+  // Validaciones locales
+  if (!nombre) return mostrarError("Ingresa tu nombre completo.");
+  if (!/^\d{8}$/.test(control)) return mostrarError("El número de control debe ser de 8 dígitos.");
 
-  // Verificar si ya presentó el examen
-  if (localStorage.getItem("examen_" + control)) {
-    mostrarError(`El usuario con control ${control} ya ha presentado el examen.`);
-    return;
+  // Feedback visual de "Cargando..."
+  const btnTextoOriginal = dom.btnLogin.innerText;
+  dom.btnLogin.innerText = "Verificando en la nube...";
+  dom.btnLogin.disabled = true;
+
+  try {
+    // 1. Consultar a Firebase si existe el documento con ID = numero de control
+    const docRef = doc(db, "resultados_examen", control);
+    const docSnap = await getDoc(docRef);
+
+    if (docSnap.exists()) {
+      // Si existe, ya presentó el examen
+      const datos = docSnap.data();
+      mostrarError(`El usuario ${control} ya presentó el examen el ${datos.fecha}.`);
+      dom.btnLogin.innerText = btnTextoOriginal;
+      dom.btnLogin.disabled = false;
+      return;
+    }
+
+    // 2. Si no existe, permitir acceso
+    dom.loginError.innerText = "";
+    dom.loginSection.classList.add("hidden");
+    dom.examSection.classList.remove("hidden");
+    dom.examSection.classList.add("fade-in");
+    
+    cargarPreguntas();
+
+  } catch (error) {
+    console.error("Error conectando a Firebase:", error);
+    mostrarError("Error de conexión. Intenta de nuevo.");
+    dom.btnLogin.innerText = btnTextoOriginal;
+    dom.btnLogin.disabled = false;
   }
-
-  // Transición a la siguiente pantalla
-  dom.loginError.innerText = ""; // Limpiar errores
-  dom.loginSection.classList.add("hidden");
-  dom.examSection.classList.remove("hidden");
-  dom.examSection.classList.add("fade-in");
-
-  cargarPreguntas();
 }
 
 function mostrarError(mensaje) {
   dom.loginError.innerText = mensaje;
-  // Pequeña animación de "sacudida" visual si se quisiera agregar en CSS
 }
 
 function cargarPreguntas() {
   dom.examForm.innerHTML = "";
-
   preguntas.forEach((q, index) => {
     const questionBlock = document.createElement("div");
     questionBlock.className = "question-block";
-
-    // Título de la pregunta
+    
     const title = document.createElement("span");
     title.className = "question-title";
     title.innerText = `${index + 1}. ${q.p}`;
     questionBlock.appendChild(title);
 
-    // Opciones
     q.o.forEach((opcion, opIndex) => {
       const label = document.createElement("label");
       label.className = "option-label";
-      
       const radio = document.createElement("input");
       radio.type = "radio";
       radio.name = `p${index}`;
       radio.value = opIndex;
-
       label.appendChild(radio);
       label.appendChild(document.createTextNode(opcion));
       questionBlock.appendChild(label);
     });
-
     dom.examForm.appendChild(questionBlock);
   });
 }
 
-function enviarExamen() {
+// Función ASÍNCRONA para guardar en la nube
+async function enviarExamen() {
   let aciertos = 0;
   let respondidas = 0;
 
@@ -176,32 +151,50 @@ function enviarExamen() {
     }
   });
 
-  // Validación opcional: Obligar a responder todas
   if (respondidas < preguntas.length) {
-    alert("Por favor, responde todas las preguntas antes de enviar.");
+    alert("Por favor responde todas las preguntas.");
     return;
   }
 
   const control = dom.controlInput.value.trim();
   const nombre = dom.nombreInput.value.trim();
+  const calificacion = (aciertos / preguntas.length) * 100;
 
-  // Guardar en LocalStorage
-  localStorage.setItem("examen_" + control, true);
+  // Feedback visual "Guardando..."
+  dom.btnEnviar.innerText = "Guardando resultados...";
+  dom.btnEnviar.disabled = true;
 
-  // Mostrar Resultados
-  dom.examSection.classList.add("hidden");
-  dom.resultSection.classList.remove("hidden");
-  dom.resultSection.classList.add("fade-in");
+  try {
+    // GUARDAR EN FIREBASE
+    // Creamos un documento en la colección "resultados_examen" con el ID del control
+    await setDoc(doc(db, "resultados_examen", control), {
+      nombre: nombre,
+      control: control,
+      aciertos: aciertos,
+      total: preguntas.length,
+      calificacion: calificacion.toFixed(2),
+      fecha: new Date().toLocaleString()
+    });
 
-  dom.userGreeting.innerText = `Evaluación completada por: ${nombre}`;
-  dom.scoreDisplay.innerText = `${aciertos}/${preguntas.length}`;
-  
-  // Mensaje de retroalimentación
-  const porcentaje = (aciertos / preguntas.length) * 100;
-  let mensaje = "";
-  if (porcentaje === 100) mensaje = "¡Excelente! Dominio total del tema.";
-  else if (porcentaje >= 70) mensaje = "Buen trabajo. Cumplimiento aceptable.";
-  else mensaje = "Se recomienda repasar los protocolos de seguridad.";
-  
-  dom.scoreMessage.innerText = mensaje;
+    // Mostrar resultados
+    dom.examSection.classList.add("hidden");
+    dom.resultSection.classList.remove("hidden");
+    dom.resultSection.classList.add("fade-in");
+
+    dom.userGreeting.innerText = `Evaluación completada por: ${nombre}`;
+    dom.scoreDisplay.innerText = `${aciertos}/${preguntas.length}`;
+    
+    let mensaje = "";
+    if (calificacion === 100) mensaje = "¡Excelente! Dominio total.";
+    else if (calificacion >= 70) mensaje = "Aprobado. Buen trabajo.";
+    else mensaje = "Reprobado. Se requiere repaso.";
+    
+    dom.scoreMessage.innerText = mensaje;
+
+  } catch (error) {
+    console.error("Error guardando:", error);
+    alert("Hubo un error al guardar tu calificación. Por favor avisa al instructor.");
+    dom.btnEnviar.innerText = "Reintentar envío";
+    dom.btnEnviar.disabled = false;
+  }
 }
