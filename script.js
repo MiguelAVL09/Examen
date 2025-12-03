@@ -45,19 +45,100 @@ document.addEventListener("visibilitychange", () => {
 // ==========================================
 // 3. DATOS DEL EXAMEN
 // ==========================================
+// ==========================================
+// 3. DATOS DEL EXAMEN (Basado en la Presentación)
+// ==========================================
 const preguntas = [
-  { p: "¿Qué es la seguridad legal en TI?", o: ["Instalación de cámaras", "Cumplimiento de leyes y políticas", "Diseño de red"], c: 1 },
-  { p: "¿Cuál es la ley principal de datos personales en México?", o: ["LFT", "LFPDPPP", "NOM-035"], c: 1 },
-  { p: "Delito al acceder sin permiso a sistemas (Código Penal):", o: ["Acceso ilícito a sistemas", "Abuso de confianza", "Daño en propiedad"], c: 0 },
-  { p: "¿Qué documento protege la confidencialidad?", o: ["Contrato de renta", "NDA (Acuerdo de Confidencialidad)", "Manual de bienvenida"], c: 1 },
-  { p: "¿Qué es una Política de Uso Aceptable (AUP)?", o: ["Reglas de uso", "Un antivirus", "Lista de precios"], c: 0 },
-  { p: "¿Dónde se definen las consecuencias de violar normas?", o: ["Política de Sanciones", "Inventario", "Diagrama de Red"], c: 0 },
-  { p: "En riesgos legales, ¿qué es 'debida diligencia'?", o: ["Ignorar riesgos", "Medidas razonables para prevenir daños", "Contratar hackers"], c: 1 },
-  { p: "Consecuencia legal de usar software pirata:", o: ["Multas por Propiedad Intelectual", "Lentitud de PC", "Ninguna"], c: 0 },
-  { p: "¿Qué es una brecha de cumplimiento?", o: ["Corte de luz", "Diferencia entre ley y práctica", "Virus"], c: 1 },
-  { p: "Objetivo de una auditoría legal TI:", o: ["Despedir gente", "Verificar cumplimiento", "Mejorar internet"], c: 1 },
-  { p: "¿Quién es el responsable legal de la seguridad?", o: ["Proveedor", "Becario", "Organización y representantes"], c: 2 },
-  { p: "Sanciones por incumplir LFPDPPP:", o: ["Amonestación", "Multas y prisión", "Bloqueo de red"], c: 1 }
+  { 
+    p: "¿Cuál es el objetivo principal de la Seguridad Legal en TI?", 
+    o: ["Instalar antivirus en todos los equipos", "Garantizar el cumplimiento de leyes y proteger la información", "Crear manuales técnicos para ingenieros"], 
+    c: 1 
+    // Fuente: Diapositiva 2 - "Garantizan que una organización cumpla con la legislación..." [cite: 20]
+  },
+  { 
+    p: "¿Qué ley federal obliga a los particulares (empresas) a proteger los datos personales?", 
+    o: ["Ley Federal del Trabajo", "LFPDPPP", "Código Civil"], 
+    c: 1 
+    // Fuente: Diapositiva 4 - "Ley Federal de Protección de Datos Personales en Posesión de los Particulares" [cite: 42]
+  },
+  { 
+    p: "Según el Código Penal Federal, ¿qué agrava la pena por acceso ilícito a sistemas?", 
+    o: ["Que se haga de noche", "Que se roben mucho dinero", "Que el delito lo cometa el administrador o encargado de seguridad"], 
+    c: 2 
+    // Fuente: Diapositiva 24 del PDF 2 - "Si el delito lo comete el encargado... la pena aumenta" 
+  },
+  { 
+    p: "¿Qué derechos regula la LFPDPPP para el titular de los datos?", 
+    o: ["Derechos ARCO (Acceso, Rectificación, Cancelación, Oposición)", "Derechos HUMANOS", "Derechos de Autor"], 
+    c: 0 
+    // Fuente: Diapositiva 4 - "Regula el ejercicio de los derechos ARCO" [cite: 49]
+  },
+  { 
+    p: "Legalmente, ¿para qué sirven las políticas internas ante un incidente de seguridad?", 
+    o: ["Para nada, son solo papel", "Para demostrar 'Debida Diligencia'", "Para cobrar más al cliente"], 
+    c: 1 
+    // Fuente: Diapositiva 13 - "Su función legal es demostrar la Debida Diligencia" [cite: 192]
+  },
+  { 
+    p: "¿Qué institución sanciona el uso de software pirata (propiedad intelectual) en México?", 
+    o: ["IMPI (Instituto Mexicano de la Propiedad Industrial)", "SAT", "Secretaría de Salud"], 
+    c: 0 
+    // Fuente: Diapositiva 25 del PDF 2 - "El IMPI puede imponer multas enormes" 
+  },
+  { 
+    p: "¿Cuál es la diferencia entre una Política de Seguridad y un Código de Conducta?", 
+    o: ["No hay diferencia", "La política es técnica (regla dura) y el código es ético (comportamiento)", "El código es opcional y la política no"], 
+    c: 1 
+    // Fuente: Diapositiva 5 del PDF 2 - Comparativa Política Técnica vs Conducta Humana [cite: 446-449]
+  },
+  { 
+    p: "¿Qué regula la NOM-151-SCFI-2016?", 
+    o: ["La seguridad en los hospitales", "La conservación de mensajes de datos y firmas electrónicas", "El uso de extintores en site"], 
+    c: 1 
+    // Fuente: Diapositiva 10 - "Regula la conservación de mensajes de datos..." [cite: 145]
+  },
+  { 
+    p: "¿Qué es un 'Gap Analysis' en una auditoría de cumplimiento?", 
+    o: ["Comparar las políticas internas vs. la legislación vigente", "Revisar si hay virus en la red", "Analizar el presupuesto anual"], 
+    c: 0 
+    // Fuente: Diapositiva 12 del PDF 2 - "Auditoría de Políticas vs. Ley (Gap Analysis)" [cite: 555]
+  },
+  { 
+    p: "¿Qué institución impone las multas por incumplir la protección de datos (LFPDPPP)?", 
+    o: ["La Policía Federal", "El INAI", "La PROFECO"], 
+    c: 1 
+    // Fuente: Diapositiva 23 del PDF 2 - "¿Quién multa?: El INAI" 
+  },
+  { 
+    p: "¿Qué significa la 'Cancelación' dentro de los derechos ARCO?", 
+    o: ["Borrar el dato inmediatamente sin rastro", "Un 'borrado seguro' tras un periodo de bloqueo legal", "Cancelar la suscripción al servicio"], 
+    c: 1 
+    // Fuente: Diapositiva 22 del PDF 2 - "Exige un protocolo de borrado seguro... tras periodo de bloqueo" [cite: 682]
+  },
+  { 
+    p: "En gestión de riesgos legales, ¿cuál es una prioridad inmediata?", 
+    o: ["Brechas de mejores prácticas", "Impacto Legal Alto (Riesgo de Multa o Sanción)", "Actualizar el color del logo"], 
+    c: 1 
+    // Fuente: Diapositiva 16 del PDF 2 - "Prioridad inmediata: Impacto Legal Alto" [cite: 606]
+  },
+  { 
+    p: "¿Qué estándar internacional sirve de referencia para gestionar la seguridad (SGSI)?", 
+    o: ["ISO 9001", "ISO 27001", "NOM-035"], 
+    c: 1 
+    // Fuente: Diapositiva 11 - "ISO/IEC 27001 Estándar internacional..." [cite: 160]
+  },
+  { 
+    p: "Según la Ley Federal del Trabajo, el patrón puede sancionar al empleado por:", 
+    o: ["Llegar despeinado", "Divulgar secretos industriales o información confidencial", "Usar su propio celular en el descanso"], 
+    c: 1 
+    // Fuente: Diapositiva 8 - "Sancionar empleados que divulguen secretos industriales" [cite: 116]
+  },
+  { 
+    p: "¿Qué es la 'Integridad' en el Código de Conducta Digital?", 
+    o: ["No usar habilidades técnicas o accesos para beneficio personal/dañar", "Que los datos no se borren", "Tener respaldos completos"], 
+    c: 0 
+    // Fuente: Diapositiva 4 del PDF 2 - "No utilizar habilidades técnicas... para beneficio personal" [cite: 438]
+  }
 ];
 
 // ==========================================
