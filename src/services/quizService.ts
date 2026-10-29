@@ -17,7 +17,7 @@ export const DEFAULT_QUIZZES: Quiz[] = [
     isPublished: true,
     questions: [
       {
-        id: 'q-1793237314249-1',
+        id: '6eceecf4-9d8b-4bf3-9e3d-c70d746158d5',
         questionText: '¿Qué porcentaje de puntos se gana con cada uno de los niveles?',
         timeLimit: 20,
         pointsMultiplier: 1.0,
@@ -25,7 +25,7 @@ export const DEFAULT_QUIZZES: Quiz[] = [
         imageUrl: '',
         options: [
           {
-            id: 'opt-1',
+            id: '9bf02723-0657-4baa-a071-e51bc16203a3',
             text: 'Fan 5%, Fanático 8% y Superfanático 10%',
             isCorrect: false,
             color: 'red',
@@ -33,7 +33,7 @@ export const DEFAULT_QUIZZES: Quiz[] = [
             orderIndex: 0,
           },
           {
-            id: 'opt-2',
+            id: '37f36090-2271-4dfd-872f-c874e7de9f97',
             text: 'Fan 5%, Fanático 10% y SuperFanático 10%',
             isCorrect: true,
             color: 'blue',
@@ -41,7 +41,7 @@ export const DEFAULT_QUIZZES: Quiz[] = [
             orderIndex: 1,
           },
           {
-            id: 'opt-3',
+            id: '36ca77c8-472d-46bd-b9f1-57634f705bc6',
             text: 'Fan 3%, Fanático 6% y SuperFanático 10%',
             isCorrect: false,
             color: 'yellow',
@@ -49,7 +49,7 @@ export const DEFAULT_QUIZZES: Quiz[] = [
             orderIndex: 2,
           },
           {
-            id: 'opt-4',
+            id: '9706e1f9-4280-46fa-b50b-9bc2b21296c4',
             text: 'Fan 2%, Fanático 6% y SuperFanático 12%',
             isCorrect: false,
             color: 'green',
@@ -62,6 +62,44 @@ export const DEFAULT_QUIZZES: Quiz[] = [
   },
 ];
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export const generateUUID = (id?: string): string => {
+  if (id && UUID_REGEX.test(id)) {
+    return id;
+  }
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+};
+
+export const sanitizeQuizForStorage = (quiz: Quiz): Quiz => {
+  const quizId = generateUUID(quiz.id);
+  return {
+    ...quiz,
+    id: quizId,
+    questions: (quiz.questions || []).map((ques, qIdx) => {
+      const quesId = generateUUID(ques.id);
+      return {
+        ...ques,
+        id: quesId,
+        quizId: quizId,
+        orderIndex: qIdx,
+        options: (ques.options || []).map((opt, oIdx) => ({
+          ...opt,
+          id: generateUUID(opt.id),
+          orderIndex: opt.orderIndex ?? oIdx,
+        })),
+      };
+    }),
+  };
+};
+
 // Helper para inicializar LocalStorage de forma segura preservando cuestionarios creados
 const initializeLocalQuizzes = (): Quiz[] => {
   const stored = localStorage.getItem(LOCAL_STORAGE_QUIZZES_KEY);
@@ -72,8 +110,9 @@ const initializeLocalQuizzes = (): Quiz[] => {
       try {
         const parsedV1 = JSON.parse(storedV1);
         if (Array.isArray(parsedV1) && parsedV1.length > 0) {
-          localStorage.setItem(LOCAL_STORAGE_QUIZZES_KEY, JSON.stringify(parsedV1));
-          return parsedV1;
+          const sanitized = parsedV1.map(q => sanitizeQuizForStorage(q));
+          localStorage.setItem(LOCAL_STORAGE_QUIZZES_KEY, JSON.stringify(sanitized));
+          return sanitized;
         }
       } catch {}
     }
@@ -96,7 +135,7 @@ const initializeLocalQuizzes = (): Quiz[] => {
         localStorage.setItem(LOCAL_STORAGE_QUIZZES_KEY, JSON.stringify(DEFAULT_QUIZZES));
         return DEFAULT_QUIZZES;
       }
-      return parsed;
+      return parsed.map(q => sanitizeQuizForStorage(q));
     }
     return DEFAULT_QUIZZES;
   } catch {
@@ -106,6 +145,8 @@ const initializeLocalQuizzes = (): Quiz[] => {
 
 export const quizService = {
   async getQuizzes(): Promise<Quiz[]> {
+    const localQuizzes = initializeLocalQuizzes();
+
     if (isSupabaseConfigured() && supabase) {
       try {
         const { data: quizzesData, error: qError } = await supabase
@@ -115,7 +156,7 @@ export const quizService = {
 
         if (qError) throw qError;
         if (quizzesData && quizzesData.length > 0) {
-          const quizzesWithQuestions: Quiz[] = await Promise.all(
+          const remoteQuizzes: Quiz[] = await Promise.all(
             quizzesData.map(async q => {
               const { data: questionsData } = await supabase!
                 .from('questions')
@@ -154,14 +195,34 @@ export const quizService = {
               };
             })
           );
-          localStorage.setItem(LOCAL_STORAGE_QUIZZES_KEY, JSON.stringify(quizzesWithQuestions));
-          return quizzesWithQuestions;
+
+          // Fusión inteligente: nunca permitir que datos remotos obsoletos
+          // sobreescriban una versión local que tenga más preguntas
+          const merged = remoteQuizzes.map(remoteQ => {
+            const matchingLocal = localQuizzes.find(
+              lq => lq.id === remoteQ.id || (lq.title && lq.title.trim().toLowerCase() === remoteQ.title.trim().toLowerCase())
+            );
+            if (matchingLocal && (matchingLocal.questions?.length || 0) > (remoteQ.questions?.length || 0)) {
+              return matchingLocal;
+            }
+            return remoteQ;
+          });
+
+          // Preservar cuestionarios locales que aún no estén en Supabase
+          localQuizzes.forEach(lq => {
+            if (!merged.some(mq => mq.id === lq.id || (mq.title && mq.title.trim().toLowerCase() === lq.title.trim().toLowerCase()))) {
+              merged.push(lq);
+            }
+          });
+
+          localStorage.setItem(LOCAL_STORAGE_QUIZZES_KEY, JSON.stringify(merged));
+          return merged;
         }
       } catch (err) {
         console.warn('Fallo al conectar con Supabase para quizzes, usando fallback local:', err);
       }
     }
-    return initializeLocalQuizzes();
+    return localQuizzes;
   },
 
   async getQuizById(id: string): Promise<Quiz | null> {
@@ -169,37 +230,51 @@ export const quizService = {
     return quizzes.find(q => q.id === id) || null;
   },
 
-  async saveQuiz(quiz: Quiz): Promise<Quiz> {
+  async saveQuiz(rawQuiz: Quiz): Promise<Quiz> {
+    const quizToSave = sanitizeQuizForStorage(rawQuiz);
+    const now = new Date().toISOString();
+    quizToSave.updatedAt = now;
+
+    // 1. Guardar primero en LocalStorage para garantizar que NUNCA se pierdan los datos
     const current = initializeLocalQuizzes();
-    const idx = current.findIndex(q => q.id === quiz.id);
+    const idx = current.findIndex(
+      q => q.id === quizToSave.id || (q.title && q.title.trim().toLowerCase() === quizToSave.title.trim().toLowerCase())
+    );
     let updatedQuizzes: Quiz[];
     if (idx >= 0) {
       updatedQuizzes = [...current];
-      updatedQuizzes[idx] = { ...quiz, updatedAt: new Date().toISOString() };
+      updatedQuizzes[idx] = quizToSave;
     } else {
-      updatedQuizzes = [{ ...quiz, createdAt: new Date().toISOString() }, ...current];
+      updatedQuizzes = [quizToSave, ...current];
     }
     localStorage.setItem(LOCAL_STORAGE_QUIZZES_KEY, JSON.stringify(updatedQuizzes));
 
+    // 2. Sincronizar de forma atómica y limpia con Supabase
     if (isSupabaseConfigured() && supabase) {
       try {
         const { error: upsertError } = await supabase.from('quizzes').upsert({
-          id: quiz.id,
-          title: quiz.title,
-          description: quiz.description,
-          cover_image: quiz.coverImage,
-          category: quiz.category,
-          time_per_question: quiz.timePerQuestion || 20,
-          is_published: quiz.isPublished ?? true,
-          updated_at: new Date().toISOString(),
+          id: quizToSave.id,
+          title: quizToSave.title,
+          description: quizToSave.description || '',
+          cover_image: quizToSave.coverImage || '',
+          category: quizToSave.category || 'General',
+          time_per_question: quizToSave.timePerQuestion || 20,
+          is_published: quizToSave.isPublished ?? true,
+          updated_at: now,
         });
-        if (upsertError) throw upsertError;
+        if (upsertError) {
+          console.error('Error al guardar quiz en Supabase:', upsertError);
+          throw upsertError;
+        }
 
-        for (let i = 0; i < quiz.questions.length; i++) {
-          const ques = quiz.questions[i];
-          const { error: qError } = await supabase.from('questions').upsert({
+        // Limpiar preguntas previas de este quiz antes de reinsertar para sincronización limpia
+        await supabase.from('questions').delete().eq('quiz_id', quizToSave.id);
+
+        for (let i = 0; i < quizToSave.questions.length; i++) {
+          const ques = quizToSave.questions[i];
+          const { error: qError } = await supabase.from('questions').insert({
             id: ques.id,
-            quiz_id: quiz.id,
+            quiz_id: quizToSave.id,
             question_text: ques.questionText,
             image_url: ques.imageUrl || '',
             time_limit: ques.timeLimit || 20,
@@ -209,11 +284,13 @@ export const quizService = {
             accepted_answers: ques.acceptedAnswers || null,
             order_index: i,
           });
-          if (qError) throw qError;
+          if (qError) {
+            console.error('Error al insertar pregunta en Supabase:', qError);
+            throw qError;
+          }
 
-          for (let j = 0; j < ques.options.length; j++) {
-            const opt = ques.options[j];
-            await supabase.from('question_options').upsert({
+          if (ques.options && ques.options.length > 0) {
+            const optionsToInsert = ques.options.map((opt, j) => ({
               id: opt.id,
               question_id: ques.id,
               option_text: opt.text,
@@ -221,15 +298,20 @@ export const quizService = {
               color: opt.color,
               shape: opt.shape,
               order_index: opt.orderIndex ?? j,
-            });
+            }));
+            const { error: optError } = await supabase.from('question_options').insert(optionsToInsert);
+            if (optError) {
+              console.error('Error al insertar opciones en Supabase:', optError);
+              throw optError;
+            }
           }
         }
-      } catch (err) {
-        console.warn('No se pudo sincronizar el quiz con Supabase:', err);
+      } catch (err: any) {
+        console.warn('Advertencia de sincronización en Supabase (datos protegidos en local):', err);
       }
     }
 
-    return quiz;
+    return quizToSave;
   },
 
   async deleteQuiz(id: string): Promise<boolean> {

@@ -29,7 +29,7 @@ import {
   Files
 } from 'lucide-react';
 import type { Participant, Quiz, Question, QuestionType } from '../types/quiz';
-import { quizService } from '../services/quizService';
+import { quizService, generateUUID } from '../services/quizService';
 import { isSupabaseConfigured } from '../services/supabaseClient';
 import { processImageUpload, PRESET_IMAGES } from '../utils/imageUtils';
 import { KahootShapeIcon } from './KahootShapes';
@@ -58,6 +58,22 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
 
   const [isEditorOpen, setIsEditorOpen] = useState<boolean>(false);
   const [editingQuiz, setEditingQuiz] = useState<Quiz | null>(null);
+  const [isSavingQuiz, setIsSavingQuiz] = useState<boolean>(false);
+  const [savedDraft, setSavedDraft] = useState<Quiz | null>(() => {
+    try {
+      const d = localStorage.getItem('kahoot_editor_draft');
+      return d ? JSON.parse(d) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  // Guardar borrador en tiempo real mientras el admin edita para evitar pérdidas accidentales
+  useEffect(() => {
+    if (editingQuiz && isEditorOpen) {
+      localStorage.setItem('kahoot_editor_draft', JSON.stringify(editingQuiz));
+    }
+  }, [editingQuiz, isEditorOpen]);
 
   // Hidden file input refs
   const fileInputRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
@@ -163,7 +179,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
   const handleDuplicateQuiz = async (quiz: Quiz) => {
     const duplicated: Quiz = {
       ...JSON.parse(JSON.stringify(quiz)),
-      id: 'quiz-' + Date.now(),
+      id: generateUUID(),
       title: `${quiz.title} (Copia)`,
       createdAt: new Date().toISOString(),
     };
@@ -231,25 +247,25 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
 
     if (newType === 'multiple_choice') {
       ques.options = [
-        { id: 'opt-' + Date.now() + '-1', text: ques.options[0]?.text || '', isCorrect: true, color: 'red', shape: 'triangle' },
-        { id: 'opt-' + Date.now() + '-2', text: ques.options[1]?.text || '', isCorrect: false, color: 'blue', shape: 'diamond' },
-        { id: 'opt-' + Date.now() + '-3', text: ques.options[2]?.text || '', isCorrect: false, color: 'yellow', shape: 'circle' },
-        { id: 'opt-' + Date.now() + '-4', text: ques.options[3]?.text || '', isCorrect: false, color: 'green', shape: 'square' },
+        { id: generateUUID(), text: ques.options[0]?.text || '', isCorrect: true, color: 'red', shape: 'triangle', orderIndex: 0 },
+        { id: generateUUID(), text: ques.options[1]?.text || '', isCorrect: false, color: 'blue', shape: 'diamond', orderIndex: 1 },
+        { id: generateUUID(), text: ques.options[2]?.text || '', isCorrect: false, color: 'yellow', shape: 'circle', orderIndex: 2 },
+        { id: generateUUID(), text: ques.options[3]?.text || '', isCorrect: false, color: 'green', shape: 'square', orderIndex: 3 },
       ];
       ques.correctOrder = undefined;
       ques.acceptedAnswers = undefined;
     } else if (newType === 'true_false') {
       ques.options = [
-        { id: 'tf-' + Date.now() + '-1', text: 'VERDADERO', isCorrect: true, color: 'blue', shape: 'diamond' },
-        { id: 'tf-' + Date.now() + '-2', text: 'FALSO', isCorrect: false, color: 'red', shape: 'triangle' },
+        { id: generateUUID(), text: 'VERDADERO', isCorrect: true, color: 'blue', shape: 'diamond', orderIndex: 0 },
+        { id: generateUUID(), text: 'FALSO', isCorrect: false, color: 'red', shape: 'triangle', orderIndex: 1 },
       ];
       ques.correctOrder = undefined;
       ques.acceptedAnswers = undefined;
     } else if (newType === 'puzzle') {
-      const puz1 = 'puz-' + Date.now() + '-1';
-      const puz2 = 'puz-' + Date.now() + '-2';
-      const puz3 = 'puz-' + Date.now() + '-3';
-      const puz4 = 'puz-' + Date.now() + '-4';
+      const puz1 = generateUUID();
+      const puz2 = generateUUID();
+      const puz3 = generateUUID();
+      const puz4 = generateUUID();
       ques.options = [
         { id: puz1, text: 'Paso 1 (Primero)', isCorrect: true, color: 'red', shape: 'triangle', orderIndex: 0 },
         { id: puz2, text: 'Paso 2 (Segundo)', isCorrect: true, color: 'blue', shape: 'diamond', orderIndex: 1 },
@@ -656,8 +672,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
               {/* Crear Cuestionario */}
               <button
                 onClick={() => {
+                  const newQuizId = generateUUID();
+                  const firstQuesId = generateUUID();
                   setEditingQuiz({
-                    id: 'quiz-' + Date.now(),
+                    id: newQuizId,
                     title: '',
                     description: '',
                     category: 'General',
@@ -667,16 +685,17 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                     isPublished: true,
                     questions: [
                       {
-                        id: 'q-' + Date.now() + '-1',
+                        id: firstQuesId,
+                        quizId: newQuizId,
                         questionText: '',
                         timeLimit: 20,
                         pointsMultiplier: 1.0,
                         questionType: 'multiple_choice',
                         options: [
-                          { id: 'opt-1', text: '', isCorrect: true, color: 'red', shape: 'triangle' },
-                          { id: 'opt-2', text: '', isCorrect: false, color: 'blue', shape: 'diamond' },
-                          { id: 'opt-3', text: '', isCorrect: false, color: 'yellow', shape: 'circle' },
-                          { id: 'opt-4', text: '', isCorrect: false, color: 'green', shape: 'square' },
+                          { id: generateUUID(), text: '', isCorrect: true, color: 'red', shape: 'triangle', orderIndex: 0 },
+                          { id: generateUUID(), text: '', isCorrect: false, color: 'blue', shape: 'diamond', orderIndex: 1 },
+                          { id: generateUUID(), text: '', isCorrect: false, color: 'yellow', shape: 'circle', orderIndex: 2 },
+                          { id: generateUUID(), text: '', isCorrect: false, color: 'green', shape: 'square', orderIndex: 3 },
                         ],
                       },
                     ],
@@ -700,6 +719,42 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
             >
               <CheckCircle2 className="w-4 h-4" />
               <span>{jsonBackupStatus}</span>
+            </motion.div>
+          )}
+
+          {/* Draft recovery banner */}
+          {savedDraft && !isEditorOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-4 bg-amber-500/20 border border-amber-500/40 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 text-amber-200"
+            >
+              <div className="flex items-center gap-2">
+                <FileUp className="w-5 h-5 text-amber-300" />
+                <span className="text-xs font-bold">
+                  Hay un borrador autoguardado de <strong>"{savedDraft.title || 'Sin título'}"</strong> con {savedDraft.questions?.length || 0} pregunta(s).
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setEditingQuiz(savedDraft);
+                    setIsEditorOpen(true);
+                  }}
+                  className="px-3 py-1.5 bg-amber-400 text-black font-black text-xs uppercase rounded-xl hover:bg-amber-300 transition"
+                >
+                  Recuperar Borrador
+                </button>
+                <button
+                  onClick={() => {
+                    localStorage.removeItem('kahoot_editor_draft');
+                    setSavedDraft(null);
+                  }}
+                  className="px-3 py-1.5 bg-white/10 text-white/70 font-bold text-xs rounded-xl hover:bg-white/20 transition"
+                >
+                  Descartar
+                </button>
+              </div>
             </motion.div>
           )}
 
@@ -997,17 +1052,19 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
 
                   <button
                     onClick={() => {
+                      const newQId = generateUUID();
                       const newQuestion: Question = {
-                        id: 'q-' + Date.now(),
+                        id: newQId,
+                        quizId: editingQuiz.id,
                         questionText: '',
                         timeLimit: 20,
                         pointsMultiplier: 1.0,
                         questionType: 'multiple_choice',
                         options: [
-                          { id: 'opt-' + Date.now() + '-1', text: '', isCorrect: true, color: 'red', shape: 'triangle' },
-                          { id: 'opt-' + Date.now() + '-2', text: '', isCorrect: false, color: 'blue', shape: 'diamond' },
-                          { id: 'opt-' + Date.now() + '-3', text: '', isCorrect: false, color: 'yellow', shape: 'circle' },
-                          { id: 'opt-' + Date.now() + '-4', text: '', isCorrect: false, color: 'green', shape: 'square' },
+                          { id: generateUUID(), text: '', isCorrect: true, color: 'red', shape: 'triangle', orderIndex: 0 },
+                          { id: generateUUID(), text: '', isCorrect: false, color: 'blue', shape: 'diamond', orderIndex: 1 },
+                          { id: generateUUID(), text: '', isCorrect: false, color: 'yellow', shape: 'circle', orderIndex: 2 },
+                          { id: generateUUID(), text: '', isCorrect: false, color: 'green', shape: 'square', orderIndex: 3 },
                         ],
                       };
                       setEditingQuiz({
@@ -1456,18 +1513,50 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                   Cancelar
                 </button>
                 <button
+                  disabled={isSavingQuiz}
                   onClick={async () => {
                     if (!editingQuiz.title.trim()) {
                       alert('Por favor ingresa un título para el cuestionario.');
                       return;
                     }
-                    await quizService.saveQuiz(editingQuiz);
-                    setIsEditorOpen(false);
-                    await loadData();
+                    // Validar que ninguna pregunta esté vacía
+                    for (let i = 0; i < editingQuiz.questions.length; i++) {
+                      if (!editingQuiz.questions[i].questionText.trim()) {
+                        alert(`La Pregunta #${i + 1} no tiene texto. Por favor escribe el enunciado de la pregunta.`);
+                        return;
+                      }
+                    }
+
+                    setIsSavingQuiz(true);
+                    try {
+                      const saved = await quizService.saveQuiz(editingQuiz);
+                      localStorage.removeItem('kahoot_editor_draft');
+                      setSavedDraft(null);
+                      setIsEditorOpen(false);
+                      await loadData();
+                      setJsonBackupStatus(`¡Cuestionario "${saved.title}" guardado exitosamente con ${saved.questions.length} pregunta(s)!`);
+                      setTimeout(() => setJsonBackupStatus(''), 5000);
+                    } catch (err: any) {
+                      console.error('Error al guardar:', err);
+                      alert('Error al guardar el cuestionario: ' + (err.message || 'Error desconocido'));
+                    } finally {
+                      setIsSavingQuiz(false);
+                    }
                   }}
-                  className="px-6 py-3 rounded-xl bg-kahoot-yellow hover:bg-amber-400 text-black font-black uppercase text-sm shadow-xl active:scale-95 transition"
+                  className={`px-6 py-3 rounded-xl font-black uppercase text-sm shadow-xl transition flex items-center gap-2 ${
+                    isSavingQuiz
+                      ? 'bg-amber-300 text-black cursor-not-allowed opacity-80'
+                      : 'bg-kahoot-yellow hover:bg-amber-400 text-black active:scale-95'
+                  }`}
                 >
-                  Guardar Cuestionario
+                  {isSavingQuiz ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Guardando ({editingQuiz.questions.length} preguntas)...</span>
+                    </>
+                  ) : (
+                    <span>Guardar Cuestionario ({editingQuiz.questions.length})</span>
+                  )}
                 </button>
               </div>
             </motion.div>
