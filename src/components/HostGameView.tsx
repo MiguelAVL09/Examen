@@ -243,11 +243,11 @@ export const HostGameView: React.FC<HostGameViewProps> = ({
             </h2>
 
             {currentQuestion.imageUrl && (
-              <div className="mt-4 max-h-56 rounded-2xl overflow-hidden shadow-md">
+              <div className="mt-4 max-h-60 sm:max-h-72 rounded-2xl overflow-hidden shadow-xl border-4 border-white/80 bg-black/10">
                 <img
                   src={currentQuestion.imageUrl}
                   alt="Pregunta"
-                  className="w-full h-full object-cover max-w-md mx-auto"
+                  className="w-full h-full object-contain max-w-lg mx-auto"
                 />
               </div>
             )}

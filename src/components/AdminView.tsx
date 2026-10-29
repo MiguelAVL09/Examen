@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Shield,
@@ -19,11 +19,17 @@ import {
   HelpCircle,
   CheckSquare,
   Shuffle,
-  Keyboard
+  Keyboard,
+  Image as ImageIcon,
+  Upload,
+  X,
+  Link as LinkIcon,
+  Sparkles
 } from 'lucide-react';
 import type { Participant, Quiz, Question, QuestionType } from '../types/quiz';
 import { quizService } from '../services/quizService';
 import { isSupabaseConfigured } from '../services/supabaseClient';
+import { processImageUpload, PRESET_IMAGES } from '../utils/imageUtils';
 import { KahootShapeIcon } from './KahootShapes';
 
 interface AdminViewProps {
@@ -48,6 +54,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
 
   const [isEditorOpen, setIsEditorOpen] = useState<boolean>(false);
   const [editingQuiz, setEditingQuiz] = useState<Quiz | null>(null);
+
+  // Hidden file input ref per question
+  const fileInputRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
 
   const loadData = async () => {
     setIsLoading(true);
@@ -137,7 +146,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
     }
   };
 
-  // Helper to change question type and reconfigure template options
   const handleQuestionTypeChange = (qIdx: number, newType: QuestionType) => {
     if (!editingQuiz) return;
     const updated = [...editingQuiz.questions];
@@ -166,7 +174,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
       const puz3 = 'puz-' + Date.now() + '-3';
       const puz4 = 'puz-' + Date.now() + '-4';
       ques.options = [
-        { id: puz1, text: 'Paso 1 (Primero en la secuencia)', isCorrect: true, color: 'red', shape: 'triangle', orderIndex: 0 },
+        { id: puz1, text: 'Paso 1 (Primero)', isCorrect: true, color: 'red', shape: 'triangle', orderIndex: 0 },
         { id: puz2, text: 'Paso 2 (Segundo)', isCorrect: true, color: 'blue', shape: 'diamond', orderIndex: 1 },
         { id: puz3, text: 'Paso 3 (Tercero)', isCorrect: true, color: 'yellow', shape: 'circle', orderIndex: 2 },
         { id: puz4, text: 'Paso 4 (Último)', isCorrect: true, color: 'green', shape: 'square', orderIndex: 3 },
@@ -180,6 +188,30 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
     }
 
     setEditingQuiz({ ...editingQuiz, questions: updated });
+  };
+
+  // Image Upload Handler for Question
+  const handleImageFileChange = async (qIdx: number, file: File | null) => {
+    if (!file || !editingQuiz) return;
+    try {
+      const compressedDataUrl = await processImageUpload(file);
+      const updated = [...editingQuiz.questions];
+      updated[qIdx].imageUrl = compressedDataUrl;
+      setEditingQuiz({ ...editingQuiz, questions: updated });
+    } catch (err: any) {
+      alert(err.message || 'Error al procesar la imagen.');
+    }
+  };
+
+  // Quiz Cover Image Upload Handler
+  const handleCoverImageChange = async (file: File | null) => {
+    if (!file || !editingQuiz) return;
+    try {
+      const compressedDataUrl = await processImageUpload(file, 900, 500);
+      setEditingQuiz({ ...editingQuiz, coverImage: compressedDataUrl });
+    } catch (err: any) {
+      alert(err.message || 'Error al procesar la imagen.');
+    }
   };
 
   const filteredRankings = rankings.filter(p =>
@@ -260,7 +292,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
             </h1>
           </div>
           <p className="text-white/70 font-semibold mt-1">
-            Visualización privada de rankings, métricas de participantes y creador con soporte para múltiples tipos de preguntas (Opción Múltiple, Verdadero/Falso, Puzzle, Escribir Respuesta).
+            Visualización de rankings, métricas de participantes y creador con soporte para imágenes y múltiples tipos de preguntas.
           </p>
         </div>
 
@@ -706,7 +738,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                     {editingQuiz.title ? 'Editar Cuestionario' : 'Nuevo Cuestionario'}
                   </h3>
                   <span className="text-xs text-white/60 font-semibold">
-                    Configura preguntas interactivas con diferentes tipos: opción múltiple, verdadero/falso, puzzles y escritura.
+                    Personaliza preguntas con imágenes subidas desde tu PC, enlaces web o galería rápida.
                   </span>
                 </div>
                 <button
@@ -758,21 +790,71 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                   />
                 </div>
 
-                <div className="md:col-span-2">
-                  <label className="text-xs uppercase font-bold text-white/70 block mb-1">
-                    URL Imagen de Portada (Opcional)
-                  </label>
-                  <input
-                    type="text"
-                    value={editingQuiz.coverImage || ''}
-                    onChange={e => setEditingQuiz({ ...editingQuiz, coverImage: e.target.value })}
-                    placeholder="https://images.unsplash.com/..."
-                    className="w-full px-4 py-3 rounded-xl bg-black/40 border border-white/20 text-white font-semibold text-sm focus:outline-none focus:border-kahoot-yellow"
-                  />
+                {/* Quiz Cover Image */}
+                <div className="md:col-span-2 bg-black/30 p-4 rounded-2xl border border-white/10">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-xs uppercase font-bold text-white/80 flex items-center gap-1.5">
+                      <ImageIcon className="w-4 h-4 text-kahoot-yellow" />
+                      <span>Imagen de Portada del Cuestionario</span>
+                    </label>
+                    {editingQuiz.coverImage && (
+                      <button
+                        type="button"
+                        onClick={() => setEditingQuiz({ ...editingQuiz, coverImage: '' })}
+                        className="text-xs text-red-300 hover:text-white font-bold flex items-center gap-1"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                        <span>Quitar Portada</span>
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-4 items-center">
+                    {editingQuiz.coverImage ? (
+                      <div className="relative w-full sm:w-48 h-28 rounded-xl overflow-hidden border-2 border-white/20 shadow-md flex-shrink-0">
+                        <img
+                          src={editingQuiz.coverImage}
+                          alt="Portada"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-full sm:w-48 h-28 rounded-xl border-2 border-dashed border-white/20 bg-black/20 flex flex-col items-center justify-center text-white/40 flex-shrink-0 text-xs">
+                        <ImageIcon className="w-6 h-6 mb-1 opacity-50" />
+                        <span>Sin Portada</span>
+                      </div>
+                    )}
+
+                    <div className="flex-1 w-full space-y-2">
+                      <div className="flex gap-2">
+                        <label className="cursor-pointer px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-xl border border-white/20 transition flex items-center gap-1.5 active:scale-95">
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>Subir desde PC</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={e => handleCoverImageChange(e.target.files?.[0] || null)}
+                          />
+                        </label>
+                      </div>
+
+                      <div className="flex items-center gap-2 bg-black/40 px-3 py-1.5 rounded-xl border border-white/10">
+                        <LinkIcon className="w-3.5 h-3.5 text-white/40" />
+                        <input
+                          type="text"
+                          value={editingQuiz.coverImage || ''}
+                          onChange={e => setEditingQuiz({ ...editingQuiz, coverImage: e.target.value })}
+                          placeholder="O pega un enlace de imagen (https://...)"
+                          className="w-full bg-transparent text-xs text-white placeholder-white/40 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {/* Questions Section with Type Selector */}
+              {/* Questions Section */}
               <div className="space-y-6">
                 <div className="flex items-center justify-between">
                   <h4 className="text-lg font-black uppercase text-amber-300">
@@ -818,7 +900,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                           Pregunta #{qIdx + 1}
                         </span>
                         <span className="text-xs text-white/60 font-bold uppercase">
-                          Tipo de Pregunta:
+                          Tipo:
                         </span>
                       </div>
 
@@ -950,6 +1032,112 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                           <option value={2.0}>2x Doble</option>
                           <option value={0}>0x Sin puntos</option>
                         </select>
+                      </div>
+                    </div>
+
+                    {/* IMAGE UPLOADER SECTION FOR THIS QUESTION (KAHOOT STYLE) */}
+                    <div className="bg-black/40 p-4 rounded-2xl border border-white/10 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-black uppercase text-amber-300 flex items-center gap-1.5">
+                          <ImageIcon className="w-4 h-4" />
+                          <span>Imagen de la Pregunta (Estilo Kahoot)</span>
+                        </label>
+
+                        {ques.imageUrl && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = [...editingQuiz.questions];
+                              updated[qIdx].imageUrl = '';
+                              setEditingQuiz({ ...editingQuiz, questions: updated });
+                            }}
+                            className="text-xs text-red-300 hover:text-white font-bold flex items-center gap-1"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Eliminar Imagen</span>
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row gap-4 items-center">
+                        {/* Preview Box */}
+                        {ques.imageUrl ? (
+                          <div className="relative w-full sm:w-44 h-28 rounded-xl overflow-hidden border-2 border-white/30 shadow-lg flex-shrink-0 bg-black/60">
+                            <img
+                              src={ques.imageUrl}
+                              alt="Vista previa"
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        ) : (
+                          <div className="w-full sm:w-44 h-28 rounded-xl border-2 border-dashed border-white/20 bg-black/30 flex flex-col items-center justify-center text-white/40 flex-shrink-0 text-xs">
+                            <ImageIcon className="w-6 h-6 mb-1 opacity-50" />
+                            <span>Sin imagen</span>
+                          </div>
+                        )}
+
+                        {/* Upload Controls */}
+                        <div className="flex-1 w-full space-y-2.5">
+                          <div className="flex flex-wrap items-center gap-2">
+                            {/* File Upload Button */}
+                            <label className="cursor-pointer px-4 py-2 bg-kahoot-purple hover:bg-kahoot-purple-light text-white font-black text-xs uppercase tracking-wider rounded-xl shadow border border-white/20 transition flex items-center gap-2 active:scale-95">
+                              <Upload className="w-4 h-4" />
+                              <span>Subir Imagen desde tu PC</span>
+                              <input
+                                ref={el => {
+                                  fileInputRefs.current[ques.id] = el;
+                                }}
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={e =>
+                                  handleImageFileChange(qIdx, e.target.files?.[0] || null)
+                                }
+                              />
+                            </label>
+
+                            <span className="text-xs text-white/40 font-bold">o</span>
+
+                            {/* Preset Buttons */}
+                            <div className="flex items-center gap-1 flex-wrap">
+                              <span className="text-[11px] text-white/50 font-bold mr-1">
+                                Galería rápida:
+                              </span>
+                              {PRESET_IMAGES.slice(0, 4).map(preset => (
+                                <button
+                                  key={preset.name}
+                                  type="button"
+                                  onClick={() => {
+                                    const updated = [...editingQuiz.questions];
+                                    updated[qIdx].imageUrl = preset.url;
+                                    setEditingQuiz({ ...editingQuiz, questions: updated });
+                                  }}
+                                  className="px-2 py-1 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-bold text-white transition flex items-center gap-1"
+                                  title={preset.name}
+                                >
+                                  <span>{preset.icon}</span>
+                                  <span className="hidden lg:inline">{preset.name.split('/')[0]}</span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Image URL Manual Input */}
+                          <div className="flex items-center gap-2 bg-black/50 px-3 py-2 rounded-xl border border-white/10 text-xs">
+                            <LinkIcon className="w-3.5 h-3.5 text-white/40 flex-shrink-0" />
+                            <input
+                              type="text"
+                              value={ques.imageUrl || ''}
+                              onChange={e => {
+                                const updated = [...editingQuiz.questions];
+                                updated[qIdx].imageUrl = e.target.value;
+                                setEditingQuiz({ ...editingQuiz, questions: updated });
+                              }}
+                              placeholder="O escribe una URL de imagen (https://...)"
+                              className="w-full bg-transparent text-white placeholder-white/30 focus:outline-none"
+                            />
+                          </div>
+                        </div>
                       </div>
                     </div>
 

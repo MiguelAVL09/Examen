@@ -340,15 +340,20 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
               {currentQuestion.questionText}
             </h2>
 
+            {/* Question Image (Kahoot Style Card) */}
             {currentQuestion.imageUrl && (
-              <div className="mt-4 max-h-48 md:max-h-56 rounded-2xl overflow-hidden shadow-md border-2 border-gray-100">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="mt-4 max-h-48 sm:max-h-56 md:max-h-64 rounded-2xl overflow-hidden shadow-xl border-4 border-white/80 bg-black/10 group cursor-pointer"
+              >
                 <img
                   src={currentQuestion.imageUrl}
                   alt="Pregunta"
-                  className="w-full h-full object-cover max-w-md mx-auto"
+                  className="w-full h-full object-contain max-w-md mx-auto group-hover:scale-105 transition-transform duration-300"
                   loading="lazy"
                 />
-              </div>
+              </motion.div>
             )}
           </motion.div>
 
