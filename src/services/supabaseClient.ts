@@ -1,15 +1,21 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const supabaseUrl = (typeof import.meta.env.VITE_SUPABASE_URL === 'string'
+  ? import.meta.env.VITE_SUPABASE_URL.trim()
+  : '');
+
+const supabaseAnonKey = (typeof import.meta.env.VITE_SUPABASE_ANON_KEY === 'string'
+  ? import.meta.env.VITE_SUPABASE_ANON_KEY.trim()
+  : '');
 
 export const isSupabaseConfigured = (): boolean => {
   return (
-    typeof supabaseUrl === 'string' &&
-    supabaseUrl.trim() !== '' &&
+    supabaseUrl !== '' &&
     supabaseUrl.startsWith('https://') &&
-    typeof supabaseAnonKey === 'string' &&
-    supabaseAnonKey.trim() !== ''
+    !supabaseUrl.includes('placeholder') &&
+    supabaseAnonKey !== '' &&
+    supabaseAnonKey.length > 20 &&
+    !supabaseAnonKey.includes('placeholder')
   );
 };
 

@@ -19,6 +19,7 @@ export interface QuestionOption {
 export interface Question {
   id: string;
   quizId?: string;
+  orderIndex?: number;
   questionText: string;
   imageUrl?: string;
   timeLimit: number; // en segundos (10, 15, 20, 30, 60, etc.)
