@@ -1,11 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Shield,
+  ShieldCheck,
+  ShieldAlert,
   Trophy,
   Users,
   Search,
   Download,
+  FileText,
   Trash2,
   Plus,
   Edit,
@@ -33,6 +36,7 @@ import type { Participant, Quiz, Question, QuestionType } from '../types/quiz';
 import { quizService, generateUUID } from '../services/quizService';
 import { isSupabaseConfigured } from '../services/supabaseClient';
 import { processImageUpload, PRESET_IMAGES } from '../utils/imageUtils';
+import { exportRankingsToPDF } from '../utils/pdfExport';
 import { KahootShapeIcon } from './KahootShapes';
 import { ShareQuizModal } from './ShareQuizModal';
 
@@ -190,9 +194,21 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
     await loadData();
   };
 
-  // Export to CSV
+  // Export to PDF Oficial
+  const handleExportPDF = () => {
+    if (filteredRankings.length === 0) return;
+    const currentQuiz = quizzes.find(item => item.id === selectedQuizId);
+    const quizTitle = currentQuiz ? currentQuiz.title : 'Todos los Cuestionarios (General)';
+    exportRankingsToPDF({
+      quizTitle,
+      rankings: filteredRankings,
+      isFirstAttemptOnly,
+    });
+  };
+
+  // Export to CSV (Secundario / Opcional)
   const handleExportCSV = () => {
-    if (rankings.length === 0) return;
+    if (filteredRankings.length === 0) return;
 
     const headers = ['Posicion', 'Nickname', 'Cuestionario', 'Puntaje Total', 'Aciertos', 'Total Preguntas', 'Precision (%)', 'Mejor Racha', 'Fecha'];
     const rows = filteredRankings.map((p, idx) => {
@@ -310,7 +326,58 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
     }
   };
 
-  const filteredRankings = rankings.filter(p =>
+  // Modo Anti-trampas: Tomar solo el primer intento registrado por participante
+  const [isFirstAttemptOnly, setIsFirstAttemptOnly] = useState<boolean>(true);
+
+  // Normalizador para agrupar intentos del mismo usuario sin importar mayúsculas/espacios/acentos
+  const normalizePlayerName = (name: string) =>
+    (name || '')
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ');
+
+  // Mapear conteo total de intentos por persona para identificar repeticiones
+  const attemptsCountMap = useMemo(() => {
+    const map = new Map<string, number>();
+    rankings.forEach(p => {
+      const key = normalizePlayerName(p.nickname);
+      map.set(key, (map.get(key) || 0) + 1);
+    });
+    return map;
+  }, [rankings]);
+
+  // Lista procesada según el modo Anti-trampas (primer intento cronológico)
+  const displayRankings = useMemo(() => {
+    if (!isFirstAttemptOnly) {
+      return [...rankings].sort((a, b) => (b.totalScore || 0) - (a.totalScore || 0));
+    }
+
+    // Ordenar cronológicamente ascendente para asegurar tomar el PRIMER intento registrado
+    const sortedChronological = [...rankings].sort((a, b) => {
+      const timeA = new Date(a.completedAt).getTime();
+      const timeB = new Date(b.completedAt).getTime();
+      return timeA - timeB;
+    });
+
+    const firstAttemptsMap = new Map<string, Participant>();
+    sortedChronological.forEach(p => {
+      const key = normalizePlayerName(p.nickname);
+      if (!firstAttemptsMap.has(key)) {
+        firstAttemptsMap.set(key, p);
+      }
+    });
+
+    return Array.from(firstAttemptsMap.values()).sort((a, b) => {
+      if ((b.totalScore || 0) !== (a.totalScore || 0)) {
+        return (b.totalScore || 0) - (a.totalScore || 0);
+      }
+      return (b.accuracyPercentage || 0) - (a.accuracyPercentage || 0);
+    });
+  }, [rankings, isFirstAttemptOnly]);
+
+  const filteredRankings = displayRankings.filter(p =>
     p.nickname.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -463,35 +530,58 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
         <div className="space-y-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-kahoot-purple-dark/80 p-5 rounded-2xl border border-white/10 shadow-lg">
-              <span className="text-xs uppercase font-bold text-white/60">Total Participantes</span>
-              <div className="text-3xl font-black text-white mt-1">{rankings.length}</div>
+              <span className="text-xs uppercase font-bold text-white/60">
+                {isFirstAttemptOnly ? 'Participantes Únicos' : 'Total Evaluaciones'}
+              </span>
+              <div className="text-3xl font-black text-white mt-1">{displayRankings.length}</div>
+              <p className="text-[11px] text-white/40 mt-1">
+                {isFirstAttemptOnly ? `${rankings.length} intentos recibidos en total` : 'Sin filtro de intentos'}
+              </p>
             </div>
 
             <div className="bg-kahoot-purple-dark/80 p-5 rounded-2xl border border-white/10 shadow-lg">
-              <span className="text-xs uppercase font-bold text-white/60">Puntaje Récord</span>
+              <span className="text-xs uppercase font-bold text-white/60">
+                Puntaje Récord {isFirstAttemptOnly ? '(1er Intento)' : ''}
+              </span>
               <div className="text-3xl font-black text-kahoot-yellow mt-1">
-                {rankings.length > 0
-                  ? Math.max(...rankings.map(r => r.totalScore)).toLocaleString()
+                {displayRankings.length > 0
+                  ? Math.max(...displayRankings.map(r => r.totalScore)).toLocaleString()
                   : 0}
               </div>
+              <p className="text-[11px] text-amber-300/70 mt-1 truncate">
+                Líder: {displayRankings[0]?.nickname || 'N/A'}
+              </p>
             </div>
 
             <div className="bg-kahoot-purple-dark/80 p-5 rounded-2xl border border-white/10 shadow-lg">
               <span className="text-xs uppercase font-bold text-white/60">Precisión Promedio</span>
               <div className="text-3xl font-black text-green-400 mt-1">
-                {rankings.length > 0
+                {displayRankings.length > 0
                   ? Math.round(
-                      rankings.reduce((acc, curr) => acc + curr.accuracyPercentage, 0) /
-                        rankings.length
+                      displayRankings.reduce((acc, curr) => acc + curr.accuracyPercentage, 0) /
+                        displayRankings.length
                     )
                   : 0}
                 %
               </div>
+              <p className="text-[11px] text-white/40 mt-1">
+                Promedio {isFirstAttemptOnly ? 'de primeros intentos' : 'general'}
+              </p>
             </div>
 
-            <div className="bg-kahoot-purple-dark/80 p-5 rounded-2xl border border-white/10 shadow-lg">
-              <span className="text-xs uppercase font-bold text-white/60">Cuestionarios Activos</span>
-              <div className="text-3xl font-black text-blue-400 mt-1">{quizzes.length}</div>
+            <div className="bg-kahoot-purple-dark/80 p-5 rounded-2xl border border-white/10 shadow-lg flex flex-col justify-between">
+              <div>
+                <span className="text-xs uppercase font-bold text-white/60">Filtro Anti-trampas</span>
+                <div className="flex items-center gap-2 mt-1">
+                  <ShieldCheck className={`w-5 h-5 ${isFirstAttemptOnly ? 'text-emerald-400' : 'text-white/40'}`} />
+                  <span className={`text-xl font-black ${isFirstAttemptOnly ? 'text-emerald-400' : 'text-white/50'}`}>
+                    {isFirstAttemptOnly ? 'ACTIVO' : 'INACTIVO'}
+                  </span>
+                </div>
+              </div>
+              <p className="text-[11px] text-white/40 mt-1">
+                {isFirstAttemptOnly ? 'Solo 1 intento por persona' : 'Mostrando repeticiones'}
+              </p>
             </div>
           </div>
 
@@ -523,22 +613,49 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                   className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-black/40 border border-white/20 text-white placeholder-white/40 text-sm font-semibold focus:outline-none focus:border-kahoot-yellow"
                 />
               </div>
+
+              {/* Botón Switch Modo Anti-trampas */}
+              <button
+                type="button"
+                onClick={() => setIsFirstAttemptOnly(!isFirstAttemptOnly)}
+                className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition border shadow-sm ${
+                  isFirstAttemptOnly
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30'
+                    : 'bg-white/5 text-white/50 border-white/10 hover:bg-white/10 hover:text-white'
+                }`}
+                title="Al estar activo, si un usuario jugó varias veces solo se toma en cuenta su primer intento realizado"
+              >
+                <ShieldCheck className={`w-4 h-4 ${isFirstAttemptOnly ? 'text-emerald-400' : 'text-white/40'}`} />
+                <span>{isFirstAttemptOnly ? 'Anti-trampas: 1er Intento' : 'Ver Todos los Intentos'}</span>
+              </button>
             </div>
 
-            <div className="flex items-center gap-3 w-full md:w-auto justify-end">
+            <div className="flex items-center gap-2 w-full md:w-auto justify-end">
               <button
-                onClick={handleExportCSV}
-                disabled={rankings.length === 0}
-                className="flex items-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 disabled:opacity-40 text-white rounded-xl text-sm font-bold border border-white/10 transition active:scale-95"
+                type="button"
+                onClick={loadData}
+                disabled={isLoading}
+                className="p-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-sm font-bold border border-white/10 transition active:scale-95"
+                title="Recargar rankings en vivo"
               >
-                <Download className="w-4 h-4" />
-                <span>Exportar CSV</span>
+                <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-amber-300' : ''}`} />
+              </button>
+
+              <button
+                onClick={handleExportPDF}
+                disabled={filteredRankings.length === 0}
+                className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 disabled:opacity-40 text-white rounded-xl text-sm font-black border border-red-400/30 transition shadow-lg active:scale-95"
+                title="Descargar reporte formal en PDF con podio y estadísticas"
+              >
+                <FileText className="w-4 h-4" />
+                <span>Descargar PDF</span>
               </button>
 
               <button
                 onClick={handleClearRankings}
                 disabled={rankings.length === 0}
-                className="flex items-center gap-2 px-4 py-2.5 bg-red-600/30 hover:bg-red-600/50 disabled:opacity-40 text-red-200 rounded-xl text-sm font-bold border border-red-500/30 transition active:scale-95"
+                className="flex items-center gap-2 px-3.5 py-2.5 bg-red-600/30 hover:bg-red-600/50 disabled:opacity-40 text-red-200 rounded-xl text-sm font-bold border border-red-500/30 transition active:scale-95"
+                title="Borrar ranking de participantes"
               >
                 <Trash2 className="w-4 h-4" />
                 <span>Limpiar</span>
@@ -559,7 +676,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                       <th className="py-4 px-6 text-center">Aciertos</th>
                       <th className="py-4 px-6 text-center">Precisión</th>
                       <th className="py-4 px-6 text-center">Racha Máx</th>
-                      <th className="py-4 px-6 text-right">Fecha</th>
+                      <th className="py-4 px-6 text-right">Fecha {isFirstAttemptOnly ? '(1er Intento)' : ''}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5 font-semibold text-sm">
@@ -567,6 +684,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                       const quizInfo = quizzes.find(q => q.id === p.quizId);
                       const isTop3 = index < 3;
                       const badge = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`;
+                      const totalAttempts = attemptsCountMap.get(normalizePlayerName(p.nickname)) || 1;
 
                       return (
                         <tr key={p.id} className="hover:bg-white/5 transition-colors">
@@ -584,9 +702,22 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                           <td className="py-4 px-6">
                             <div className="flex items-center gap-3">
                               <span className="text-2xl">{p.avatar || '🦊'}</span>
-                              <span className="font-extrabold text-white text-base">
-                                {p.nickname}
-                              </span>
+                              <div>
+                                <span className="font-extrabold text-white text-base block">
+                                  {p.nickname}
+                                </span>
+                                {totalAttempts > 1 ? (
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-300/90 bg-amber-500/15 px-2 py-0.5 rounded-md border border-amber-500/30 mt-0.5" title="Este participante realizó varios intentos; solo se contabiliza el primero oficial">
+                                    <ShieldAlert className="w-3 h-3 text-amber-400" />
+                                    <span>1° intento (realizó {totalAttempts} intentos)</span>
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-300/70 bg-emerald-500/10 px-1.5 py-0.2 rounded mt-0.5">
+                                    <CheckCircle2 className="w-2.5 h-2.5 text-emerald-400" />
+                                    <span>Intento único</span>
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </td>
                           <td className="py-4 px-6 max-w-xs truncate text-white/80">
