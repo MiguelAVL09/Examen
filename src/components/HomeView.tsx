@@ -63,6 +63,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
       setSelectedQuiz(invitedQuiz);
       setErrorMessage('');
       setIsJoinModalOpen(true);
+    } else {
+      setIsJoinModalOpen(false);
+      setSelectedQuiz(null);
     }
   }, [invitedQuiz]);
 

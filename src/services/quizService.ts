@@ -693,6 +693,8 @@ export const quizService = {
         let query = supabase
           .from('participants')
           .select('*')
+          .neq('nickname', '__deleted__')
+          .gte('total_score', 0)
           .order('total_score', { ascending: false });
 
         if (quizId) {
@@ -701,8 +703,9 @@ export const quizService = {
 
         const { data, error } = await query;
         if (error) throw error;
-        if (data && data.length > 0) {
-          return data.map((p: any) => ({
+        if (data) {
+          const validRows = data.filter((p: any) => p.nickname !== '__deleted__' && Number(p.total_score) >= 0);
+          return validRows.map((p: any) => ({
             id: p.id,
             quizId: p.quiz_id,
             sessionId: p.session_id,
@@ -724,14 +727,15 @@ export const quizService = {
 
     const stored = localStorage.getItem(LOCAL_STORAGE_PARTICIPANTS_KEY);
     const list: Participant[] = stored ? JSON.parse(stored) : [];
-    let filtered = list;
+    let filtered = list.filter(p => p.nickname !== '__deleted__' && p.totalScore >= 0);
     if (quizId) {
-      filtered = list.filter(p => p.quizId === quizId);
+      filtered = filtered.filter(p => p.quizId === quizId);
     }
     return filtered.sort((a, b) => b.totalScore - a.totalScore);
   },
 
   async clearRankings(quizId?: string): Promise<boolean> {
+    // 1. Limpiar en LocalStorage
     const stored = localStorage.getItem(LOCAL_STORAGE_PARTICIPANTS_KEY);
     if (stored) {
       let list: Participant[] = JSON.parse(stored);
@@ -743,12 +747,32 @@ export const quizService = {
       localStorage.setItem(LOCAL_STORAGE_PARTICIPANTS_KEY, JSON.stringify(list));
     }
 
+    // 2. Limpiar en Supabase
     if (isSupabaseConfigured() && supabase) {
       try {
+        // Intentar borrado físico si las políticas RLS lo permiten
         if (quizId) {
           await supabase.from('participants').delete().eq('quiz_id', quizId);
         } else {
-          await supabase.from('participants').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+          const { data: allP } = await supabase.from('participants').select('id');
+          if (allP && allP.length > 0) {
+            const ids = allP.map(p => p.id);
+            await supabase.from('participant_answers').delete().in('participant_id', ids);
+            await supabase.from('participants').delete().in('id', ids);
+          }
+        }
+
+        // Soft-delete garantizado ante cualquier restricción de RLS en Supabase
+        if (quizId) {
+          await supabase
+            .from('participants')
+            .update({ nickname: '__deleted__', total_score: -1 })
+            .eq('quiz_id', quizId);
+        } else {
+          await supabase
+            .from('participants')
+            .update({ nickname: '__deleted__', total_score: -1 })
+            .neq('nickname', '__deleted__');
         }
       } catch (err) {
         console.warn('Error al limpiar rankings en Supabase:', err);

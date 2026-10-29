@@ -224,6 +224,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
     if (window.confirm('¿Estás seguro de que deseas borrar los rankings? Esta acción no se puede deshacer.')) {
       await quizService.clearRankings(selectedQuizId === 'all' ? undefined : selectedQuizId);
       await loadData();
+      setJsonBackupStatus('¡Rankings eliminados correctamente!');
+      setTimeout(() => setJsonBackupStatus(''), 4000);
     }
   };
 

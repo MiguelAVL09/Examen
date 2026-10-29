@@ -121,9 +121,11 @@ CREATE POLICY "Public Manage Sessions" ON public.quiz_sessions FOR ALL USING (tr
 CREATE POLICY "Public Insert Participants" ON public.participants FOR INSERT WITH CHECK (true);
 CREATE POLICY "Public Read Participants" ON public.participants FOR SELECT USING (true);
 CREATE POLICY "Public Update Participants" ON public.participants FOR UPDATE USING (true);
+CREATE POLICY "Public Delete Participants" ON public.participants FOR DELETE USING (true);
 
 CREATE POLICY "Public Insert Answers" ON public.participant_answers FOR INSERT WITH CHECK (true);
 CREATE POLICY "Public Read Answers" ON public.participant_answers FOR SELECT USING (true);
+CREATE POLICY "Public Delete Answers" ON public.participant_answers FOR DELETE USING (true);
 
 -- 10. Habilitar Supabase Realtime para salas de juego en vivo
 ALTER PUBLICATION supabase_realtime ADD TABLE public.quiz_sessions;

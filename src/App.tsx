@@ -38,7 +38,9 @@ export function App() {
     if (quizzes.length > 0) {
       const params = new URLSearchParams(window.location.search);
       const quizParam = params.get('quiz');
-      if (quizParam) {
+      // Si el usuario ya contestó este cuestionario en esta sesión, no re-activar la invitación
+      const alreadyCompleted = sessionStorage.getItem('kahoot_completed_quiz');
+      if (quizParam && (!alreadyCompleted || alreadyCompleted !== quizParam)) {
         const found = quizzes.find(
           q => q.id === quizParam || q.title.toLowerCase().includes(quizParam.toLowerCase())
         );
@@ -54,6 +56,11 @@ export function App() {
     setActiveQuiz(quiz);
     setPlayerNickname(nickname);
     setPlayerAvatar(avatar);
+    setInvitedQuiz(null);
+    // Limpiar el parámetro de la URL inmediatamente al entrar para que el inicio quede limpio al regresar
+    if (typeof window !== 'undefined' && window.history) {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
     setCurrentView('game');
   };
 
@@ -114,6 +121,13 @@ export function App() {
                 nickname={playerNickname}
                 avatar={playerAvatar}
                 onExit={() => {
+                  setInvitedQuiz(null);
+                  if (activeQuiz) {
+                    sessionStorage.setItem('kahoot_completed_quiz', activeQuiz.id);
+                  }
+                  if (typeof window !== 'undefined' && window.history) {
+                    window.history.replaceState({}, '', window.location.pathname);
+                  }
                   refreshQuizzes();
                   setCurrentView('home');
                 }}
@@ -129,6 +143,13 @@ export function App() {
               <HostGameView
                 quiz={activeQuiz}
                 onExit={() => {
+                  setInvitedQuiz(null);
+                  if (activeQuiz) {
+                    sessionStorage.setItem('kahoot_completed_quiz', activeQuiz.id);
+                  }
+                  if (typeof window !== 'undefined' && window.history) {
+                    window.history.replaceState({}, '', window.location.pathname);
+                  }
                   refreshQuizzes();
                   setCurrentView('home');
                 }}
