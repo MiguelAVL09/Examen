@@ -1,10 +1,11 @@
-// Web Audio API Sound Synthesizer for Kahoot-style audio feedback
+// Web Audio API Sound Synthesizer for Kahoot-style audio feedback & lobby grooves
 class SoundSynthesizer {
   private ctx: AudioContext | null = null;
   private isMuted: boolean = false;
+  private lobbyTimer: number | null = null;
+  private isPlayingLobby: boolean = false;
 
   constructor() {
-    // Restore mute preference
     const savedMute = localStorage.getItem('kahoot_quiz_muted');
     if (savedMute !== null) {
       this.isMuted = savedMute === 'true';
@@ -32,6 +33,9 @@ class SoundSynthesizer {
   public toggleMute(): boolean {
     this.isMuted = !this.isMuted;
     localStorage.setItem('kahoot_quiz_muted', String(this.isMuted));
+    if (this.isMuted && this.isPlayingLobby) {
+      this.stopLobbyMusic();
+    }
     return this.isMuted;
   }
 
@@ -49,7 +53,7 @@ class SoundSynthesizer {
       osc.frequency.setValueAtTime(baseFreq, ctx.currentTime);
       osc.frequency.exponentialRampToValueAtTime(baseFreq * 1.5, ctx.currentTime + 0.04);
 
-      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain.gain.setValueAtTime(0.12, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
 
       osc.connect(gain);
@@ -70,7 +74,6 @@ class SoundSynthesizer {
       if (!ctx) return;
 
       const now = ctx.currentTime;
-      // Tone 1
       const osc1 = ctx.createOscillator();
       const gain1 = ctx.createGain();
       osc1.type = 'sine';
@@ -82,7 +85,6 @@ class SoundSynthesizer {
       osc1.start(now);
       osc1.stop(now + 0.22);
 
-      // Tone 2 (higher, cheerful third/fifth)
       const osc2 = ctx.createOscillator();
       const gain2 = ctx.createGain();
       osc2.type = 'triangle';
@@ -160,7 +162,7 @@ class SoundSynthesizer {
       if (!ctx) return;
 
       const now = ctx.currentTime;
-      const notes = [440, 554.37, 659.25, 880]; // A major arpeggio
+      const notes = [440, 554.37, 659.25, 880];
       notes.forEach((freq, i) => {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
@@ -186,7 +188,6 @@ class SoundSynthesizer {
       if (!ctx) return;
 
       const now = ctx.currentTime;
-      // C5 - E5 - G5 - C6 triumphant brass-like chords
       const melody = [
         { freq: 523.25, time: 0, dur: 0.15 },
         { freq: 523.25, time: 0.15, dur: 0.15 },
@@ -201,7 +202,7 @@ class SoundSynthesizer {
         const gain = ctx.createGain();
         osc.type = 'triangle';
         osc.frequency.setValueAtTime(item.freq, now + item.time);
-        gain.gain.setValueAtTime(0.25, now + item.time);
+        gain.gain.setValueAtTime(0.22, now + item.time);
         gain.gain.exponentialRampToValueAtTime(0.001, now + item.time + item.dur);
         osc.connect(gain);
         gain.connect(ctx.destination);
@@ -211,6 +212,69 @@ class SoundSynthesizer {
     } catch {
       // Audio fallback
     }
+  }
+
+  // Upbeat Kahoot-style funky lobby synth loop
+  public startLobbyMusic() {
+    if (this.isMuted || this.isPlayingLobby) return;
+    this.isPlayingLobby = true;
+
+    const ctx = this.getContext();
+    if (!ctx) return;
+
+    // Bassline and melody notes
+    const bassline = [130.81, 146.83, 164.81, 174.61, 196.00, 164.81, 146.83, 130.81]; // C - D - E - F - G - E - D - C
+    let step = 0;
+
+    const playStep = () => {
+      if (!this.isPlayingLobby || this.isMuted) return;
+      const now = ctx.currentTime;
+
+      // Bass synth pulse
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(bassline[step % bassline.length], now);
+
+      gain.gain.setValueAtTime(0.08, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.25);
+
+      // Light percussion click on off-beats
+      if (step % 2 === 1) {
+        const snare = ctx.createOscillator();
+        const sGain = ctx.createGain();
+        snare.type = 'square';
+        snare.frequency.setValueAtTime(320, now);
+        sGain.gain.setValueAtTime(0.04, now);
+        sGain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+        snare.connect(sGain);
+        sGain.connect(ctx.destination);
+        snare.start(now);
+        snare.stop(now + 0.09);
+      }
+
+      step++;
+      this.lobbyTimer = window.setTimeout(playStep, 260);
+    };
+
+    playStep();
+  }
+
+  public stopLobbyMusic() {
+    this.isPlayingLobby = false;
+    if (this.lobbyTimer !== null) {
+      clearTimeout(this.lobbyTimer);
+      this.lobbyTimer = null;
+    }
+  }
+
+  public getIsPlayingLobby(): boolean {
+    return this.isPlayingLobby;
   }
 }
 

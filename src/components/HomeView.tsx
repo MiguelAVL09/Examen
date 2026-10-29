@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Play, Users, Trophy, Sparkles, Clock, ArrowRight, Gamepad2 } from 'lucide-react';
-import { Quiz } from '../types/quiz';
+import { Play, Users, Sparkles, Clock, ArrowRight, Gamepad2, Dices } from 'lucide-react';
+import type { Quiz } from '../types/quiz';
 import { KahootShapeIcon } from './KahootShapes';
 
 interface HomeViewProps {
@@ -12,7 +12,13 @@ interface HomeViewProps {
   onOpenAdmin: () => void;
 }
 
-const AVATAR_OPTIONS = ['🦊', '🦁', '🐼', '🚀', '⚡', '👑', '🦄', '🎮', '🐯', '🔥'];
+const AVATAR_OPTIONS = ['🦊', '🦁', '🐼', '🚀', '⚡', '👑', '🦄', '🎮', '🐯', '🔥', '🤖', '🦖', '🌟', '🎯'];
+
+const RANDOM_NAMES = [
+  'SuperNinja', 'AstroLobo', 'PixelGamer', 'MasterQuiz', 'CyberPanda',
+  'FuegoRápido', 'Quantum', 'CapitánSpark', 'NovaStar', 'MenteBrillante',
+  'FlashZ', 'Titanium', 'Cometa', 'NeoCode', 'Cerebrito'
+];
 
 export const HomeView: React.FC<HomeViewProps> = ({
   quizzes,
@@ -39,6 +45,12 @@ export const HomeView: React.FC<HomeViewProps> = ({
     localStorage.setItem('kahoot_player_avatar', av);
   };
 
+  const handleGenerateRandomName = () => {
+    const randomNick = RANDOM_NAMES[Math.floor(Math.random() * RANDOM_NAMES.length)];
+    const randomAv = AVATAR_OPTIONS[Math.floor(Math.random() * AVATAR_OPTIONS.length)];
+    handleSaveProfile(randomNick, randomAv);
+  };
+
   const handleLaunchSolo = (quiz: Quiz) => {
     if (!nickname.trim()) {
       setSelectedQuiz(quiz);
@@ -56,7 +68,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       return;
     }
     if (!nickname.trim()) {
-      setErrorMessage('Ingresa tu nombre o apodo para unirte.');
+      setErrorMessage('Ingresa tu apodo o genera uno con el dado 🎲.');
       return;
     }
     handleSaveProfile(nickname.trim(), selectedAvatar);
@@ -64,35 +76,50 @@ export const HomeView: React.FC<HomeViewProps> = ({
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 space-y-12">
-      {/* Hero Section */}
-      <div className="relative text-center max-w-4xl mx-auto pt-4 pb-8">
-        {/* Floating Background Shapes */}
-        <div className="absolute top-0 left-4 text-red-500/30 animate-bounce -z-10 pointer-events-none">
-          <KahootShapeIcon shape="triangle" size={54} />
-        </div>
-        <div className="absolute top-10 right-8 text-blue-500/30 animate-pulse -z-10 pointer-events-none">
-          <KahootShapeIcon shape="diamond" size={48} />
-        </div>
-        <div className="absolute bottom-4 left-16 text-yellow-500/30 animate-wiggle -z-10 pointer-events-none">
-          <KahootShapeIcon shape="circle" size={44} />
-        </div>
-        <div className="absolute bottom-0 right-12 text-green-500/30 animate-bounce -z-10 pointer-events-none">
-          <KahootShapeIcon shape="square" size={50} />
-        </div>
+    <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 space-y-12 overflow-hidden">
+      {/* Animated Floating Geometric Particles */}
+      <motion.div
+        animate={{ y: [-10, 15, -10], rotate: [0, 15, 0] }}
+        transition={{ repeat: Infinity, duration: 6, ease: 'easeInOut' }}
+        className="absolute top-10 left-6 text-red-500/25 pointer-events-none -z-10"
+      >
+        <KahootShapeIcon shape="triangle" size={60} />
+      </motion.div>
+      <motion.div
+        animate={{ y: [10, -20, 10], rotate: [0, -20, 0] }}
+        transition={{ repeat: Infinity, duration: 7, ease: 'easeInOut' }}
+        className="absolute top-28 right-10 text-blue-500/25 pointer-events-none -z-10"
+      >
+        <KahootShapeIcon shape="diamond" size={68} />
+      </motion.div>
+      <motion.div
+        animate={{ y: [-15, 15, -15], rotate: [0, 25, 0] }}
+        transition={{ repeat: Infinity, duration: 8, ease: 'easeInOut' }}
+        className="absolute bottom-20 left-12 text-yellow-500/25 pointer-events-none -z-10"
+      >
+        <KahootShapeIcon shape="circle" size={54} />
+      </motion.div>
+      <motion.div
+        animate={{ y: [15, -15, 15], rotate: [0, -15, 0] }}
+        transition={{ repeat: Infinity, duration: 6.5, ease: 'easeInOut' }}
+        className="absolute bottom-12 right-20 text-green-500/25 pointer-events-none -z-10"
+      >
+        <KahootShapeIcon shape="square" size={58} />
+      </motion.div>
 
-        {/* Hero Title */}
+      {/* Hero Section */}
+      <div className="relative text-center max-w-4xl mx-auto pt-4 pb-4">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 border border-white/20 text-xs md:text-sm font-black text-amber-300 uppercase tracking-widest mb-6 shadow-md">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 border border-white/20 text-xs md:text-sm font-black text-amber-300 uppercase tracking-widest mb-6 shadow-md backdrop-blur-md">
             <Sparkles className="w-4 h-4" />
             <span>Plataforma Interactiva Estilo Kahoot</span>
           </div>
 
-          <h1 className="text-4xl sm:text-6xl md:text-7xl font-black text-white tracking-tight uppercase leading-none drop-shadow-xl">
+          <h1 className="text-4xl sm:text-6xl md:text-7xl font-black text-white tracking-tight uppercase leading-none drop-shadow-2xl">
             ¡Aprende Jugando <br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-kahoot-yellow via-amber-300 to-yellow-500">
               Con Máxima Emoción!
@@ -100,7 +127,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </h1>
 
           <p className="mt-6 text-base sm:text-xl text-white/80 max-w-2xl mx-auto font-medium leading-relaxed">
-            Cuestionarios interactivos a toda velocidad, temporizador con adrenalina, rachas con fuego y animaciones profesionales.
+            Cuestionarios interactivos a toda velocidad, temporizador con adrenalina, preguntas tipo Puzzle, Verdadero/Falso y animaciones profesionales.
           </p>
         </motion.div>
 
@@ -109,10 +136,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.2, duration: 0.4 }}
-          className="mt-10 max-w-lg mx-auto bg-white text-gray-900 rounded-3xl p-6 md:p-8 shadow-2xl border-4 border-white/30"
+          className="mt-10 max-w-lg mx-auto bg-white text-gray-900 rounded-3xl p-6 md:p-8 shadow-2xl border-4 border-white/40"
         >
           <form onSubmit={handleJoinPinSubmit} className="space-y-4">
-            <div className="text-center mb-4">
+            <div className="text-center mb-2">
               <span className="text-xs uppercase font-black text-kahoot-purple tracking-widest block">
                 ¿Tienes el PIN de una sala en vivo?
               </span>
@@ -127,11 +154,12 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 setGamePin(e.target.value.replace(/\D/g, ''));
                 setErrorMessage('');
               }}
-              className="w-full text-center text-2xl md:text-3xl font-black tracking-widest py-3 px-4 rounded-2xl border-2 border-gray-300 focus:border-kahoot-purple focus:outline-none transition bg-gray-50 uppercase placeholder-gray-400"
+              className="w-full text-center text-3xl md:text-4xl font-black tracking-widest py-3 px-4 rounded-2xl border-2 border-gray-300 focus:border-kahoot-purple focus:outline-none transition bg-gray-50 uppercase placeholder-gray-400 font-mono"
             />
 
-            <div className="grid grid-cols-4 gap-2 py-1">
-              <div className="col-span-1">
+            <div className="grid grid-cols-12 gap-2 items-center py-1">
+              {/* Avatar Selector */}
+              <div className="col-span-3">
                 <select
                   value={selectedAvatar}
                   onChange={e => setSelectedAvatar(e.target.value)}
@@ -144,17 +172,31 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   ))}
                 </select>
               </div>
-              <div className="col-span-3">
+
+              {/* Nickname Input */}
+              <div className="col-span-7">
                 <input
                   type="text"
-                  placeholder="Tu apodo / nombre..."
+                  placeholder="Tu apodo o nombre..."
                   value={nickname}
                   onChange={e => {
                     setNickname(e.target.value);
                     setErrorMessage('');
                   }}
-                  className="w-full py-3 px-4 rounded-2xl border-2 border-gray-300 font-bold text-base bg-gray-50 focus:border-kahoot-purple focus:outline-none placeholder-gray-400"
+                  className="w-full py-3 px-4 rounded-2xl border-2 border-gray-300 font-bold text-sm md:text-base bg-gray-50 focus:border-kahoot-purple focus:outline-none placeholder-gray-400"
                 />
+              </div>
+
+              {/* Random Nickname Button */}
+              <div className="col-span-2">
+                <button
+                  type="button"
+                  onClick={handleGenerateRandomName}
+                  title="Generar nombre y avatar aleatorio"
+                  className="w-full h-full p-3 rounded-2xl bg-kahoot-purple/10 hover:bg-kahoot-purple/20 text-kahoot-purple border-2 border-kahoot-purple/30 flex items-center justify-center transition active:scale-95"
+                >
+                  <Dices className="w-5 h-5" />
+                </button>
               </div>
             </div>
 
@@ -178,7 +220,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
           <div>
             <h2 className="text-2xl md:text-3xl font-black uppercase text-white tracking-tight flex items-center gap-2">
               <Gamepad2 className="w-8 h-8 text-kahoot-yellow" />
-              <span>Cuestionarios Disponibles</span>
+              <span>Cuestionarios Disponibles ({quizzes.length})</span>
             </h2>
             <p className="text-white/70 text-sm font-semibold">
               Selecciona un cuestionario para jugar en solitario o iniciar una sala para tus participantes.
@@ -189,7 +231,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             onClick={onOpenAdmin}
             className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-bold text-sm border border-white/20 transition self-start sm:self-auto"
           >
-            <span>Ver Rankings (Admin)</span>
+            <span>Panel de Admin & Rankings</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>
@@ -205,7 +247,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
               className="bg-kahoot-purple-dark/90 rounded-3xl border-2 border-white/10 overflow-hidden shadow-2xl flex flex-col justify-between group hover:border-kahoot-yellow/60 transition-all duration-300 backdrop-blur-md"
             >
               <div>
-                {/* Cover Image & Badges */}
                 <div className="relative h-48 overflow-hidden bg-black/40">
                   <img
                     src={quiz.coverImage || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=80'}
@@ -224,7 +265,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   </span>
                 </div>
 
-                {/* Details */}
                 <div className="p-6">
                   <h3 className="text-xl font-black text-white mb-2 leading-snug">
                     {quiz.title}
@@ -235,7 +275,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 </div>
               </div>
 
-              {/* Actions Footer */}
               <div className="p-6 pt-0 space-y-2.5">
                 <button
                   onClick={() => handleLaunchSolo(quiz)}
@@ -266,7 +305,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </div>
           <div>
             <h4 className="text-base font-black uppercase text-white mb-1">
-              Ritmo y Temporizador Kahoot
+              Ritmo y Tensión Kahoot
             </h4>
             <p className="text-xs text-white/70 leading-relaxed font-semibold">
               Sonidos analógicos de tensión, colores de urgencia y multiplicador de velocidad de respuesta idéntico a Kahoot.
@@ -280,10 +319,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </div>
           <div>
             <h4 className="text-base font-black uppercase text-white mb-1">
-              Ranking Privado para Admins
+              Ranking Privado Seguro
             </h4>
             <p className="text-xs text-white/70 leading-relaxed font-semibold">
-              Los jugadores reciben su puntaje y resumen individual; la tabla general y analíticas quedan reservadas para el organizador.
+              Los jugadores reciben su puntaje individual; la tabla general y analíticas quedan protegidas con contraseña de administrador.
             </p>
           </div>
         </div>
@@ -294,10 +333,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </div>
           <div>
             <h4 className="text-base font-black uppercase text-white mb-1">
-              Escalable con Supabase
+              Respaldo JSON & Supabase
             </h4>
             <p className="text-xs text-white/70 leading-relaxed font-semibold">
-              Soporte para agregar decenas de cuestionarios en el futuro, respaldados en base de datos PostgreSQL en la nube.
+              Descarga tus cuestionarios creados en un archivo JSON seguro o conéctalos a PostgreSQL en Supabase.
             </p>
           </div>
         </div>
@@ -322,7 +361,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
             <div className="space-y-4 mb-6">
               <div className="flex justify-center gap-2 flex-wrap">
-                {AVATAR_OPTIONS.map(av => (
+                {AVATAR_OPTIONS.slice(0, 8).map(av => (
                   <button
                     key={av}
                     type="button"
@@ -338,14 +377,24 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 ))}
               </div>
 
-              <input
-                type="text"
-                placeholder="Tu apodo o nombre..."
-                value={nickname}
-                onChange={e => setNickname(e.target.value)}
-                className="w-full text-center text-lg font-black py-3 px-4 rounded-2xl bg-black/40 border-2 border-white/20 focus:border-kahoot-yellow focus:outline-none transition text-white placeholder-white/40"
-                autoFocus
-              />
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Tu apodo o nombre..."
+                  value={nickname}
+                  onChange={e => setNickname(e.target.value)}
+                  className="flex-1 text-center text-lg font-black py-3 px-4 rounded-2xl bg-black/40 border-2 border-white/20 focus:border-kahoot-yellow focus:outline-none transition text-white placeholder-white/40"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={handleGenerateRandomName}
+                  title="Generar nombre aleatorio"
+                  className="p-3 bg-white/10 hover:bg-white/20 rounded-2xl border border-white/20 text-white transition active:scale-95"
+                >
+                  <Dices className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             <div className="flex gap-3">

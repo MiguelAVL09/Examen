@@ -5,7 +5,6 @@ const LOCAL_STORAGE_QUIZZES_KEY = 'kahoot_quizzes_v2';
 const LOCAL_STORAGE_PARTICIPANTS_KEY = 'kahoot_participants_v1';
 const LOCAL_STORAGE_SESSIONS_KEY = 'kahoot_sessions_v1';
 
-// Cuestionarios iniciales que combinan Opción Múltiple, Verdadero/Falso, Puzzle y Escribir Respuesta
 export const DEFAULT_QUIZZES: Quiz[] = [
   {
     id: 'quiz-cultura-general',
@@ -47,7 +46,7 @@ export const DEFAULT_QUIZZES: Quiz[] = [
         id: 'q1-3',
         questionText: '🧩 PUZZLE: ¡Ordena estos acontecimientos históricos del más ANTIGUO al más RECIENTE!',
         timeLimit: 30,
-        pointsMultiplier: 2.0, // Doble puntaje por dificultad de puzzle
+        pointsMultiplier: 2.0,
         questionType: 'puzzle',
         imageUrl: 'https://images.unsplash.com/photo-1447069387593-a5de0862481e?w=800&auto=format&fit=crop&q=80',
         options: [
@@ -163,6 +162,7 @@ export const DEFAULT_QUIZZES: Quiz[] = [
   },
 ];
 
+// Helper para inicializar LocalStorage de forma segura preservando cuestionarios creados
 const initializeLocalQuizzes = (): Quiz[] => {
   const stored = localStorage.getItem(LOCAL_STORAGE_QUIZZES_KEY);
   if (!stored) {
@@ -170,7 +170,11 @@ const initializeLocalQuizzes = (): Quiz[] => {
     return DEFAULT_QUIZZES;
   }
   try {
-    return JSON.parse(stored);
+    const parsed: Quiz[] = JSON.parse(stored);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed;
+    }
+    return DEFAULT_QUIZZES;
   } catch {
     return DEFAULT_QUIZZES;
   }
@@ -316,6 +320,46 @@ export const quizService = {
       }
     }
     return true;
+  },
+
+  // Exportar todos los cuestionarios a formato JSON descargable para respaldo absoluto
+  exportQuizzesToJson(): string {
+    const quizzes = initializeLocalQuizzes();
+    return JSON.stringify(quizzes, null, 2);
+  },
+
+  // Importar cuestionarios desde archivo o texto JSON sin borrar los existentes
+  async importQuizzesFromJson(jsonString: string): Promise<{ success: boolean; count: number; message: string }> {
+    try {
+      const imported: Quiz[] = JSON.parse(jsonString);
+      if (!Array.isArray(imported)) {
+        return { success: false, count: 0, message: 'El formato del archivo JSON no es una lista válida de cuestionarios.' };
+      }
+
+      const current = initializeLocalQuizzes();
+      let addedCount = 0;
+
+      for (const q of imported) {
+        if (q.id && q.title && Array.isArray(q.questions)) {
+          const existsIdx = current.findIndex(item => item.id === q.id);
+          if (existsIdx >= 0) {
+            current[existsIdx] = q;
+          } else {
+            current.unshift(q);
+          }
+          addedCount++;
+          // Sincronizar también con Supabase si está activo
+          if (isSupabaseConfigured() && supabase) {
+            this.saveQuiz(q).catch(() => {});
+          }
+        }
+      }
+
+      localStorage.setItem(LOCAL_STORAGE_QUIZZES_KEY, JSON.stringify(current));
+      return { success: true, count: addedCount, message: `Se importaron/actualizaron exitosamente ${addedCount} cuestionario(s).` };
+    } catch (err: any) {
+      return { success: false, count: 0, message: `Error al procesar el archivo: ${err.message || 'JSON inválido'}` };
+    }
   },
 
   async saveParticipantResult(participant: Participant): Promise<Participant> {

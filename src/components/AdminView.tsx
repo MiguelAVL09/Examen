@@ -22,9 +22,11 @@ import {
   Keyboard,
   Image as ImageIcon,
   Upload,
-  X,
   Link as LinkIcon,
-  Sparkles
+  Copy,
+  FileDown,
+  FileUp,
+  Files
 } from 'lucide-react';
 import type { Participant, Quiz, Question, QuestionType } from '../types/quiz';
 import { quizService } from '../services/quizService';
@@ -37,6 +39,7 @@ interface AdminViewProps {
 }
 
 export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
+  // Authentication State
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     return sessionStorage.getItem('kahoot_admin_auth') === 'true';
   });
@@ -51,12 +54,30 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [syncStatus, setSyncStatus] = useState<string>('');
+  const [jsonBackupStatus, setJsonBackupStatus] = useState<string>('');
 
   const [isEditorOpen, setIsEditorOpen] = useState<boolean>(false);
   const [editingQuiz, setEditingQuiz] = useState<Quiz | null>(null);
 
-  // Hidden file input ref per question
+  // Hidden file input refs
   const fileInputRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
+  const importFileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // REQUERIMIENTO CLAVE: Cuando los administradores cierren la web o naveguen fuera,
+  // la sesión de admin se cierra automáticamente para pedir la contraseña de nuevo.
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      sessionStorage.removeItem('kahoot_admin_auth');
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      // Al salir de la vista de admin, revocar sesión
+      sessionStorage.removeItem('kahoot_admin_auth');
+    };
+  }, []);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -95,8 +116,62 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
   const handleLogout = () => {
     setIsAuthenticated(false);
     sessionStorage.removeItem('kahoot_admin_auth');
+    onBackToHome();
   };
 
+  // Exportar y Respaldar Cuestionarios a archivo JSON
+  const handleDownloadQuizzesBackup = () => {
+    const jsonStr = quizService.exportQuizzesToJson();
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `kahoot_cuestionarios_respaldo_${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setJsonBackupStatus('¡Archivo de respaldo descargado exitosamente en tu equipo!');
+    setTimeout(() => setJsonBackupStatus(''), 4000);
+  };
+
+  // Importar Cuestionarios desde archivo JSON
+  const handleImportQuizzesFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async event => {
+        const content = event.target?.result as string;
+        const res = await quizService.importQuizzesFromJson(content);
+        setJsonBackupStatus(res.message);
+        if (res.success) {
+          await loadData();
+        }
+        setTimeout(() => setJsonBackupStatus(''), 4000);
+      };
+      reader.readAsText(file);
+    } catch (err: any) {
+      setJsonBackupStatus(`Error al importar: ${err.message}`);
+    }
+    // Reset file input
+    if (importFileInputRef.current) importFileInputRef.current.value = '';
+  };
+
+  // Duplicar cuestionario
+  const handleDuplicateQuiz = async (quiz: Quiz) => {
+    const duplicated: Quiz = {
+      ...JSON.parse(JSON.stringify(quiz)),
+      id: 'quiz-' + Date.now(),
+      title: `${quiz.title} (Copia)`,
+      createdAt: new Date().toISOString(),
+    };
+    await quizService.saveQuiz(duplicated);
+    await loadData();
+  };
+
+  // Export to CSV
   const handleExportCSV = () => {
     if (rankings.length === 0) return;
 
@@ -190,7 +265,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
     setEditingQuiz({ ...editingQuiz, questions: updated });
   };
 
-  // Image Upload Handler for Question
   const handleImageFileChange = async (qIdx: number, file: File | null) => {
     if (!file || !editingQuiz) return;
     try {
@@ -203,7 +277,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
     }
   };
 
-  // Quiz Cover Image Upload Handler
   const handleCoverImageChange = async (file: File | null) => {
     if (!file || !editingQuiz) return;
     try {
@@ -218,13 +291,14 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
     p.nickname.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  // Pantalla de Bloqueo de Acceso
   if (!isAuthenticated) {
     return (
       <div className="min-h-[calc(100vh-80px)] flex items-center justify-center p-4">
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="bg-kahoot-purple-dark/90 border-2 border-white/20 rounded-3xl p-8 max-w-md w-full shadow-2xl backdrop-blur-md text-center"
+          className="bg-kahoot-purple-dark/95 border-2 border-white/20 rounded-3xl p-8 max-w-md w-full shadow-2xl backdrop-blur-md text-center"
         >
           <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-tr from-kahoot-yellow to-amber-400 rounded-3xl flex items-center justify-center shadow-lg text-black">
             <Lock className="w-10 h-10" />
@@ -234,7 +308,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
             Panel de Administración
           </h2>
           <p className="text-white/70 text-sm mb-6 font-semibold">
-            El sistema de rankings y gestión de cuestionarios está protegido para acceso exclusivo de administradores.
+            Acceso restringido. Por seguridad, la sesión se cierra automáticamente al salir de la web o cerrar la pestaña.
           </p>
 
           <form onSubmit={handleLogin} className="space-y-4">
@@ -292,7 +366,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
             </h1>
           </div>
           <p className="text-white/70 font-semibold mt-1">
-            Visualización de rankings, métricas de participantes y creador con soporte para imágenes y múltiples tipos de preguntas.
+            Visualización de rankings privados, gestor de cuestionarios y respaldo seguro de tus preguntas creadas.
           </p>
         </div>
 
@@ -536,50 +610,98 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
         </div>
       )}
 
-      {/* TAB 2: GESTOR DE CUESTIONARIOS */}
+      {/* TAB 2: GESTOR DE CUESTIONARIOS & RESPALDO JSON */}
       {activeTab === 'quizzes' && (
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-black uppercase text-white tracking-tight">
-              Cuestionarios Disponibles ({quizzes.length})
-            </h2>
+          {/* Action Bar: Create, Backup JSON, Restore JSON */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-kahoot-purple-dark/80 p-5 rounded-3xl border border-white/10 shadow-lg">
+            <div>
+              <h2 className="text-2xl font-black uppercase text-white tracking-tight">
+                Cuestionarios Disponibles ({quizzes.length})
+              </h2>
+              <span className="text-xs text-white/60 font-semibold">
+                Tus cuestionarios creados se preservan localmente y puedes respaldarlos como archivo JSON.
+              </span>
+            </div>
 
-            <button
-              onClick={() => {
-                setEditingQuiz({
-                  id: 'quiz-' + Date.now(),
-                  title: '',
-                  description: '',
-                  category: 'General',
-                  coverImage: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=80',
-                  timePerQuestion: 20,
-                  createdAt: new Date().toISOString(),
-                  isPublished: true,
-                  questions: [
-                    {
-                      id: 'q-' + Date.now() + '-1',
-                      questionText: '',
-                      timeLimit: 20,
-                      pointsMultiplier: 1.0,
-                      questionType: 'multiple_choice',
-                      options: [
-                        { id: 'opt-1', text: '', isCorrect: true, color: 'red', shape: 'triangle' },
-                        { id: 'opt-2', text: '', isCorrect: false, color: 'blue', shape: 'diamond' },
-                        { id: 'opt-3', text: '', isCorrect: false, color: 'yellow', shape: 'circle' },
-                        { id: 'opt-4', text: '', isCorrect: false, color: 'green', shape: 'square' },
-                      ],
-                    },
-                  ],
-                });
-                setIsEditorOpen(true);
-              }}
-              className="flex items-center gap-2 px-5 py-3 bg-kahoot-yellow hover:bg-amber-400 text-black font-black uppercase tracking-wider text-xs md:text-sm rounded-2xl shadow-xl active:scale-95 transition"
-            >
-              <Plus className="w-5 h-5 stroke-[3]" />
-              <span>Crear Nuevo Cuestionario</span>
-            </button>
+            <div className="flex flex-wrap items-center gap-2.5">
+              {/* Descargar Respaldo JSON */}
+              <button
+                onClick={handleDownloadQuizzesBackup}
+                title="Descargar todos tus cuestionarios en un archivo JSON"
+                className="flex items-center gap-1.5 px-3.5 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold border border-white/20 transition active:scale-95"
+              >
+                <FileDown className="w-4 h-4 text-emerald-400" />
+                <span>Respaldar (JSON)</span>
+              </button>
+
+              {/* Importar desde JSON */}
+              <label
+                title="Cargar cuestionarios desde un archivo JSON"
+                className="cursor-pointer flex items-center gap-1.5 px-3.5 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold border border-white/20 transition active:scale-95"
+              >
+                <FileUp className="w-4 h-4 text-blue-400" />
+                <span>Restaurar (JSON)</span>
+                <input
+                  ref={importFileInputRef}
+                  type="file"
+                  accept=".json,application/json"
+                  className="hidden"
+                  onChange={handleImportQuizzesFile}
+                />
+              </label>
+
+              {/* Crear Cuestionario */}
+              <button
+                onClick={() => {
+                  setEditingQuiz({
+                    id: 'quiz-' + Date.now(),
+                    title: '',
+                    description: '',
+                    category: 'General',
+                    coverImage: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=80',
+                    timePerQuestion: 20,
+                    createdAt: new Date().toISOString(),
+                    isPublished: true,
+                    questions: [
+                      {
+                        id: 'q-' + Date.now() + '-1',
+                        questionText: '',
+                        timeLimit: 20,
+                        pointsMultiplier: 1.0,
+                        questionType: 'multiple_choice',
+                        options: [
+                          { id: 'opt-1', text: '', isCorrect: true, color: 'red', shape: 'triangle' },
+                          { id: 'opt-2', text: '', isCorrect: false, color: 'blue', shape: 'diamond' },
+                          { id: 'opt-3', text: '', isCorrect: false, color: 'yellow', shape: 'circle' },
+                          { id: 'opt-4', text: '', isCorrect: false, color: 'green', shape: 'square' },
+                        ],
+                      },
+                    ],
+                  });
+                  setIsEditorOpen(true);
+                }}
+                className="flex items-center gap-2 px-5 py-2.5 bg-kahoot-yellow hover:bg-amber-400 text-black font-black uppercase tracking-wider text-xs md:text-sm rounded-xl shadow-xl active:scale-95 transition"
+              >
+                <Plus className="w-4 h-4 stroke-[3]" />
+                <span>Crear Cuestionario</span>
+              </button>
+            </div>
           </div>
 
+          {/* Backup notification pill */}
+          {jsonBackupStatus && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-3 bg-emerald-500/20 border border-emerald-500/40 rounded-2xl text-xs font-black text-emerald-300 flex items-center gap-2"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              <span>{jsonBackupStatus}</span>
+            </motion.div>
+          )}
+
+          {/* Quizzes Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {quizzes.map(quiz => (
               <div
@@ -612,12 +734,21 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                   </div>
                 </div>
 
-                <div className="p-6 pt-0 flex items-center justify-between gap-3 border-t border-white/5 mt-4">
+                <div className="p-6 pt-0 flex items-center justify-between gap-2 border-t border-white/5 mt-4">
                   <span className="text-xs text-white/50 font-bold">
                     ⏱ {quiz.timePerQuestion || 20}s promedio
                   </span>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
+                    {/* Duplicar Cuestionario */}
+                    <button
+                      onClick={() => handleDuplicateQuiz(quiz)}
+                      className="p-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl border border-white/10 transition active:scale-95"
+                      title="Duplicar cuestionario"
+                    >
+                      <Files className="w-4 h-4 text-blue-300" />
+                    </button>
+                    {/* Editar */}
                     <button
                       onClick={() => {
                         setEditingQuiz(JSON.parse(JSON.stringify(quiz)));
@@ -626,8 +757,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                       className="p-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl border border-white/10 transition active:scale-95"
                       title="Editar cuestionario"
                     >
-                      <Edit className="w-4 h-4" />
+                      <Edit className="w-4 h-4 text-kahoot-yellow" />
                     </button>
+                    {/* Eliminar */}
                     <button
                       onClick={() => handleDeleteQuiz(quiz.id)}
                       className="p-2.5 bg-red-600/20 hover:bg-red-600/40 text-red-300 rounded-xl border border-red-500/20 transition active:scale-95"
@@ -803,7 +935,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                         onClick={() => setEditingQuiz({ ...editingQuiz, coverImage: '' })}
                         className="text-xs text-red-300 hover:text-white font-bold flex items-center gap-1"
                       >
-                        <X className="w-3.5 h-3.5" />
+                        <Trash2 className="w-3.5 h-3.5" />
                         <span>Quitar Portada</span>
                       </button>
                     )}
@@ -1060,7 +1192,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                       </div>
 
                       <div className="flex flex-col sm:flex-row gap-4 items-center">
-                        {/* Preview Box */}
                         {ques.imageUrl ? (
                           <div className="relative w-full sm:w-44 h-28 rounded-xl overflow-hidden border-2 border-white/30 shadow-lg flex-shrink-0 bg-black/60">
                             <img
@@ -1076,10 +1207,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                           </div>
                         )}
 
-                        {/* Upload Controls */}
                         <div className="flex-1 w-full space-y-2.5">
                           <div className="flex flex-wrap items-center gap-2">
-                            {/* File Upload Button */}
                             <label className="cursor-pointer px-4 py-2 bg-kahoot-purple hover:bg-kahoot-purple-light text-white font-black text-xs uppercase tracking-wider rounded-xl shadow border border-white/20 transition flex items-center gap-2 active:scale-95">
                               <Upload className="w-4 h-4" />
                               <span>Subir Imagen desde tu PC</span>
@@ -1098,7 +1227,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
 
                             <span className="text-xs text-white/40 font-bold">o</span>
 
-                            {/* Preset Buttons */}
                             <div className="flex items-center gap-1 flex-wrap">
                               <span className="text-[11px] text-white/50 font-bold mr-1">
                                 Galería rápida:
@@ -1122,7 +1250,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                             </div>
                           </div>
 
-                          {/* Image URL Manual Input */}
                           <div className="flex items-center gap-2 bg-black/50 px-3 py-2 rounded-xl border border-white/10 text-xs">
                             <LinkIcon className="w-3.5 h-3.5 text-white/40 flex-shrink-0" />
                             <input

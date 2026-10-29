@@ -320,14 +320,27 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
       </div>
 
       {!isGameOver ? (
-        <div className="flex-1 flex flex-col justify-between">
+        <motion.div
+          animate={!lastAnswerCorrect && showFeedback ? { x: [-10, 10, -7, 7, -3, 3, 0] } : {}}
+          transition={{ duration: 0.35 }}
+          className="flex-1 flex flex-col justify-between"
+        >
           {/* Question Text Box with Timer and Optional Image */}
           <motion.div
             key={currentQuestion.id}
             initial={{ opacity: 0, y: -15 }}
             animate={{ opacity: 1, y: 0 }}
-            className="relative bg-white text-gray-900 rounded-3xl p-6 md:p-8 shadow-2xl mb-6 border-4 border-white/20 text-center flex flex-col items-center justify-center min-h-[160px] md:min-h-[200px]"
+            className="relative bg-white text-gray-900 rounded-3xl p-6 md:p-8 shadow-2xl mb-6 border-4 border-white/20 text-center flex flex-col items-center justify-center min-h-[160px] md:min-h-[200px] overflow-hidden"
           >
+            {/* Top Linear Tension Bar */}
+            <div className="absolute top-0 left-0 right-0 h-2.5 bg-gray-100 overflow-hidden">
+              <motion.div
+                initial={{ width: '100%' }}
+                animate={{ width: isQuestionActive ? '0%' : '100%' }}
+                transition={{ duration: currentQuestion.timeLimit || 20, ease: 'linear' }}
+                className="h-full bg-gradient-to-r from-emerald-500 via-yellow-400 to-red-500"
+              />
+            </div>
             <div className="mb-4">
               <KahootTimer
                 initialSeconds={currentQuestion.timeLimit || 20}
@@ -623,7 +636,7 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
               </motion.div>
             )}
           </AnimatePresence>
-        </div>
+        </motion.div>
       ) : (
         /* Game Over Screen */
         <motion.div

@@ -6,7 +6,7 @@ import { KahootTimer } from './KahootTimer';
 import { KahootShapeIcon } from './KahootShapes';
 import { soundEffects } from '../utils/soundEffects';
 import { quizService } from '../services/quizService';
-import { Users, Play, ArrowRight, Home, Shield, Keyboard, Shuffle, CheckCircle } from 'lucide-react';
+import { Users, Play, ArrowRight, Home, Shield, Keyboard, Music, QrCode } from 'lucide-react';
 
 interface HostGameViewProps {
   quiz: Quiz;
@@ -23,6 +23,7 @@ export const HostGameView: React.FC<HostGameViewProps> = ({
   const [gameStatus, setGameStatus] = useState<'lobby' | 'question' | 'reveal' | 'podium'>('lobby');
   const [currentQuestionIdx, setCurrentQuestionIdx] = useState<number>(0);
   const [joinedPlayers, setJoinedPlayers] = useState<Participant[]>([]);
+  const [isMusicPlaying, setIsMusicPlaying] = useState<boolean>(false);
 
   useEffect(() => {
     const generatedPin = Math.floor(100000 + Math.random() * 900000).toString();
@@ -70,12 +71,28 @@ export const HostGameView: React.FC<HostGameViewProps> = ({
       },
     ];
     setJoinedPlayers(initialDemoPlayers);
+
+    return () => {
+      soundEffects.stopLobbyMusic();
+    };
   }, [quiz]);
 
   const currentQuestion: Question = quiz.questions[currentQuestionIdx];
   const totalQuestions = quiz.questions.length;
 
+  const handleToggleLobbyMusic = () => {
+    if (isMusicPlaying) {
+      soundEffects.stopLobbyMusic();
+      setIsMusicPlaying(false);
+    } else {
+      soundEffects.startLobbyMusic();
+      setIsMusicPlaying(true);
+    }
+  };
+
   const handleStartGame = () => {
+    soundEffects.stopLobbyMusic();
+    setIsMusicPlaying(false);
     setGameStatus('question');
     setCurrentQuestionIdx(0);
   };
@@ -127,18 +144,41 @@ export const HostGameView: React.FC<HostGameViewProps> = ({
       {/* LOBBY SCREEN */}
       {gameStatus === 'lobby' && (
         <div className="flex-1 flex flex-col justify-between items-center text-center py-6">
-          <div className="w-full max-w-3xl bg-white text-gray-900 rounded-3xl p-6 md:p-8 shadow-2xl border-4 border-white/20 mb-8">
-            <span className="text-xs uppercase font-black text-kahoot-purple tracking-widest block mb-2">
-              Ingresa el código PIN para unirte a la sala
-            </span>
-            <div className="text-5xl sm:text-7xl md:text-8xl font-black text-gray-900 tracking-wider my-2 font-mono">
-              {pin}
+          {/* Top Banner: PIN Box & Controls */}
+          <div className="w-full max-w-4xl bg-white text-gray-900 rounded-3xl p-6 md:p-8 shadow-2xl border-4 border-white/20 mb-8 flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="text-left flex-1">
+              <span className="text-xs uppercase font-black text-kahoot-purple tracking-widest block mb-1">
+                Únete en tu dispositivo con el código PIN
+              </span>
+              <div className="text-5xl sm:text-7xl md:text-8xl font-black text-gray-900 tracking-wider my-1 font-mono">
+                {pin}
+              </div>
+              <p className="text-xs sm:text-sm font-bold text-gray-500">
+                Cuestionario: <span className="text-kahoot-purple font-extrabold">{quiz.title}</span>
+              </p>
             </div>
-            <p className="text-xs sm:text-sm font-bold text-gray-500">
-              Cuestionario: <span className="text-kahoot-purple font-extrabold">{quiz.title}</span>
-            </p>
+
+            {/* QR Code and Music Action */}
+            <div className="flex flex-col items-center gap-3 bg-gray-50 p-4 rounded-2xl border border-gray-200">
+              <div className="w-24 h-24 bg-white p-2 rounded-xl shadow-inner border border-gray-200 flex items-center justify-center">
+                <QrCode className="w-20 h-20 text-kahoot-purple" />
+              </div>
+              <button
+                type="button"
+                onClick={handleToggleLobbyMusic}
+                className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition ${
+                  isMusicPlaying
+                    ? 'bg-amber-400 text-black shadow animate-pulse'
+                    : 'bg-gray-200 hover:bg-gray-300 text-gray-800'
+                }`}
+              >
+                <Music className="w-3.5 h-3.5" />
+                <span>{isMusicPlaying ? 'Música Activa 🎵' : 'Poner Música 🎵'}</span>
+              </button>
+            </div>
           </div>
 
+          {/* Joined Players Roster */}
           <div className="w-full max-w-4xl bg-black/40 border border-white/10 rounded-3xl p-6 md:p-8 mb-8 backdrop-blur-md">
             <div className="flex items-center justify-between mb-6 pb-4 border-b border-white/10">
               <div className="flex items-center gap-2">
@@ -157,7 +197,8 @@ export const HostGameView: React.FC<HostGameViewProps> = ({
                 <motion.div
                   key={player.id}
                   initial={{ scale: 0, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
+                  animate={{ scale: [0.8, 1.05, 1], opacity: 1 }}
+                  transition={{ type: 'spring', stiffness: 300, damping: 20 }}
                   className="bg-white/10 border border-white/20 rounded-2xl p-4 flex items-center gap-3 shadow-md"
                 >
                   <span className="text-3xl">{player.avatar}</span>
@@ -169,6 +210,7 @@ export const HostGameView: React.FC<HostGameViewProps> = ({
             </div>
           </div>
 
+          {/* Host Controls Footer */}
           <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
             <button
               onClick={onExit}
@@ -254,8 +296,6 @@ export const HostGameView: React.FC<HostGameViewProps> = ({
           </div>
 
           {/* DYNAMIC DISPLAY ACCORDING TO QUESTION TYPE */}
-
-          {/* Multiple Choice & True/False */}
           {['multiple_choice', 'true_false'].includes(currentQuestion.questionType) && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {currentQuestion.options.map(opt => {
@@ -299,7 +339,6 @@ export const HostGameView: React.FC<HostGameViewProps> = ({
             </div>
           )}
 
-          {/* Puzzle / Ordering */}
           {currentQuestion.questionType === 'puzzle' && (
             <div className="bg-black/40 border-2 border-white/20 rounded-3xl p-6 backdrop-blur-md">
               <div className="text-center mb-4">
@@ -342,7 +381,6 @@ export const HostGameView: React.FC<HostGameViewProps> = ({
             </div>
           )}
 
-          {/* Type Answer */}
           {currentQuestion.questionType === 'type_answer' && (
             <div className="bg-black/40 border-2 border-white/20 rounded-3xl p-8 backdrop-blur-md text-center max-w-3xl mx-auto w-full">
               {gameStatus === 'question' ? (
@@ -357,7 +395,6 @@ export const HostGameView: React.FC<HostGameViewProps> = ({
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <CheckCircle className="w-12 h-12 text-green-400 mx-auto" />
                   <span className="text-xs uppercase font-bold text-white/60">Respuesta(s) Aceptada(s):</span>
                   <div className="text-3xl md:text-5xl font-black text-kahoot-yellow uppercase tracking-wider">
                     {(currentQuestion.acceptedAnswers || []).join('  /  ')}
