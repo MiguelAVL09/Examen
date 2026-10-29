@@ -14,14 +14,15 @@ import {
   Database,
   Lock,
   RefreshCw,
-  Copy,
-  ExternalLink,
   ChevronDown,
-  Sparkles,
-  BookOpen
+  BookOpen,
+  HelpCircle,
+  CheckSquare,
+  Shuffle,
+  Keyboard
 } from 'lucide-react';
-import { Participant, Quiz, Question, QuestionOption } from '../types/quiz';
-import { quizService, DEFAULT_QUIZZES } from '../services/quizService';
+import type { Participant, Quiz, Question, QuestionType } from '../types/quiz';
+import { quizService } from '../services/quizService';
 import { isSupabaseConfigured } from '../services/supabaseClient';
 import { KahootShapeIcon } from './KahootShapes';
 
@@ -30,17 +31,14 @@ interface AdminViewProps {
 }
 
 export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
-  // Authentication State
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     return sessionStorage.getItem('kahoot_admin_auth') === 'true';
   });
   const [passcode, setPasscode] = useState<string>('');
   const [authError, setAuthError] = useState<string>('');
 
-  // Tab State
   const [activeTab, setActiveTab] = useState<'rankings' | 'quizzes' | 'supabase'>('rankings');
 
-  // Data State
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [rankings, setRankings] = useState<Participant[]>([]);
   const [selectedQuizId, setSelectedQuizId] = useState<string>('all');
@@ -48,11 +46,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [syncStatus, setSyncStatus] = useState<string>('');
 
-  // Quiz Editor Modal State
   const [isEditorOpen, setIsEditorOpen] = useState<boolean>(false);
   const [editingQuiz, setEditingQuiz] = useState<Quiz | null>(null);
 
-  // Load Data
   const loadData = async () => {
     setIsLoading(true);
     try {
@@ -76,10 +72,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
     }
   }, [isAuthenticated, selectedQuizId]);
 
-  // Auth Handler
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    // Default PIN: admin123
     if (passcode.trim() === 'admin123') {
       setIsAuthenticated(true);
       sessionStorage.setItem('kahoot_admin_auth', 'true');
@@ -94,7 +88,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
     sessionStorage.removeItem('kahoot_admin_auth');
   };
 
-  // Export to CSV
   const handleExportCSV = () => {
     if (rankings.length === 0) return;
 
@@ -124,7 +117,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
     document.body.removeChild(link);
   };
 
-  // Clear Rankings
   const handleClearRankings = async () => {
     if (window.confirm('¿Estás seguro de que deseas borrar los rankings? Esta acción no se puede deshacer.')) {
       await quizService.clearRankings(selectedQuizId === 'all' ? undefined : selectedQuizId);
@@ -132,14 +124,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
     }
   };
 
-  // Sync to Supabase
   const handleSyncToSupabase = async () => {
     setSyncStatus('Sincronizando...');
     const res = await quizService.syncSeedToSupabase();
     setSyncStatus(res.message);
   };
 
-  // Delete Quiz
   const handleDeleteQuiz = async (quizId: string) => {
     if (window.confirm('¿Deseas eliminar este cuestionario? Se eliminarán también sus preguntas asociadas.')) {
       await quizService.deleteQuiz(quizId);
@@ -147,12 +137,55 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
     }
   };
 
-  // Filter rankings by search query
+  // Helper to change question type and reconfigure template options
+  const handleQuestionTypeChange = (qIdx: number, newType: QuestionType) => {
+    if (!editingQuiz) return;
+    const updated = [...editingQuiz.questions];
+    const ques = updated[qIdx];
+    ques.questionType = newType;
+
+    if (newType === 'multiple_choice') {
+      ques.options = [
+        { id: 'opt-' + Date.now() + '-1', text: ques.options[0]?.text || '', isCorrect: true, color: 'red', shape: 'triangle' },
+        { id: 'opt-' + Date.now() + '-2', text: ques.options[1]?.text || '', isCorrect: false, color: 'blue', shape: 'diamond' },
+        { id: 'opt-' + Date.now() + '-3', text: ques.options[2]?.text || '', isCorrect: false, color: 'yellow', shape: 'circle' },
+        { id: 'opt-' + Date.now() + '-4', text: ques.options[3]?.text || '', isCorrect: false, color: 'green', shape: 'square' },
+      ];
+      ques.correctOrder = undefined;
+      ques.acceptedAnswers = undefined;
+    } else if (newType === 'true_false') {
+      ques.options = [
+        { id: 'tf-' + Date.now() + '-1', text: 'VERDADERO', isCorrect: true, color: 'blue', shape: 'diamond' },
+        { id: 'tf-' + Date.now() + '-2', text: 'FALSO', isCorrect: false, color: 'red', shape: 'triangle' },
+      ];
+      ques.correctOrder = undefined;
+      ques.acceptedAnswers = undefined;
+    } else if (newType === 'puzzle') {
+      const puz1 = 'puz-' + Date.now() + '-1';
+      const puz2 = 'puz-' + Date.now() + '-2';
+      const puz3 = 'puz-' + Date.now() + '-3';
+      const puz4 = 'puz-' + Date.now() + '-4';
+      ques.options = [
+        { id: puz1, text: 'Paso 1 (Primero en la secuencia)', isCorrect: true, color: 'red', shape: 'triangle', orderIndex: 0 },
+        { id: puz2, text: 'Paso 2 (Segundo)', isCorrect: true, color: 'blue', shape: 'diamond', orderIndex: 1 },
+        { id: puz3, text: 'Paso 3 (Tercero)', isCorrect: true, color: 'yellow', shape: 'circle', orderIndex: 2 },
+        { id: puz4, text: 'Paso 4 (Último)', isCorrect: true, color: 'green', shape: 'square', orderIndex: 3 },
+      ];
+      ques.correctOrder = [puz1, puz2, puz3, puz4];
+      ques.acceptedAnswers = undefined;
+    } else if (newType === 'type_answer') {
+      ques.options = [];
+      ques.correctOrder = undefined;
+      ques.acceptedAnswers = [''];
+    }
+
+    setEditingQuiz({ ...editingQuiz, questions: updated });
+  };
+
   const filteredRankings = rankings.filter(p =>
     p.nickname.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // If Not Authenticated, show Passcode Lock Screen
   if (!isAuthenticated) {
     return (
       <div className="min-h-[calc(100vh-80px)] flex items-center justify-center p-4">
@@ -213,7 +246,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
     );
   }
 
-  // Authenticated Admin Dashboard
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 min-h-[calc(100vh-80px)]">
       {/* Top Header */}
@@ -228,7 +260,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
             </h1>
           </div>
           <p className="text-white/70 font-semibold mt-1">
-            Visualización privada de rankings, métricas de participantes y creador de nuevos cuestionarios.
+            Visualización privada de rankings, métricas de participantes y creador con soporte para múltiples tipos de preguntas (Opción Múltiple, Verdadero/Falso, Puzzle, Escribir Respuesta).
           </p>
         </div>
 
@@ -288,10 +320,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
         </button>
       </div>
 
-      {/* TAB 1: RANKINGS & RESULTS */}
+      {/* TAB 1: RANKINGS */}
       {activeTab === 'rankings' && (
         <div className="space-y-6">
-          {/* Quick Metrics Bar */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-kahoot-purple-dark/80 p-5 rounded-2xl border border-white/10 shadow-lg">
               <span className="text-xs uppercase font-bold text-white/60">Total Participantes</span>
@@ -326,10 +357,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
             </div>
           </div>
 
-          {/* Filtering and Search Controls */}
           <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-kahoot-purple-dark/80 p-4 rounded-2xl border border-white/10 shadow-lg">
             <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-              {/* Select Quiz Filter */}
               <div className="relative">
                 <select
                   value={selectedQuizId}
@@ -346,7 +375,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                 <ChevronDown className="w-4 h-4 text-white/60 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
 
-              {/* Search Participant */}
               <div className="relative flex-1 md:w-64">
                 <Search className="w-4 h-4 text-white/40 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
@@ -359,7 +387,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
               </div>
             </div>
 
-            {/* Actions: Export & Reset */}
             <div className="flex items-center gap-3 w-full md:w-auto justify-end">
               <button
                 onClick={handleExportCSV}
@@ -381,7 +408,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
             </div>
           </div>
 
-          {/* Rankings Table */}
           <div className="bg-kahoot-purple-dark/80 rounded-3xl border border-white/10 shadow-2xl overflow-hidden backdrop-blur-md">
             {filteredRankings.length > 0 ? (
               <div className="overflow-x-auto">
@@ -405,11 +431,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                       const badge = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`;
 
                       return (
-                        <tr
-                          key={p.id}
-                          className="hover:bg-white/5 transition-colors"
-                        >
-                          {/* Rank badge */}
+                        <tr key={p.id} className="hover:bg-white/5 transition-colors">
                           <td className="py-4 px-6">
                             <span
                               className={`inline-flex items-center justify-center w-8 h-8 rounded-full font-black text-sm ${
@@ -421,8 +443,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                               {badge}
                             </span>
                           </td>
-
-                          {/* Nickname & Avatar */}
                           <td className="py-4 px-6">
                             <div className="flex items-center gap-3">
                               <span className="text-2xl">{p.avatar || '🦊'}</span>
@@ -431,26 +451,18 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                               </span>
                             </div>
                           </td>
-
-                          {/* Quiz Title */}
                           <td className="py-4 px-6 max-w-xs truncate text-white/80">
                             {quizInfo?.title || 'Cuestionario General'}
                           </td>
-
-                          {/* Score */}
                           <td className="py-4 px-6 text-right">
                             <span className="font-black text-base text-kahoot-yellow">
                               {p.totalScore.toLocaleString()}
                             </span>
                             <span className="text-xs text-white/60 ml-1">pts</span>
                           </td>
-
-                          {/* Correct Answers */}
                           <td className="py-4 px-6 text-center text-white/90 font-bold">
                             {p.correctAnswersCount} / {p.totalQuestionsCount}
                           </td>
-
-                          {/* Accuracy */}
                           <td className="py-4 px-6 text-center">
                             <span
                               className={`px-2.5 py-1 rounded-full text-xs font-black ${
@@ -464,16 +476,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                               {p.accuracyPercentage}%
                             </span>
                           </td>
-
-                          {/* Max Streak */}
                           <td className="py-4 px-6 text-center">
                             <div className="inline-flex items-center gap-1 text-amber-300 font-extrabold">
                               <Flame className="w-4 h-4" />
                               <span>x{p.maxStreak}</span>
                             </div>
                           </td>
-
-                          {/* Date */}
                           <td className="py-4 px-6 text-right text-xs text-white/50">
                             {new Date(p.completedAt).toLocaleDateString()} {new Date(p.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </td>
@@ -496,7 +504,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
         </div>
       )}
 
-      {/* TAB 2: QUIZZES MANAGER & CREATOR */}
+      {/* TAB 2: GESTOR DE CUESTIONARIOS */}
       {activeTab === 'quizzes' && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
@@ -540,7 +548,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
             </button>
           </div>
 
-          {/* Quizzes Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {quizzes.map(quiz => (
               <div
@@ -548,7 +555,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                 className="bg-kahoot-purple-dark/80 rounded-3xl border border-white/10 overflow-hidden shadow-xl flex flex-col justify-between group hover:border-kahoot-yellow/50 transition-all duration-300"
               >
                 <div>
-                  {/* Cover Image */}
                   <div className="relative h-44 overflow-hidden bg-black/40">
                     <img
                       src={quiz.coverImage || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=80'}
@@ -564,7 +570,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                     </span>
                   </div>
 
-                  {/* Body Content */}
                   <div className="p-6">
                     <h3 className="text-xl font-black text-white mb-2 leading-snug">
                       {quiz.title}
@@ -575,10 +580,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                   </div>
                 </div>
 
-                {/* Footer Actions */}
                 <div className="p-6 pt-0 flex items-center justify-between gap-3 border-t border-white/5 mt-4">
                   <span className="text-xs text-white/50 font-bold">
-                    ⏱ {quiz.timePerQuestion || 20}s por pregunta
+                    ⏱ {quiz.timePerQuestion || 20}s promedio
                   </span>
 
                   <div className="flex items-center gap-2">
@@ -607,10 +611,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
         </div>
       )}
 
-      {/* TAB 3: SUPABASE & GITHUB CLOUD SYNC */}
+      {/* TAB 3: SUPABASE */}
       {activeTab === 'supabase' && (
         <div className="space-y-6 max-w-4xl">
-          {/* Supabase Status Box */}
           <div className="bg-kahoot-purple-dark/80 rounded-3xl p-6 md:p-8 border border-white/10 shadow-2xl backdrop-blur-md">
             <div className="flex items-center gap-3 mb-4">
               <Database className="w-8 h-8 text-emerald-400" />
@@ -656,34 +659,19 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
               </div>
             )}
 
-            {/* How to Connect Instructions */}
             <div className="space-y-4 text-xs text-white/80">
               <h4 className="text-sm font-black text-white uppercase tracking-wider">
                 Pasos para vincular tu proyecto a Supabase:
               </h4>
               <ol className="list-decimal list-inside space-y-2 font-semibold">
                 <li>
-                  Crea una cuenta gratuita en{' '}
-                  <a
-                    href="https://supabase.com"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-kahoot-yellow underline"
-                  >
-                    Supabase.com
-                  </a>{' '}
-                  y crea un nuevo proyecto.
+                  Crea una cuenta en <a href="https://supabase.com" target="_blank" rel="noreferrer" className="text-kahoot-yellow underline">Supabase.com</a>.
                 </li>
                 <li>
-                  Abre la pestaña <strong className="text-white">SQL Editor</strong> en Supabase y ejecuta todo el contenido de{' '}
-                  <code className="text-amber-300 bg-black/40 px-1 py-0.5 rounded">
-                    supabase/schema.sql
-                  </code>{' '}
-                  (ubicado en la raíz de este proyecto).
+                  Abre la pestaña <strong className="text-white">SQL Editor</strong> en Supabase y ejecuta el archivo <code className="text-amber-300 bg-black/40 px-1 py-0.5 rounded">supabase/schema.sql</code>.
                 </li>
                 <li>
-                  Copia tu <strong className="text-white">Project URL</strong> y <strong className="text-white">anon public API key</strong> de Supabase en un archivo{' '}
-                  <code className="text-amber-300 bg-black/40 px-1 py-0.5 rounded">.env</code>:
+                  Agrega las variables en tu archivo <code className="text-amber-300 bg-black/40 px-1 py-0.5 rounded">.env</code>:
                 </li>
               </ol>
 
@@ -713,9 +701,14 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
               className="bg-kahoot-purple-dark border-2 border-white/20 rounded-3xl p-6 md:p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl text-white"
             >
               <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-6">
-                <h3 className="text-2xl font-black uppercase tracking-tight">
-                  {editingQuiz.title ? 'Editar Cuestionario' : 'Nuevo Cuestionario'}
-                </h3>
+                <div>
+                  <h3 className="text-2xl font-black uppercase tracking-tight">
+                    {editingQuiz.title ? 'Editar Cuestionario' : 'Nuevo Cuestionario'}
+                  </h3>
+                  <span className="text-xs text-white/60 font-semibold">
+                    Configura preguntas interactivas con diferentes tipos: opción múltiple, verdadero/falso, puzzles y escritura.
+                  </span>
+                </div>
                 <button
                   onClick={() => setIsEditorOpen(false)}
                   className="p-2 text-white/60 hover:text-white text-xl font-black"
@@ -734,7 +727,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                     type="text"
                     value={editingQuiz.title}
                     onChange={e => setEditingQuiz({ ...editingQuiz, title: e.target.value })}
-                    placeholder="Ej. Trivia de Cine y Series"
+                    placeholder="Ej. Desafío de Historia y Ciencias"
                     className="w-full px-4 py-3 rounded-xl bg-black/40 border border-white/20 text-white font-bold text-sm focus:outline-none focus:border-kahoot-yellow"
                   />
                 </div>
@@ -747,7 +740,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                     type="text"
                     value={editingQuiz.category}
                     onChange={e => setEditingQuiz({ ...editingQuiz, category: e.target.value })}
-                    placeholder="Ej. Entretenimiento, Historia..."
+                    placeholder="Ej. Entretenimiento, Educación..."
                     className="w-full px-4 py-3 rounded-xl bg-black/40 border border-white/20 text-white font-bold text-sm focus:outline-none focus:border-kahoot-yellow"
                   />
                 </div>
@@ -779,7 +772,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                 </div>
               </div>
 
-              {/* Questions Section */}
+              {/* Questions Section with Type Selector */}
               <div className="space-y-6">
                 <div className="flex items-center justify-between">
                   <h4 className="text-lg font-black uppercase text-amber-300">
@@ -816,27 +809,95 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                 {editingQuiz.questions.map((ques, qIdx) => (
                   <div
                     key={ques.id}
-                    className="bg-black/30 p-5 rounded-2xl border border-white/10 space-y-4"
+                    className="bg-black/30 p-5 rounded-3xl border border-white/10 space-y-4"
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-black uppercase text-kahoot-yellow">
-                        Pregunta #{qIdx + 1}
-                      </span>
-                      {editingQuiz.questions.length > 1 && (
-                        <button
-                          onClick={() => {
-                            const updated = editingQuiz.questions.filter((_, i) => i !== qIdx);
-                            setEditingQuiz({ ...editingQuiz, questions: updated });
-                          }}
-                          className="text-red-400 hover:text-red-300 text-xs font-bold"
-                        >
-                          Eliminar
-                        </button>
-                      )}
+                    {/* Question Header & Type Selector */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/10">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black uppercase text-kahoot-yellow px-2.5 py-1 bg-black/40 rounded-lg">
+                          Pregunta #{qIdx + 1}
+                        </span>
+                        <span className="text-xs text-white/60 font-bold uppercase">
+                          Tipo de Pregunta:
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {editingQuiz.questions.length > 1 && (
+                          <button
+                            onClick={() => {
+                              const updated = editingQuiz.questions.filter((_, i) => i !== qIdx);
+                              setEditingQuiz({ ...editingQuiz, questions: updated });
+                            }}
+                            className="text-red-400 hover:text-red-300 text-xs font-bold px-2 py-1 bg-red-500/10 rounded-lg"
+                          >
+                            Eliminar Pregunta
+                          </button>
+                        )}
+                      </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                      <div className="md:col-span-3">
+                    {/* Question Type Choice Tabs */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleQuestionTypeChange(qIdx, 'multiple_choice')}
+                        className={`p-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition ${
+                          ques.questionType === 'multiple_choice'
+                            ? 'bg-kahoot-yellow text-black shadow-md'
+                            : 'bg-white/5 hover:bg-white/10 text-white/70'
+                        }`}
+                      >
+                        <CheckSquare className="w-3.5 h-3.5" />
+                        <span>Opción Múltiple</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleQuestionTypeChange(qIdx, 'true_false')}
+                        className={`p-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition ${
+                          ques.questionType === 'true_false'
+                            ? 'bg-blue-500 text-white shadow-md'
+                            : 'bg-white/5 hover:bg-white/10 text-white/70'
+                        }`}
+                      >
+                        <HelpCircle className="w-3.5 h-3.5" />
+                        <span>Verdadero / Falso</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleQuestionTypeChange(qIdx, 'puzzle')}
+                        className={`p-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition ${
+                          ques.questionType === 'puzzle'
+                            ? 'bg-green-600 text-white shadow-md'
+                            : 'bg-white/5 hover:bg-white/10 text-white/70'
+                        }`}
+                      >
+                        <Shuffle className="w-3.5 h-3.5" />
+                        <span>Puzzle (Ordenar)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleQuestionTypeChange(qIdx, 'type_answer')}
+                        className={`p-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition ${
+                          ques.questionType === 'type_answer'
+                            ? 'bg-amber-500 text-black shadow-md'
+                            : 'bg-white/5 hover:bg-white/10 text-white/70'
+                        }`}
+                      >
+                        <Keyboard className="w-3.5 h-3.5" />
+                        <span>Escribir Respuesta</span>
+                      </button>
+                    </div>
+
+                    {/* Question Text, Time Limit & Multiplier */}
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-3 pt-2">
+                      <div className="md:col-span-8">
+                        <label className="text-[11px] font-bold text-white/60 block mb-1">
+                          Texto de la Pregunta *
+                        </label>
                         <input
                           type="text"
                           placeholder="Escribe la pregunta aquí..."
@@ -850,7 +911,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                         />
                       </div>
 
-                      <div>
+                      <div className="md:col-span-2">
+                        <label className="text-[11px] font-bold text-white/60 block mb-1">
+                          Tiempo Límite
+                        </label>
                         <select
                           value={ques.timeLimit}
                           onChange={e => {
@@ -860,43 +924,104 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                           }}
                           className="w-full px-3 py-2.5 rounded-xl bg-black/40 border border-white/20 text-white font-bold text-sm focus:outline-none focus:border-kahoot-yellow"
                         >
-                          <option value={10}>10 segundos</option>
-                          <option value={15}>15 segundos</option>
-                          <option value={20}>20 segundos</option>
-                          <option value={30}>30 segundos</option>
-                          <option value={60}>60 segundos</option>
+                          <option value={10}>10 seg</option>
+                          <option value={15}>15 seg</option>
+                          <option value={20}>20 seg</option>
+                          <option value={30}>30 seg</option>
+                          <option value={60}>60 seg</option>
+                        </select>
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <label className="text-[11px] font-bold text-white/60 block mb-1">
+                          Puntaje
+                        </label>
+                        <select
+                          value={ques.pointsMultiplier}
+                          onChange={e => {
+                            const updated = [...editingQuiz.questions];
+                            updated[qIdx].pointsMultiplier = Number(e.target.value);
+                            setEditingQuiz({ ...editingQuiz, questions: updated });
+                          }}
+                          className="w-full px-3 py-2.5 rounded-xl bg-black/40 border border-white/20 text-white font-bold text-sm focus:outline-none focus:border-kahoot-yellow"
+                        >
+                          <option value={1.0}>1x Estándar</option>
+                          <option value={1.5}>1.5x Plus</option>
+                          <option value={2.0}>2x Doble</option>
+                          <option value={0}>0x Sin puntos</option>
                         </select>
                       </div>
                     </div>
 
-                    {/* Options Grid */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                      {ques.options.map((opt, optIdx) => {
-                        const colorBgs = {
-                          red: 'border-l-4 border-l-red-500',
-                          blue: 'border-l-4 border-l-blue-500',
-                          yellow: 'border-l-4 border-l-yellow-500',
-                          green: 'border-l-4 border-l-green-500',
-                        }[opt.color];
+                    {/* DYNAMIC OPTIONS EDITOR BASED ON QUESTION TYPE */}
 
-                        return (
-                          <div
-                            key={opt.id}
-                            className={`flex items-center gap-2 bg-black/40 p-2.5 rounded-xl border border-white/10 ${colorBgs}`}
-                          >
-                            <KahootShapeIcon shape={opt.shape} size={20} className="text-white/80" />
-                            <input
-                              type="text"
-                              placeholder={`Opción ${optIdx + 1}...`}
-                              value={opt.text}
-                              onChange={e => {
-                                const updated = [...editingQuiz.questions];
-                                updated[qIdx].options[optIdx].text = e.target.value;
-                                setEditingQuiz({ ...editingQuiz, questions: updated });
-                              }}
-                              className="flex-1 bg-transparent text-white font-semibold text-xs focus:outline-none"
-                            />
+                    {/* 1. Multiple Choice Options */}
+                    {ques.questionType === 'multiple_choice' && (
+                      <div className="space-y-2 pt-2">
+                        <span className="text-xs font-bold text-white/70 block">
+                          Opciones (Haz clic en la palomita verde ✓ para marcar la respuesta correcta):
+                        </span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {ques.options.map((opt, optIdx) => {
+                            const colorBgs = {
+                              red: 'border-l-4 border-l-red-500',
+                              blue: 'border-l-4 border-l-blue-500',
+                              yellow: 'border-l-4 border-l-yellow-500',
+                              green: 'border-l-4 border-l-green-500',
+                            }[opt.color];
+
+                            return (
+                              <div
+                                key={opt.id}
+                                className={`flex items-center gap-2 bg-black/40 p-2.5 rounded-xl border border-white/10 ${colorBgs}`}
+                              >
+                                <KahootShapeIcon shape={opt.shape} size={20} className="text-white/80" />
+                                <input
+                                  type="text"
+                                  placeholder={`Opción ${optIdx + 1}...`}
+                                  value={opt.text}
+                                  onChange={e => {
+                                    const updated = [...editingQuiz.questions];
+                                    updated[qIdx].options[optIdx].text = e.target.value;
+                                    setEditingQuiz({ ...editingQuiz, questions: updated });
+                                  }}
+                                  className="flex-1 bg-transparent text-white font-semibold text-xs focus:outline-none"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const updated = [...editingQuiz.questions];
+                                    updated[qIdx].options.forEach((o, i) => {
+                                      o.isCorrect = i === optIdx;
+                                    });
+                                    setEditingQuiz({ ...editingQuiz, questions: updated });
+                                  }}
+                                  title={opt.isCorrect ? 'Respuesta correcta' : 'Marcar como correcta'}
+                                  className={`p-1.5 rounded-lg text-xs font-black transition ${
+                                    opt.isCorrect
+                                      ? 'bg-green-500 text-white shadow'
+                                      : 'bg-white/10 text-white/40 hover:text-white'
+                                  }`}
+                                >
+                                  ✓
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 2. True / False Options */}
+                    {ques.questionType === 'true_false' && (
+                      <div className="space-y-2 pt-2">
+                        <span className="text-xs font-bold text-white/70 block">
+                          Selecciona cuál es la respuesta correcta para esta afirmación:
+                        </span>
+                        <div className="grid grid-cols-2 gap-4">
+                          {ques.options.map((opt, optIdx) => (
                             <button
+                              key={opt.id}
                               type="button"
                               onClick={() => {
                                 const updated = [...editingQuiz.questions];
@@ -905,19 +1030,102 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                                 });
                                 setEditingQuiz({ ...editingQuiz, questions: updated });
                               }}
-                              title={opt.isCorrect ? 'Respuesta correcta' : 'Marcar como correcta'}
-                              className={`p-1.5 rounded-lg text-xs font-black transition ${
+                              className={`p-4 rounded-2xl flex items-center justify-between border-2 transition ${
                                 opt.isCorrect
-                                  ? 'bg-green-500 text-white shadow'
-                                  : 'bg-white/10 text-white/40 hover:text-white'
+                                  ? 'bg-white/20 border-white ring-4 ring-green-400 font-black'
+                                  : 'bg-black/30 border-white/10 opacity-60 font-semibold'
                               }`}
                             >
-                              ✓
+                              <div className="flex items-center gap-2">
+                                <KahootShapeIcon shape={opt.shape} size={24} />
+                                <span className="text-sm uppercase tracking-wider">{opt.text}</span>
+                              </div>
+                              {opt.isCorrect && (
+                                <span className="text-xs bg-green-500 text-white px-2 py-0.5 rounded-full font-black">
+                                  CORRECTA
+                                </span>
+                              )}
                             </button>
-                          </div>
-                        );
-                      })}
-                    </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 3. Puzzle / Ordering Sequence */}
+                    {ques.questionType === 'puzzle' && (
+                      <div className="space-y-2 pt-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-amber-300 block">
+                            Ingresa los elementos en el ORDEN CORRECTO (1° al 4°). Al jugar, el sistema los mezclará automáticamente:
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-2.5">
+                          {ques.options.map((opt, optIdx) => {
+                            const shapes: Array<'triangle' | 'diamond' | 'circle' | 'square'> = ['triangle', 'diamond', 'circle', 'square'];
+                            const colors: Array<'red' | 'blue' | 'yellow' | 'green'> = ['red', 'blue', 'yellow', 'green'];
+                            const shape = shapes[optIdx % 4];
+                            const color = colors[optIdx % 4];
+
+                            return (
+                              <div
+                                key={opt.id}
+                                className="flex items-center gap-3 bg-black/40 p-3 rounded-2xl border border-white/10"
+                              >
+                                <span className="w-8 h-8 rounded-xl bg-kahoot-yellow text-black font-black flex items-center justify-center text-sm shadow">
+                                  #{optIdx + 1}
+                                </span>
+                                <KahootShapeIcon shape={shape} size={22} className="text-white/80" />
+                                <input
+                                  type="text"
+                                  placeholder={`Elemento o paso número ${optIdx + 1}...`}
+                                  value={opt.text}
+                                  onChange={e => {
+                                    const updated = [...editingQuiz.questions];
+                                    updated[qIdx].options[optIdx].text = e.target.value;
+                                    updated[qIdx].options[optIdx].orderIndex = optIdx;
+                                    updated[qIdx].options[optIdx].shape = shape;
+                                    updated[qIdx].options[optIdx].color = color;
+                                    updated[qIdx].correctOrder = updated[qIdx].options.map(o => o.id);
+                                    setEditingQuiz({ ...editingQuiz, questions: updated });
+                                  }}
+                                  className="flex-1 bg-transparent text-white font-bold text-sm focus:outline-none"
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 4. Type Answer Open Text */}
+                    {ques.questionType === 'type_answer' && (
+                      <div className="space-y-3 pt-2">
+                        <div>
+                          <label className="text-xs font-bold text-amber-300 block mb-1">
+                            Respuesta(s) Aceptada(s) (separadas por comas):
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="Ej. 1989, el año 1989, en 1989"
+                            value={(ques.acceptedAnswers || []).join(', ')}
+                            onChange={e => {
+                              const updated = [...editingQuiz.questions];
+                              const parts = e.target.value
+                                .split(',')
+                                .map(s => s.trim())
+                                .filter(Boolean);
+                              updated[qIdx].acceptedAnswers = parts.length > 0 ? parts : [e.target.value.trim()];
+                              setEditingQuiz({ ...editingQuiz, questions: updated });
+                            }}
+                            className="w-full px-4 py-3 rounded-xl bg-black/40 border border-white/20 text-white font-bold text-sm focus:outline-none focus:border-kahoot-yellow"
+                          />
+                          <p className="text-[11px] text-white/50 mt-1 font-semibold">
+                            El sistema compara sin distinción de mayúsculas/minúsculas ni espacios iniciales.
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

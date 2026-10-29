@@ -1,5 +1,6 @@
 -- =====================================================================
--- ESQUEMA SUPABASE PARA KAHOOT QUIZ APP
+-- ESQUEMA SUPABASE ACTUALIZADO PARA KAHOOT QUIZ APP (V2)
+-- Soporta: Opción Múltiple, Verdadero/Falso, Puzzle y Escribir Respuesta
 -- Copia y pega este script en el SQL Editor de tu proyecto en Supabase
 -- (https://supabase.com/dashboard/project/_/sql)
 -- =====================================================================
@@ -20,7 +21,7 @@ CREATE TABLE IF NOT EXISTS public.quizzes (
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 3. Tabla de Preguntas (Questions)
+-- 3. Tabla de Preguntas (Questions) con soporte Multi-Tipo
 CREATE TABLE IF NOT EXISTS public.questions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     quiz_id UUID NOT NULL REFERENCES public.quizzes(id) ON DELETE CASCADE,
@@ -28,7 +29,10 @@ CREATE TABLE IF NOT EXISTS public.questions (
     image_url TEXT DEFAULT '',
     time_limit INTEGER DEFAULT 20,
     points_multiplier NUMERIC DEFAULT 1.0,
-    question_type TEXT DEFAULT 'multiple_choice', -- 'multiple_choice' | 'true_false'
+    -- Tipos admitidos: 'multiple_choice', 'true_false', 'puzzle', 'type_answer'
+    question_type TEXT DEFAULT 'multiple_choice',
+    correct_order JSONB DEFAULT NULL,      -- Para 'puzzle': array de IDs en orden correcto
+    accepted_answers JSONB DEFAULT NULL,   -- Para 'type_answer': array de respuestas textuales válidas
     order_index INTEGER DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT now()
 );
@@ -55,7 +59,7 @@ CREATE TABLE IF NOT EXISTS public.quiz_sessions (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 6. Tabla de Participantes (Ranking & Resultados)
+-- 6. Tabla de Participantes (Ranking & Resultados - Admin Only)
 CREATE TABLE IF NOT EXISTS public.participants (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     session_id UUID REFERENCES public.quiz_sessions(id) ON DELETE SET NULL,
@@ -72,12 +76,14 @@ CREATE TABLE IF NOT EXISTS public.participants (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 7. Tabla de Respuestas de Participantes
+-- 7. Tabla de Respuestas Detalladas de Participantes
 CREATE TABLE IF NOT EXISTS public.participant_answers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     participant_id UUID NOT NULL REFERENCES public.participants(id) ON DELETE CASCADE,
     question_id UUID NOT NULL REFERENCES public.questions(id) ON DELETE CASCADE,
     selected_option_id UUID REFERENCES public.question_options(id) ON DELETE SET NULL,
+    submitted_sequence JSONB DEFAULT NULL,
+    submitted_text TEXT DEFAULT NULL,
     is_correct BOOLEAN NOT NULL DEFAULT false,
     time_taken_ms INTEGER DEFAULT 0,
     points_awarded INTEGER DEFAULT 0,
@@ -100,7 +106,6 @@ ALTER TABLE public.quiz_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.participants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.participant_answers ENABLE ROW LEVEL SECURITY;
 
--- Políticas de lectura y escritura pública para juego interactivo
 CREATE POLICY "Public Read Quizzes" ON public.quizzes FOR SELECT USING (true);
 CREATE POLICY "Public Manage Quizzes" ON public.quizzes FOR ALL USING (true);
 

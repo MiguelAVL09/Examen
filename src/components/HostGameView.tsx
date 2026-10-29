@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import confetti from 'canvas-confetti';
-import { Quiz, Question, Participant } from '../types/quiz';
+import type { Quiz, Question, Participant } from '../types/quiz';
 import { KahootTimer } from './KahootTimer';
 import { KahootShapeIcon } from './KahootShapes';
 import { soundEffects } from '../utils/soundEffects';
 import { quizService } from '../services/quizService';
-import { Users, Play, ArrowRight, Trophy, Sparkles, Home, Shield, QrCode } from 'lucide-react';
+import { Users, Play, ArrowRight, Home, Shield, Keyboard, Shuffle, CheckCircle } from 'lucide-react';
 
 interface HostGameViewProps {
   quiz: Quiz;
@@ -23,14 +23,11 @@ export const HostGameView: React.FC<HostGameViewProps> = ({
   const [gameStatus, setGameStatus] = useState<'lobby' | 'question' | 'reveal' | 'podium'>('lobby');
   const [currentQuestionIdx, setCurrentQuestionIdx] = useState<number>(0);
   const [joinedPlayers, setJoinedPlayers] = useState<Participant[]>([]);
-  const [answerCount, setAnswerCount] = useState<number>(0);
 
-  // Initialize PIN and simulated lobby players for instant testing
   useEffect(() => {
     const generatedPin = Math.floor(100000 + Math.random() * 900000).toString();
     setPin(generatedPin);
 
-    // Initial simulated demo participants so the host can test the live game right away
     const initialDemoPlayers: Participant[] = [
       {
         id: 'p-demo-1',
@@ -81,17 +78,15 @@ export const HostGameView: React.FC<HostGameViewProps> = ({
   const handleStartGame = () => {
     setGameStatus('question');
     setCurrentQuestionIdx(0);
-    setAnswerCount(0);
   };
 
   const handleRevealAnswers = () => {
     setGameStatus('reveal');
     soundEffects.playCorrect();
 
-    // Simulate score accumulation for joined players
     setJoinedPlayers(prev =>
       prev.map(p => {
-        const isCorrect = Math.random() > 0.3; // 70% chance of correct
+        const isCorrect = Math.random() > 0.3;
         const points = isCorrect ? Math.floor(700 + Math.random() * 300) : 0;
         return {
           ...p,
@@ -109,27 +104,22 @@ export const HostGameView: React.FC<HostGameViewProps> = ({
     if (currentQuestionIdx + 1 < totalQuestions) {
       setCurrentQuestionIdx(prev => prev + 1);
       setGameStatus('question');
-      setAnswerCount(0);
     } else {
-      // Show Final Podium
       setGameStatus('podium');
       soundEffects.playPodiumFanfare();
 
-      // Confetti burst
       confetti({
         particleCount: 200,
         spread: 100,
         origin: { y: 0.5 },
       });
 
-      // Save all player results to DB/Storage
       joinedPlayers.forEach(p => {
         quizService.saveParticipantResult(p).catch(() => {});
       });
     }
   };
 
-  // Sort players for podium
   const sortedPlayers = [...joinedPlayers].sort((a, b) => b.totalScore - a.totalScore);
 
   return (
@@ -137,10 +127,9 @@ export const HostGameView: React.FC<HostGameViewProps> = ({
       {/* LOBBY SCREEN */}
       {gameStatus === 'lobby' && (
         <div className="flex-1 flex flex-col justify-between items-center text-center py-6">
-          {/* Top Banner: PIN Box */}
           <div className="w-full max-w-3xl bg-white text-gray-900 rounded-3xl p-6 md:p-8 shadow-2xl border-4 border-white/20 mb-8">
             <span className="text-xs uppercase font-black text-kahoot-purple tracking-widest block mb-2">
-              Ingresa el código PIN para unirte
+              Ingresa el código PIN para unirte a la sala
             </span>
             <div className="text-5xl sm:text-7xl md:text-8xl font-black text-gray-900 tracking-wider my-2 font-mono">
               {pin}
@@ -150,7 +139,6 @@ export const HostGameView: React.FC<HostGameViewProps> = ({
             </p>
           </div>
 
-          {/* Joined Players Roster */}
           <div className="w-full max-w-4xl bg-black/40 border border-white/10 rounded-3xl p-6 md:p-8 mb-8 backdrop-blur-md">
             <div className="flex items-center justify-between mb-6 pb-4 border-b border-white/10">
               <div className="flex items-center gap-2">
@@ -181,7 +169,6 @@ export const HostGameView: React.FC<HostGameViewProps> = ({
             </div>
           </div>
 
-          {/* Host Controls Footer */}
           <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
             <button
               onClick={onExit}
@@ -203,10 +190,17 @@ export const HostGameView: React.FC<HostGameViewProps> = ({
       {/* QUESTION & REVEAL SCREEN */}
       {(gameStatus === 'question' || gameStatus === 'reveal') && (
         <div className="flex-1 flex flex-col justify-between">
-          {/* Header Bar */}
           <div className="flex items-center justify-between mb-4 bg-kahoot-purple-dark/80 p-4 rounded-2xl border border-white/10">
-            <div className="text-sm font-black text-white uppercase tracking-wider">
-              Pregunta {currentQuestionIdx + 1} de {totalQuestions}
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-black text-white uppercase tracking-wider">
+                Pregunta {currentQuestionIdx + 1} de {totalQuestions}
+              </span>
+              <span className="px-3 py-1 bg-white/10 rounded-full text-xs font-bold text-amber-300 uppercase">
+                {currentQuestion.questionType === 'puzzle' && '🧩 Puzzle (Ordenar)'}
+                {currentQuestion.questionType === 'type_answer' && '⌨️ Escribir Respuesta'}
+                {currentQuestion.questionType === 'true_false' && '⚖️ Verdadero / Falso'}
+                {currentQuestion.questionType === 'multiple_choice' && '🔘 Opción Múltiple'}
+              </span>
             </div>
 
             <div className="flex items-center gap-4">
@@ -226,14 +220,14 @@ export const HostGameView: React.FC<HostGameViewProps> = ({
                   onClick={handleNextQuestion}
                   className="px-5 py-2 rounded-xl bg-white text-gray-900 font-black text-xs uppercase tracking-wider transition flex items-center gap-1.5 shadow-lg"
                 >
-                  <span>{currentQuestionIdx + 1 < totalQuestions ? 'Siguiente Pregunta' : 'Ver Podio'}</span>
+                  <span>{currentQuestionIdx + 1 < totalQuestions ? 'Siguiente' : 'Ver Podio'}</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               )}
             </div>
           </div>
 
-          {/* Central Question Display */}
+          {/* Central Question Box */}
           <div className="bg-white text-gray-900 rounded-3xl p-8 shadow-2xl mb-6 border-4 border-white/20 text-center flex flex-col items-center justify-center min-h-[220px]">
             {gameStatus === 'question' && (
               <div className="mb-4">
@@ -259,47 +253,119 @@ export const HostGameView: React.FC<HostGameViewProps> = ({
             )}
           </div>
 
-          {/* 4 Colored Shape Options Display */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {currentQuestion.options.map(opt => {
-              const colorClasses = {
-                red: 'kahoot-btn-red text-white',
-                blue: 'kahoot-btn-blue text-white',
-                yellow: 'kahoot-btn-yellow text-white',
-                green: 'kahoot-btn-green text-white',
-              }[opt.color];
+          {/* DYNAMIC DISPLAY ACCORDING TO QUESTION TYPE */}
 
-              let borderClass = 'border-2 border-white/20';
-              let opacityClass = 'opacity-100';
+          {/* Multiple Choice & True/False */}
+          {['multiple_choice', 'true_false'].includes(currentQuestion.questionType) && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {currentQuestion.options.map(opt => {
+                const colorClasses = {
+                  red: 'kahoot-btn-red text-white',
+                  blue: 'kahoot-btn-blue text-white',
+                  yellow: 'kahoot-btn-yellow text-white',
+                  green: 'kahoot-btn-green text-white',
+                }[opt.color];
 
-              if (gameStatus === 'reveal') {
-                if (opt.isCorrect) {
-                  borderClass = 'border-4 border-white ring-4 ring-green-400 scale-[1.02] shadow-2xl';
-                } else {
-                  opacityClass = 'opacity-40 filter grayscale-[40%]';
+                let borderClass = 'border-2 border-white/20';
+                let opacityClass = 'opacity-100';
+
+                if (gameStatus === 'reveal') {
+                  if (opt.isCorrect) {
+                    borderClass = 'border-4 border-white ring-4 ring-green-400 scale-[1.02] shadow-2xl';
+                  } else {
+                    opacityClass = 'opacity-40 filter grayscale-[40%]';
+                  }
                 }
-              }
 
-              return (
-                <div
-                  key={opt.id}
-                  className={`min-h-[100px] p-6 rounded-2xl flex items-center gap-4 ${colorClasses} ${borderClass} ${opacityClass} transition-all duration-300`}
-                >
-                  <div className="p-2.5 bg-black/20 rounded-xl">
-                    <KahootShapeIcon shape={opt.shape} size={32} />
-                  </div>
-                  <span className="text-xl md:text-2xl font-black tracking-wide">
-                    {opt.text}
-                  </span>
-                  {gameStatus === 'reveal' && opt.isCorrect && (
-                    <span className="ml-auto px-3 py-1 bg-white text-green-700 rounded-full text-xs font-black uppercase">
-                      Correcta
+                return (
+                  <div
+                    key={opt.id}
+                    className={`min-h-[100px] p-6 rounded-2xl flex items-center gap-4 ${colorClasses} ${borderClass} ${opacityClass} transition-all duration-300`}
+                  >
+                    <div className="p-2.5 bg-black/20 rounded-xl">
+                      <KahootShapeIcon shape={opt.shape} size={32} />
+                    </div>
+                    <span className="text-xl md:text-2xl font-black tracking-wide">
+                      {opt.text}
                     </span>
-                  )}
+                    {gameStatus === 'reveal' && opt.isCorrect && (
+                      <span className="ml-auto px-3 py-1 bg-white text-green-700 rounded-full text-xs font-black uppercase">
+                        Correcta
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Puzzle / Ordering */}
+          {currentQuestion.questionType === 'puzzle' && (
+            <div className="bg-black/40 border-2 border-white/20 rounded-3xl p-6 backdrop-blur-md">
+              <div className="text-center mb-4">
+                <span className="text-sm uppercase font-black text-amber-300 tracking-wider">
+                  {gameStatus === 'reveal' ? '✅ Secuencia Ordenada Correcta:' : '🧩 Elementos a Ordenar:'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                {currentQuestion.options.map((opt, idx) => {
+                  const colorClasses = {
+                    red: 'bg-kahoot-red',
+                    blue: 'bg-kahoot-blue',
+                    yellow: 'bg-kahoot-yellow',
+                    green: 'bg-kahoot-green',
+                  }[opt.color];
+
+                  return (
+                    <div
+                      key={opt.id}
+                      className={`p-4 rounded-2xl border-2 flex flex-col justify-between ${
+                        gameStatus === 'reveal'
+                          ? 'border-white ring-4 ring-green-400 shadow-xl'
+                          : 'border-white/20'
+                      } ${colorClasses} text-white`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="w-8 h-8 rounded-xl bg-black/30 font-black text-sm flex items-center justify-center">
+                          #{idx + 1}
+                        </span>
+                        <KahootShapeIcon shape={opt.shape} size={22} />
+                      </div>
+                      <span className="font-extrabold text-base md:text-lg leading-tight">
+                        {opt.text}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Type Answer */}
+          {currentQuestion.questionType === 'type_answer' && (
+            <div className="bg-black/40 border-2 border-white/20 rounded-3xl p-8 backdrop-blur-md text-center max-w-3xl mx-auto w-full">
+              {gameStatus === 'question' ? (
+                <div className="space-y-3">
+                  <Keyboard className="w-12 h-12 text-kahoot-yellow mx-auto animate-pulse" />
+                  <h3 className="text-2xl font-black uppercase text-white">
+                    Los jugadores están escribiendo su respuesta...
+                  </h3>
+                  <p className="text-xs text-white/60 font-semibold">
+                    Se evaluará coincidencia ortográfica y numérica.
+                  </p>
                 </div>
-              );
-            })}
-          </div>
+              ) : (
+                <div className="space-y-3">
+                  <CheckCircle className="w-12 h-12 text-green-400 mx-auto" />
+                  <span className="text-xs uppercase font-bold text-white/60">Respuesta(s) Aceptada(s):</span>
+                  <div className="text-3xl md:text-5xl font-black text-kahoot-yellow uppercase tracking-wider">
+                    {(currentQuestion.acceptedAnswers || []).join('  /  ')}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -315,9 +381,7 @@ export const HostGameView: React.FC<HostGameViewProps> = ({
             </p>
           </div>
 
-          {/* 3-Tier Podium */}
           <div className="w-full max-w-3xl flex items-end justify-center gap-4 md:gap-6 my-auto pt-16">
-            {/* 2nd Place (Silver) */}
             {sortedPlayers[1] && (
               <motion.div
                 initial={{ height: 0, opacity: 0 }}
@@ -340,7 +404,6 @@ export const HostGameView: React.FC<HostGameViewProps> = ({
               </motion.div>
             )}
 
-            {/* 1st Place (Gold) */}
             {sortedPlayers[0] && (
               <motion.div
                 initial={{ height: 0, opacity: 0 }}
@@ -363,7 +426,6 @@ export const HostGameView: React.FC<HostGameViewProps> = ({
               </motion.div>
             )}
 
-            {/* 3rd Place (Bronze) */}
             {sortedPlayers[2] && (
               <motion.div
                 initial={{ height: 0, opacity: 0 }}
@@ -387,7 +449,6 @@ export const HostGameView: React.FC<HostGameViewProps> = ({
             )}
           </div>
 
-          {/* Podium Footer Actions */}
           <div className="flex flex-col sm:flex-row gap-4 mt-8 w-full max-w-lg">
             <button
               onClick={onOpenAdmin}
