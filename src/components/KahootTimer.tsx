@@ -6,12 +6,14 @@ interface KahootTimerProps {
   initialSeconds: number;
   onTimeUp: () => void;
   isPaused?: boolean;
+  size?: number;
 }
 
 export const KahootTimer: React.FC<KahootTimerProps> = ({
   initialSeconds,
   onTimeUp,
   isPaused = false,
+  size = 84,
 }) => {
   const [timeLeft, setTimeLeft] = useState<number>(initialSeconds);
   const onTimeUpRef = useRef(onTimeUp);
@@ -60,8 +62,7 @@ export const KahootTimer: React.FC<KahootTimerProps> = ({
   }, [timeLeft, isPaused]);
 
   // SVG Circle parameters
-  const size = 110;
-  const strokeWidth = 9;
+  const strokeWidth = Math.max(6, Math.round(size * 0.08));
   const center = size / 2;
   const radius = center - strokeWidth;
   const circumference = 2 * Math.PI * radius;

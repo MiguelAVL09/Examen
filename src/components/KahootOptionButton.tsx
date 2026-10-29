@@ -54,38 +54,38 @@ export const KahootOptionButton: React.FC<OptionButtonProps> = ({
       transition={{ delay: index * 0.05, duration: 0.25 }}
       onClick={() => !isDisabled && onSelect(option.id)}
       disabled={isDisabled}
-      className={`relative w-full min-h-[96px] md:min-h-[110px] p-4 md:p-6 rounded-2xl flex items-center justify-between transition-all duration-200 select-none ${colorClasses} ${opacityClass} ${borderClass} cursor-pointer disabled:cursor-not-allowed`}
+      className={`relative w-full min-h-[64px] sm:min-h-[82px] md:min-h-[100px] p-3 sm:p-4 md:p-6 rounded-xl sm:rounded-2xl flex items-center justify-between transition-all duration-200 select-none ${colorClasses} ${opacityClass} ${borderClass} cursor-pointer disabled:cursor-not-allowed`}
     >
-      <div className="flex items-center gap-3 md:gap-5 flex-1 text-left">
+      <div className="flex items-center gap-2.5 sm:gap-4 md:gap-5 flex-1 text-left min-w-0">
         {/* Shape Icon */}
-        <div className="flex-shrink-0 p-2 md:p-2.5 bg-black/20 rounded-xl flex items-center justify-center">
-          <KahootShapeIcon shape={option.shape} size={32} />
+        <div className="flex-shrink-0 p-1.5 sm:p-2 md:p-2.5 bg-black/20 rounded-xl flex items-center justify-center">
+          <KahootShapeIcon shape={option.shape} size={26} />
         </div>
 
         {/* Option Text */}
-        <span className="text-lg md:text-2xl font-extrabold tracking-wide drop-shadow-sm leading-snug">
+        <span className="text-sm sm:text-base md:text-xl lg:text-2xl font-extrabold tracking-wide drop-shadow-sm leading-snug break-words">
           {option.text}
         </span>
       </div>
 
       {/* Right Indicator: Keybind Hint or Reveal Status */}
-      <div className="flex-shrink-0 ml-3">
+      <div className="flex-shrink-0 ml-2 sm:ml-3">
         {revealResult ? (
           option.isCorrect ? (
             <motion.div
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
-              className="w-10 h-10 md:w-12 md:h-12 bg-white text-green-700 rounded-full flex items-center justify-center shadow-lg"
+              className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 bg-white text-green-700 rounded-full flex items-center justify-center shadow-lg"
             >
-              <Check className="w-6 h-6 md:w-8 md:h-8 stroke-[3.5]" />
+              <Check className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 stroke-[3.5]" />
             </motion.div>
           ) : isSelected ? (
             <motion.div
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
-              className="w-10 h-10 md:w-12 md:h-12 bg-white text-red-600 rounded-full flex items-center justify-center shadow-lg"
+              className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 bg-white text-red-600 rounded-full flex items-center justify-center shadow-lg"
             >
-              <X className="w-6 h-6 md:w-8 md:h-8 stroke-[3.5]" />
+              <X className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 stroke-[3.5]" />
             </motion.div>
           ) : null
         ) : (

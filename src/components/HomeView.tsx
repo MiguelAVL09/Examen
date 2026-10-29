@@ -420,11 +420,11 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
       {/* Nickname Modal before Solo Play */}
       {isJoinModalOpen && selectedQuiz && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
           <motion.div
             initial={{ scale: 0.9, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
-            className="bg-kahoot-purple-dark border-4 border-white/20 rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl text-center text-white relative overflow-hidden"
+            className="bg-kahoot-purple-dark border-2 sm:border-4 border-white/20 rounded-2xl sm:rounded-3xl p-4 sm:p-8 max-w-lg w-full shadow-2xl text-center text-white relative my-auto max-h-[92vh] overflow-y-auto"
           >
             {/* Botón de cierre */}
             <button
