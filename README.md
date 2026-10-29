@@ -27,13 +27,28 @@ Una plataforma web moderna, interactiva y profesional inspirada en **Kahoot!**, 
   - Fórmula oficial de puntaje por velocidad (entre más rápido respondas, más puntos obtienes).
   - Bonificaciones por racha consecutiva con animación de fuego 🔥.
 
-- **➕ Soporte Completo para Nuevos Cuestionarios**:
-  - Creador y editor visual de cuestionarios integrado.
-  - Configuración de tiempo por pregunta (10s, 15s, 20s, 30s, 60s), puntos dobles (2x) o normales (1x).
-  - Compatible con preguntas de Selección Múltiple (4 opciones) o Verdadero / Falso (2 opciones).
+- **➕ Soporte Completo para Nuevos Cuestionarios y 4 Tipos de Preguntas**:
+  - **Opción Múltiple**: 4 figuras geométricas clásicas de Kahoot.
+  - **Verdadero o Falso**: Botones de decisión rápida en Azul y Rojo.
+  - **Puzzle / Ordenar Secuencia**: Arrastre y botones para ordenar eventos, números o pasos históricos.
+  - **Escribir Respuesta**: Campo de respuesta abierta con soporte de múltiples sinónimos o variantes aceptadas.
+  - Configuración de tiempo individual por pregunta (10s, 15s, 20s, 30s, 60s) y puntos dobles (2x) o estándar (1x).
 
-- **🔊 Motor de Audio Nativo (Web Audio API)**:
-  - Generación de sonidos sin dependencias de archivos externos: tic-tac de tensión, campanada de acierto, timbre de error, alarma de tiempo agotado y fanfarria de podio.
+- **🖼️ Subida e Inserción de Imágenes**:
+  - Carga fotos directamente desde tu PC con compresión inteligente en Canvas (~80KB) para máximo rendimiento sin agotar almacenamiento.
+  - Soporte de URLs externas y galería de fotos preset estilo Kahoot!
+  - Portadas personalizadas para cada cuestionario.
+
+- **💾 Sistema de Respaldo y Restauración en JSON**:
+  - Botón **"Respaldar (JSON)"** para descargar todos tus cuestionarios creados localmente a un archivo seguro en tu computadora.
+  - Botón **"Restaurar (JSON)"** para importar tus cuestionarios en cualquier otra máquina o navegador sin perder nada.
+
+- **🔒 Seguridad de Administrador con Cierre de Sesión Automático**:
+  - Al cerrar la pestaña o el navegador, la sesión de administrador se destruye de inmediato por seguridad. Al volver a entrar, requerirá nuevamente la contraseña (**PIN**: `admin123`).
+
+- **🔊 Motor de Audio Nativo y Música de Lobby**:
+  - Música de fondo sintetizada en tiempo real para la sala de espera del anfitrión (Lobby Theme con Web Audio API).
+  - Tics de tensión con tono ascendente, campanadas de acierto, timbre de error, alarma de tiempo agotado y fanfarria de podio.
   - Botón de silencio/activación en la barra superior.
 
 - **☁️ Preparado para Supabase & GitHub**:
