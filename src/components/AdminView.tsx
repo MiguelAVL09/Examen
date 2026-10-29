@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   Database,
   Lock,
+  Unlock,
   RefreshCw,
   ChevronDown,
   BookOpen,
@@ -33,13 +34,19 @@ import {
   Share2,
   AlertTriangle,
   History,
-  Eye
+  Eye,
+  BarChart3,
+  Award,
+  Calendar,
+  Check,
+  Clock,
+  Sliders
 } from 'lucide-react';
 import type { Participant, Quiz, Question, QuestionType } from '../types/quiz';
-import { quizService, generateUUID } from '../services/quizService';
+import { quizService, generateUUID, type ExamSettings, type QuestionAnalytics } from '../services/quizService';
 import { isSupabaseConfigured } from '../services/supabaseClient';
 import { processImageUpload, PRESET_IMAGES } from '../utils/imageUtils';
-import { exportRankingsToPDF } from '../utils/pdfExport';
+import { exportRankingsToPDF, exportDiplomaPDF, exportTop3Diplomas } from '../utils/pdfExport';
 import { KahootShapeIcon } from './KahootShapes';
 import { ShareQuizModal } from './ShareQuizModal';
 
@@ -55,7 +62,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
   const [passcode, setPasscode] = useState<string>('');
   const [authError, setAuthError] = useState<string>('');
 
-  const [activeTab, setActiveTab] = useState<'rankings' | 'quizzes' | 'supabase'>('rankings');
+  const [activeTab, setActiveTab] = useState<'rankings' | 'analytics' | 'controls' | 'quizzes' | 'supabase'>('rankings');
 
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [rankings, setRankings] = useState<Participant[]>([]);
@@ -64,6 +71,16 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [syncStatus, setSyncStatus] = useState<string>('');
   const [jsonBackupStatus, setJsonBackupStatus] = useState<string>('');
+  const [settingsSaveMessage, setSettingsSaveMessage] = useState<string>('');
+
+  // Estados para reportes analíticos y candado de examen
+  const [questionAnalytics, setQuestionAnalytics] = useState<QuestionAnalytics[]>([]);
+  const [examSettings, setExamSettings] = useState<ExamSettings>({
+    isExamOpen: true,
+    closeDate: undefined,
+    preventRetries: false,
+    closeMessage: 'Esta evaluación se encuentra cerrada por el administrador.',
+  });
 
   const [isEditorOpen, setIsEditorOpen] = useState<boolean>(false);
   const [editingQuiz, setEditingQuiz] = useState<Quiz | null>(null);
@@ -115,6 +132,23 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
         selectedQuizId === 'all' ? undefined : selectedQuizId
       );
       setRankings(allRankings);
+
+      // Cargar analíticas de preguntas y ajustes del cuestionario seleccionado
+      const targetQuiz = selectedQuizId === 'all'
+        ? allQuizzes.find(q => q.id === 'f3f7aa07-4389-4769-a162-3fb8b989bfc0') || allQuizzes[0]
+        : allQuizzes.find(q => q.id === selectedQuizId);
+
+      if (targetQuiz) {
+        const analytics = await quizService.getQuestionAnalytics(targetQuiz);
+        setQuestionAnalytics(analytics);
+        const settings = quizService.getExamSettings(targetQuiz.id);
+        setExamSettings({
+          isExamOpen: targetQuiz.isExamOpen ?? settings.isExamOpen ?? true,
+          closeDate: targetQuiz.closeDate || settings.closeDate,
+          preventRetries: targetQuiz.preventRetries ?? settings.preventRetries ?? false,
+          closeMessage: targetQuiz.closeMessage || settings.closeMessage,
+        });
+      }
     } catch (err) {
       console.error('Error cargando datos de admin:', err);
     } finally {
@@ -208,6 +242,40 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
       isFirstAttemptOnly,
       attemptsCountMap,
     });
+  };
+
+  // Exportar diplomas oficiales del Top 3 (1°, 2° y 3° lugar)
+  const handleExportTop3Diplomas = () => {
+    if (filteredRankings.length === 0) return;
+    const currentQuiz = quizzes.find(item => item.id === selectedQuizId) || quizzes[0];
+    const quizTitle = currentQuiz ? currentQuiz.title : 'Cinepolis Máster ¿Qué tanto sabemos?';
+    exportTop3Diplomas(filteredRankings, quizTitle);
+  };
+
+  // Exportar diploma individual para un colaborador
+  const handleExportSingleDiploma = (participant: Participant, rank: number) => {
+    const currentQuiz = quizzes.find(item => item.id === participant.quizId) || quizzes[0];
+    const quizTitle = currentQuiz ? currentQuiz.title : 'Cinepolis Máster ¿Qué tanto sabemos?';
+    exportDiplomaPDF(participant, rank, quizTitle);
+  };
+
+  // Guardar configuración y candados de examen (abrir/cerrar, fecha límite, reintentos)
+  const handleSaveExamSettings = async () => {
+    const targetQuizId = selectedQuizId === 'all'
+      ? (quizzes.find(q => q.id === 'f3f7aa07-4389-4769-a162-3fb8b989bfc0')?.id || quizzes[0]?.id || 'f3f7aa07-4389-4769-a162-3fb8b989bfc0')
+      : selectedQuizId;
+
+    setIsLoading(true);
+    try {
+      await quizService.saveExamSettings(targetQuizId, examSettings);
+      setSettingsSaveMessage('¡Ajustes de examen y candados guardados exitosamente!');
+      await loadData();
+      setTimeout(() => setSettingsSaveMessage(''), 4000);
+    } catch (err: any) {
+      alert(`Error al guardar configuración: ${err.message || 'Desconocido'}`);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Export to CSV (Secundario / Opcional)
@@ -503,34 +571,58 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
       </div>
 
       {/* Tabs Navigation */}
-      <div className="flex gap-2 p-1.5 bg-black/30 rounded-2xl border border-white/10 mb-8 max-w-xl">
+      <div className="flex flex-wrap gap-2 p-1.5 bg-black/30 rounded-2xl border border-white/10 mb-8 max-w-4xl">
         <button
           onClick={() => setActiveTab('rankings')}
-          className={`flex-1 py-3 px-4 rounded-xl font-black text-xs md:text-sm uppercase tracking-wider transition flex items-center justify-center gap-2 ${
+          className={`flex-1 min-w-[150px] py-3 px-4 rounded-xl font-black text-xs md:text-sm uppercase tracking-wider transition flex items-center justify-center gap-2 ${
             activeTab === 'rankings'
               ? 'bg-kahoot-yellow text-black shadow-lg'
               : 'text-white/70 hover:text-white'
           }`}
         >
           <Trophy className="w-4 h-4" />
-          <span>Rankings & Resultados</span>
+          <span>Rankings</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('analytics')}
+          className={`flex-1 min-w-[150px] py-3 px-4 rounded-xl font-black text-xs md:text-sm uppercase tracking-wider transition flex items-center justify-center gap-2 ${
+            activeTab === 'analytics'
+              ? 'bg-kahoot-yellow text-black shadow-lg'
+              : 'text-white/70 hover:text-white'
+          }`}
+        >
+          <BarChart3 className="w-4 h-4" />
+          <span>Preguntas Difíciles</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('controls')}
+          className={`flex-1 min-w-[150px] py-3 px-4 rounded-xl font-black text-xs md:text-sm uppercase tracking-wider transition flex items-center justify-center gap-2 ${
+            activeTab === 'controls'
+              ? 'bg-kahoot-yellow text-black shadow-lg'
+              : 'text-white/70 hover:text-white'
+          }`}
+        >
+          <Sliders className="w-4 h-4" />
+          <span>Candado & Reglas</span>
         </button>
 
         <button
           onClick={() => setActiveTab('quizzes')}
-          className={`flex-1 py-3 px-4 rounded-xl font-black text-xs md:text-sm uppercase tracking-wider transition flex items-center justify-center gap-2 ${
+          className={`flex-1 min-w-[150px] py-3 px-4 rounded-xl font-black text-xs md:text-sm uppercase tracking-wider transition flex items-center justify-center gap-2 ${
             activeTab === 'quizzes'
               ? 'bg-kahoot-yellow text-black shadow-lg'
               : 'text-white/70 hover:text-white'
           }`}
         >
           <BookOpen className="w-4 h-4" />
-          <span>Gestor de Cuestionarios</span>
+          <span>Cuestionarios</span>
         </button>
 
         <button
           onClick={() => setActiveTab('supabase')}
-          className={`flex-1 py-3 px-4 rounded-xl font-black text-xs md:text-sm uppercase tracking-wider transition flex items-center justify-center gap-2 ${
+          className={`flex-1 min-w-[130px] py-3 px-4 rounded-xl font-black text-xs md:text-sm uppercase tracking-wider transition flex items-center justify-center gap-2 ${
             activeTab === 'supabase'
               ? 'bg-kahoot-yellow text-black shadow-lg'
               : 'text-white/70 hover:text-white'
@@ -664,7 +756,17 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                 title="Descargar reporte formal en PDF con podio y estadísticas"
               >
                 <FileText className="w-4 h-4" />
-                <span>Descargar PDF</span>
+                <span>Reporte PDF</span>
+              </button>
+
+              <button
+                onClick={handleExportTop3Diplomas}
+                disabled={filteredRankings.length === 0}
+                className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 disabled:opacity-40 text-black rounded-xl text-sm font-black border border-amber-300/40 transition shadow-lg active:scale-95"
+                title="Generar y descargar diplomas de reconocimiento formal para el Top 3 (1°, 2° y 3° lugar)"
+              >
+                <Award className="w-4 h-4 text-black" />
+                <span>Diplomas Top 3</span>
               </button>
 
               <button
@@ -946,16 +1048,427 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
             </div>
 
             {/* Footer Modal */}
-            <div className="pt-2 flex justify-end">
+            <div className="pt-3 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-white/10">
+              <button
+                type="button"
+                onClick={() => {
+                  if (inspectingAttempts.length > 0) {
+                    const playerRank = filteredRankings.findIndex(
+                      p => normalizePlayerName(p.nickname) === normalizePlayerName(inspectingPlayerName)
+                    ) + 1;
+                    handleExportSingleDiploma(inspectingAttempts[0], playerRank || 1);
+                  }
+                }}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-black text-xs uppercase tracking-wider transition flex items-center justify-center gap-2 shadow-lg active:scale-95"
+              >
+                <Award className="w-4 h-4 text-black" />
+                <span>Descargar Diploma Oficial</span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => setInspectingPlayerName(null)}
-                className="px-6 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-sm transition"
+                className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-sm transition"
               >
-                Cerrar Historial
+                Cerrar
               </button>
             </div>
           </motion.div>
+        </div>
+      )}
+
+      {/* TAB: PREGUNTAS MÁS DIFÍCILES & ANALÍTICAS */}
+      {activeTab === 'analytics' && (
+        <div className="space-y-6">
+          <div className="bg-kahoot-purple-dark/80 p-6 rounded-3xl border border-white/10 shadow-lg">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="p-2 bg-red-500/20 text-red-300 rounded-xl">
+                    <BarChart3 className="w-5 h-5" />
+                  </span>
+                  <h2 className="text-2xl font-black uppercase text-white tracking-tight">
+                    Preguntas Más Difíciles y Tasa de Error
+                  </h2>
+                </div>
+                <p className="text-xs text-white/70 mt-1">
+                  Identifica las preguntas donde los colaboradores tuvieron mayor dificultad para enfocar la capacitación.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-white/50">Ordenado por:</span>
+                <span className="px-3 py-1 bg-white/10 text-amber-300 text-xs font-bold rounded-xl border border-white/10">
+                  Mayor índice de fallo primero ⚠️
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Resumen Superior de Métricas */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-kahoot-purple-dark/80 p-5 rounded-2xl border border-red-500/30 shadow-lg">
+              <span className="text-xs uppercase font-bold text-red-300">🚨 Pregunta #1 Más Difícil</span>
+              <div className="text-2xl font-black text-red-400 mt-1">
+                {questionAnalytics[0]?.accuracyPercentage || 0}% de Aciertos
+              </div>
+              <p className="text-xs text-white/60 mt-1 line-clamp-1">
+                {questionAnalytics[0]?.questionText || 'Cargando...'}
+              </p>
+            </div>
+
+            <div className="bg-kahoot-purple-dark/80 p-5 rounded-2xl border border-white/10 shadow-lg">
+              <span className="text-xs uppercase font-bold text-white/60">Tasa Global de Acierto</span>
+              <div className="text-2xl font-black text-white mt-1">
+                {questionAnalytics.length > 0
+                  ? Math.round(
+                      questionAnalytics.reduce((acc, q) => acc + q.accuracyPercentage, 0) /
+                        questionAnalytics.length
+                    )
+                  : 0}
+                %
+              </div>
+              <p className="text-xs text-white/50 mt-1">Promedio en todas las preguntas</p>
+            </div>
+
+            <div className="bg-kahoot-purple-dark/80 p-5 rounded-2xl border border-emerald-500/30 shadow-lg">
+              <span className="text-xs uppercase font-bold text-emerald-300">✅ Pregunta con Mayor Dominio</span>
+              <div className="text-2xl font-black text-emerald-400 mt-1">
+                {questionAnalytics[questionAnalytics.length - 1]?.accuracyPercentage || 0}% de Aciertos
+              </div>
+              <p className="text-xs text-white/60 mt-1 line-clamp-1">
+                {questionAnalytics[questionAnalytics.length - 1]?.questionText || 'Cargando...'}
+              </p>
+            </div>
+          </div>
+
+          {/* Lista Detallada de Preguntas de Mayor a Menor Dificultad */}
+          <div className="space-y-4">
+            {questionAnalytics.map((q, idx) => {
+              const isCritical = q.accuracyPercentage < 50;
+              const isModerate = q.accuracyPercentage >= 50 && q.accuracyPercentage < 75;
+
+              return (
+                <div
+                  key={q.questionId}
+                  className={`p-5 rounded-3xl border transition-all shadow-md ${
+                    isCritical
+                      ? 'bg-red-950/20 border-red-500/40 hover:border-red-500/70'
+                      : isModerate
+                      ? 'bg-amber-950/20 border-amber-500/40 hover:border-amber-500/70'
+                      : 'bg-kahoot-purple-dark/80 border-white/10 hover:border-white/20'
+                  }`}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={`w-8 h-8 rounded-xl font-black text-xs flex items-center justify-center shrink-0 ${
+                          isCritical
+                            ? 'bg-red-500 text-white shadow-md'
+                            : isModerate
+                            ? 'bg-amber-500 text-black'
+                            : 'bg-emerald-500/30 text-emerald-300 border border-emerald-500/40'
+                        }`}
+                      >
+                        #{idx + 1}
+                      </span>
+                      <div>
+                        <span className="text-[11px] font-bold text-white/50 uppercase tracking-wider block">
+                          Pregunta original {q.orderIndex + 1}
+                        </span>
+                        <h3 className="text-base font-extrabold text-white">
+                          {q.questionText}
+                        </h3>
+                      </div>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <span
+                        className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider inline-flex items-center gap-1.5 ${
+                          isCritical
+                            ? 'bg-red-500/20 text-red-300 border border-red-500/40'
+                            : isModerate
+                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                            : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                        }`}
+                      >
+                        {isCritical ? (
+                          <>
+                            <AlertTriangle className="w-3.5 h-3.5" />
+                            <span>Alta Dificultad ({q.accuracyPercentage}%)</span>
+                          </>
+                        ) : isModerate ? (
+                          <>
+                            <AlertTriangle className="w-3.5 h-3.5" />
+                            <span>Dificultad Media ({q.accuracyPercentage}%)</span>
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>Buen Dominio ({q.accuracyPercentage}%)</span>
+                          </>
+                        )}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Barra Visual de Precisión */}
+                  <div className="space-y-1.5 pt-2">
+                    <div className="flex justify-between text-xs font-bold">
+                      <span className="text-white/60">Aciertos vs Fallos ({q.totalAnswers} respuestas)</span>
+                      <span className="text-white">
+                        {q.correctAnswers} aciertos ({q.accuracyPercentage}%) • {q.incorrectAnswers} fallos ({100 - q.accuracyPercentage}%)
+                      </span>
+                    </div>
+
+                    <div className="w-full h-3 bg-black/40 rounded-full overflow-hidden border border-white/10 flex">
+                      <div
+                        style={{ width: `${q.accuracyPercentage}%` }}
+                        className={`h-full transition-all duration-500 ${
+                          isCritical
+                            ? 'bg-red-500'
+                            : isModerate
+                            ? 'bg-amber-400'
+                            : 'bg-emerald-400'
+                        }`}
+                      />
+                      <div
+                        style={{ width: `${100 - q.accuracyPercentage}%` }}
+                        className="h-full bg-red-950/70"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Recomendación Didáctica para Cinépolis */}
+                  <div className="mt-3 pt-3 border-t border-white/5 text-xs text-white/60 flex items-center gap-2">
+                    <span className="font-bold text-white/80 shrink-0">💡 Diagnóstico:</span>
+                    <span>
+                      {isCritical
+                        ? 'Se recomienda reforzar este tema específico con el equipo de Cinépolis ya que presenta la tasa de error más alta.'
+                        : isModerate
+                        ? 'Tema con comprensión intermedia. Con un breve recordatorio o ficha informativa puede consolidarse.'
+                        : 'El equipo domina este concepto de forma consistente.'}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* TAB: CANDADOS & CONTROL DE EXAMEN */}
+      {activeTab === 'controls' && (
+        <div className="space-y-6">
+          <div className="bg-kahoot-purple-dark/80 p-6 rounded-3xl border border-white/10 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="p-2 bg-amber-500/20 text-amber-300 rounded-xl">
+                  <Sliders className="w-5 h-5" />
+                </span>
+                <h2 className="text-2xl font-black uppercase text-white tracking-tight">
+                  Candado & Reglas de la Evaluación
+                </h2>
+              </div>
+              <p className="text-xs text-white/70 mt-1">
+                Controla la disponibilidad del cuestionario, horario de cierre y políticas preventivas de reintentos.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {settingsSaveMessage && (
+                <span className="text-xs font-bold text-emerald-400 bg-emerald-500/20 px-3 py-1.5 rounded-xl border border-emerald-500/30 animate-pulse">
+                  ✓ {settingsSaveMessage}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={handleSaveExamSettings}
+                disabled={isLoading}
+                className="px-5 py-3 rounded-xl bg-kahoot-yellow hover:bg-amber-400 text-black font-black text-xs uppercase tracking-wider transition shadow-xl active:scale-95 flex items-center gap-2"
+              >
+                <Check className="w-4 h-4" />
+                <span>Guardar Cambios</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Control 1: Candado Inmediato Abrir / Cerrar */}
+            <div className="bg-kahoot-purple-dark/80 p-6 rounded-3xl border border-white/10 shadow-lg space-y-5">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="text-lg font-black text-white flex items-center gap-2">
+                    {examSettings.isExamOpen ? (
+                      <Unlock className="w-5 h-5 text-emerald-400" />
+                    ) : (
+                      <Lock className="w-5 h-5 text-red-400" />
+                    )}
+                    <span>Estado del Cuestionario</span>
+                  </h3>
+                  <p className="text-xs text-white/60 mt-1">
+                    Abre o cierra el acceso inmediatamente para todos los participantes.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setExamSettings(prev => ({ ...prev, isExamOpen: !prev.isExamOpen }))
+                  }
+                  className={`px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition border ${
+                    examSettings.isExamOpen
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30'
+                      : 'bg-red-500/20 text-red-300 border-red-500/40 hover:bg-red-500/30'
+                  }`}
+                >
+                  {examSettings.isExamOpen ? 'Abierto' : 'Cerrado'}
+                </button>
+              </div>
+
+              <div
+                className={`p-4 rounded-2xl border text-xs font-semibold ${
+                  examSettings.isExamOpen
+                    ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-300'
+                    : 'bg-red-950/20 border-red-500/30 text-red-300'
+                }`}
+              >
+                {examSettings.isExamOpen
+                  ? '🟢 El cuestionario está ABIERTO. Cualquier colaborador con el enlace puede ingresar y contestar.'
+                  : '🔴 El cuestionario está CERRADO. Ningún jugador podrá ingresar al cuestionario.'}
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase text-white/70 mb-1.5">
+                  Mensaje personalizado si está cerrado
+                </label>
+                <input
+                  type="text"
+                  value={examSettings.closeMessage || ''}
+                  onChange={e =>
+                    setExamSettings(prev => ({ ...prev, closeMessage: e.target.value }))
+                  }
+                  placeholder="Ej. Esta evaluación ha finalizado..."
+                  className="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/20 text-white text-xs font-semibold focus:outline-none focus:border-kahoot-yellow"
+                />
+              </div>
+            </div>
+
+            {/* Control 2: Fecha y Hora de Cierre Programado */}
+            <div className="bg-kahoot-purple-dark/80 p-6 rounded-3xl border border-white/10 shadow-lg space-y-5">
+              <div>
+                <h3 className="text-lg font-black text-white flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-amber-400" />
+                  <span>Horario Límite de Cierre</span>
+                </h3>
+                <p className="text-xs text-white/60 mt-1">
+                  Programa una fecha y hora exacta tras la cual el examen se bloqueará automáticamente.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-bold uppercase text-white/70 mb-1.5">
+                    Fecha y Hora de Cierre
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={examSettings.closeDate || ''}
+                    onChange={e =>
+                      setExamSettings(prev => ({ ...prev, closeDate: e.target.value }))
+                    }
+                    className="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/20 text-white text-xs font-semibold focus:outline-none focus:border-kahoot-yellow"
+                  />
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const todayMidnight = new Date();
+                      todayMidnight.setHours(23, 59, 0, 0);
+                      const pad = (n: number) => String(n).padStart(2, '0');
+                      const formatted = `${todayMidnight.getFullYear()}-${pad(todayMidnight.getMonth() + 1)}-${pad(todayMidnight.getDate())}T23:59`;
+                      setExamSettings(prev => ({ ...prev, closeDate: formatted }));
+                    }}
+                    className="flex-1 py-2 px-3 bg-white/10 hover:bg-white/20 text-white text-[11px] font-bold rounded-xl border border-white/10 transition"
+                  >
+                    Hoy a las 11:59 PM
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setExamSettings(prev => ({ ...prev, closeDate: undefined }))
+                    }
+                    className="py-2 px-3 bg-red-600/20 hover:bg-red-600/30 text-red-200 text-[11px] font-bold rounded-xl border border-red-500/20 transition"
+                  >
+                    Quitar Límite
+                  </button>
+                </div>
+
+                <div className="p-3 bg-black/20 rounded-xl border border-white/5 text-[11px] text-white/60">
+                  {examSettings.closeDate ? (
+                    <span className="text-amber-300 font-bold">
+                      ⏰ El examen se cerrará automáticamente el:{' '}
+                      {new Date(examSettings.closeDate).toLocaleString('es-MX', {
+                        dateStyle: 'medium',
+                        timeStyle: 'short',
+                      })}
+                    </span>
+                  ) : (
+                    <span>ℹ️ Sin límite de tiempo programado. El examen permanecerá abierto según el interruptor.</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Control 3: Bloqueo Preventivo de Reintentos */}
+            <div className="bg-kahoot-purple-dark/80 p-6 rounded-3xl border border-white/10 shadow-lg space-y-4 md:col-span-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-lg font-black text-white flex items-center gap-2">
+                    <Shield className="w-5 h-5 text-kahoot-yellow" />
+                    <span>Bloqueo Preventivo de Reintentos (Anti-trampas Preventivo)</span>
+                  </h3>
+                  <p className="text-xs text-white/60 mt-1 max-w-2xl leading-relaxed">
+                    Al activar esta opción, el sistema <strong>impedirá físicamente</strong> que cualquier usuario vuelva a iniciar el examen si su teléfono ya lo completó o si ingresa un nombre que ya cuenta con un intento registrado.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setExamSettings(prev => ({ ...prev, preventRetries: !prev.preventRetries }))
+                  }
+                  className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition border shadow-sm shrink-0 ${
+                    examSettings.preventRetries
+                      ? 'bg-red-500/20 text-red-300 border-red-500/40 hover:bg-red-500/30'
+                      : 'bg-white/10 text-white/70 border-white/10 hover:bg-white/20 hover:text-white'
+                  }`}
+                >
+                  {examSettings.preventRetries ? 'Bloqueo ACTIVADO' : 'Permitir Reintentos'}
+                </button>
+              </div>
+
+              <div
+                className={`p-4 rounded-2xl border text-xs font-semibold ${
+                  examSettings.preventRetries
+                    ? 'bg-red-950/20 border-red-500/30 text-red-300'
+                    : 'bg-black/30 border-white/10 text-white/60'
+                }`}
+              >
+                {examSettings.preventRetries ? (
+                  <span>
+                    🛡️ <strong>Modo Estricto Activo:</strong> Solo se permite 1 intento por persona/dispositivo. Si alguien ya completó la prueba, la plataforma no le permitirá empezar de nuevo.
+                  </span>
+                ) : (
+                  <span>
+                    💡 <strong>Modo Flexible con Auditoría:</strong> Los participantes pueden volver a jugar si lo desean, pero en tu tabla de rankings su calificación oficial se toma únicamente de su 1er intento y los demás se marcan como trampa.
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

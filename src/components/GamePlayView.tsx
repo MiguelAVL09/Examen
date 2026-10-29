@@ -269,6 +269,7 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
 
     try {
       await quizService.saveParticipantResult(participantData);
+      localStorage.setItem(`cinepolis_completed_${quiz.id}`, 'true');
     } catch (err) {
       console.warn('Error saving participant result:', err);
     }

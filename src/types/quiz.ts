@@ -42,6 +42,10 @@ export interface Quiz {
   createdAt: string;
   updatedAt?: string;
   isPublished?: boolean;
+  isExamOpen?: boolean;
+  closeDate?: string;
+  preventRetries?: boolean;
+  closeMessage?: string;
 }
 
 export interface ParticipantAnswer {

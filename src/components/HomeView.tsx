@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Play, Users, Sparkles, Clock, ArrowRight, Gamepad2, Dices, Share2, Flame, User } from 'lucide-react';
+import { Play, Users, Sparkles, Clock, ArrowRight, Gamepad2, Dices, Share2, Flame, User, Lock, AlertCircle } from 'lucide-react';
 import type { Quiz } from '../types/quiz';
+import { quizService } from '../services/quizService';
 import { KahootShapeIcon } from './KahootShapes';
 import { ShareQuizModal } from './ShareQuizModal';
 
@@ -455,19 +456,69 @@ export const HomeView: React.FC<HomeViewProps> = ({
               </span>
             </p>
 
-            <form
-              onSubmit={e => {
-                e.preventDefault();
-                if (!nickname.trim()) {
-                  setErrorMessage('Por favor escribe tu nombre para identificarte en el ranking.');
-                  return;
-                }
-                handleSaveProfile(nickname.trim(), selectedAvatar);
-                setIsJoinModalOpen(false);
-                onStartQuiz(selectedQuiz, nickname.trim(), selectedAvatar);
-              }}
-              className="space-y-5"
-            >
+            {(() => {
+              const accessCheck = quizService.isExamAccessible(selectedQuiz);
+              if (!accessCheck.accessible) {
+                return (
+                  <div className="py-6 text-center space-y-4">
+                    <div className="w-16 h-16 mx-auto bg-amber-500/20 text-amber-300 rounded-3xl flex items-center justify-center border border-amber-500/40 shadow-inner">
+                      <Lock className="w-8 h-8" />
+                    </div>
+                    <h4 className="text-xl sm:text-2xl font-black text-white">Evaluación Concluida</h4>
+                    <p className="text-xs sm:text-sm text-white/70 max-w-sm mx-auto leading-relaxed">
+                      {accessCheck.reason}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsJoinModalOpen(false);
+                        if (onClearInvitation) onClearInvitation();
+                      }}
+                      className="px-6 py-3 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs uppercase tracking-wider transition"
+                    >
+                      Entendido
+                    </button>
+                  </div>
+                );
+              }
+
+              return (
+                <form
+                  onSubmit={async e => {
+                    e.preventDefault();
+                    if (!nickname.trim()) {
+                      setErrorMessage('Por favor escribe tu nombre para identificarte en el ranking.');
+                      return;
+                    }
+
+                    // 1. Validar acceso al examen
+                    const freshAccessCheck = quizService.isExamAccessible(selectedQuiz);
+                    if (!freshAccessCheck.accessible) {
+                      setErrorMessage(freshAccessCheck.reason || 'Esta evaluación está cerrada.');
+                      return;
+                    }
+
+                    // 2. Validar bloqueo preventivo de reintentos
+                    if (selectedQuiz.preventRetries) {
+                      const deviceDone = localStorage.getItem(`cinepolis_completed_${selectedQuiz.id}`);
+                      if (deviceDone) {
+                        setErrorMessage('Ya has completado tu evaluación oficial en este dispositivo. Solo se permite 1 intento por colaborador.');
+                        return;
+                      }
+
+                      const hasAttempt = await quizService.hasParticipantAttempt(selectedQuiz.id, nickname.trim());
+                      if (hasAttempt) {
+                        setErrorMessage(`El nombre "${nickname.trim()}" ya cuenta con un intento registrado en el ranking oficial. Solo se permite 1 intento.`);
+                        return;
+                      }
+                    }
+
+                    handleSaveProfile(nickname.trim(), selectedAvatar);
+                    setIsJoinModalOpen(false);
+                    onStartQuiz(selectedQuiz, nickname.trim(), selectedAvatar);
+                  }}
+                  className="space-y-5"
+                >
               {/* Selector de Avatar */}
               <div>
                 <label className="block text-xs uppercase font-black text-white/70 mb-2">
@@ -546,6 +597,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 </button>
               </div>
             </form>
+            );
+          })()}
           </motion.div>
         </div>
       )}
