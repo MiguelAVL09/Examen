@@ -630,7 +630,13 @@ export const quizService = {
     }
   },
 
-  async saveParticipantResult(participant: Participant): Promise<Participant> {
+  async saveParticipantResult(rawParticipant: Participant): Promise<Participant> {
+    const participant: Participant = {
+      ...rawParticipant,
+      id: generateUUID(rawParticipant.id),
+      quizId: generateUUID(rawParticipant.quizId),
+    };
+
     const stored = localStorage.getItem(LOCAL_STORAGE_PARTICIPANTS_KEY);
     const list: Participant[] = stored ? JSON.parse(stored) : [];
     list.unshift(participant);
@@ -638,31 +644,40 @@ export const quizService = {
 
     if (isSupabaseConfigured() && supabase) {
       try {
-        await supabase.from('participants').insert({
+        const { error: pError } = await supabase.from('participants').insert({
           id: participant.id,
           quiz_id: participant.quizId,
-          session_id: participant.sessionId || null,
-          nickname: participant.nickname,
-          avatar: participant.avatar,
-          total_score: participant.totalScore,
-          streak: participant.streak,
-          max_streak: participant.maxStreak,
-          correct_answers_count: participant.correctAnswersCount,
-          total_questions_count: participant.totalQuestionsCount,
-          accuracy_percentage: participant.accuracyPercentage,
-          completed_at: participant.completedAt,
+          session_id: participant.sessionId ? generateUUID(participant.sessionId) : null,
+          nickname: participant.nickname || 'Participante',
+          avatar: participant.avatar || '🦊',
+          total_score: participant.totalScore || 0,
+          streak: participant.streak || 0,
+          max_streak: participant.maxStreak || 0,
+          correct_answers_count: participant.correctAnswersCount || 0,
+          total_questions_count: participant.totalQuestionsCount || 0,
+          accuracy_percentage: participant.accuracyPercentage || 0,
+          completed_at: participant.completedAt || new Date().toISOString(),
         });
+
+        if (pError) {
+          console.error('Error insertando participante en Supabase:', pError);
+          throw pError;
+        }
 
         if (participant.answers && participant.answers.length > 0) {
           const answerRows = participant.answers.map(ans => ({
+            id: generateUUID(),
             participant_id: participant.id,
-            question_id: ans.questionId,
-            selected_option_id: ans.selectedOptionId,
+            question_id: generateUUID(ans.questionId),
+            selected_option_id: ans.selectedOptionId ? generateUUID(ans.selectedOptionId) : null,
             is_correct: ans.isCorrect,
-            time_taken_ms: ans.timeTakenMs,
-            points_awarded: ans.pointsAwarded,
+            time_taken_ms: ans.timeTakenMs || 0,
+            points_awarded: ans.pointsAwarded || 0,
           }));
-          await supabase.from('participant_answers').insert(answerRows);
+          const { error: ansError } = await supabase.from('participant_answers').insert(answerRows);
+          if (ansError) {
+            console.warn('Error insertando respuestas del participante en Supabase:', ansError);
+          }
         }
       } catch (err) {
         console.warn('Error guardando participante en Supabase:', err);

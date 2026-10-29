@@ -6,7 +6,7 @@ import { KahootTimer } from './KahootTimer';
 import { KahootOptionButton } from './KahootOptionButton';
 import { KahootShapeIcon } from './KahootShapes';
 import { soundEffects } from '../utils/soundEffects';
-import { quizService } from '../services/quizService';
+import { quizService, generateUUID } from '../services/quizService';
 import {
   Flame,
   Trophy,
@@ -251,9 +251,9 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
     const accuracy = totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 0;
 
     const participantData: Participant = {
-      id: 'p-' + Date.now(),
-      quizId: quiz.id,
-      nickname,
+      id: generateUUID(),
+      quizId: generateUUID(quiz.id),
+      nickname: nickname && nickname.trim() ? nickname.trim() : 'Participante',
       avatar,
       totalScore,
       streak,

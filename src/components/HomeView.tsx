@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Play, Users, Sparkles, Clock, ArrowRight, Gamepad2, Dices, Share2, Flame } from 'lucide-react';
+import { Play, Users, Sparkles, Clock, ArrowRight, Gamepad2, Dices, Share2, Flame, User } from 'lucide-react';
 import type { Quiz } from '../types/quiz';
 import { KahootShapeIcon } from './KahootShapes';
 import { ShareQuizModal } from './ShareQuizModal';
@@ -15,7 +15,7 @@ interface HomeViewProps {
   onOpenAdmin: () => void;
 }
 
-const AVATAR_OPTIONS = ['🦊', '🦁', '🐼', '🚀', '⚡', '👑', '🦄', '🎮', '🐯', '🔥', '🤖', '🦖', '🌟', '🎯'];
+const AVATAR_OPTIONS = ['🦊', '🦁', '🐼', '🚀', '⚡', '👑', '🦄', '🎮', '🐯', '🔥', '🤖', '🦖', '🌟', '🎯', '🍿', '🎬'];
 
 const RANDOM_NAMES = [
   'SuperNinja', 'AstroLobo', 'PixelGamer', 'MasterQuiz', 'CyberPanda',
@@ -57,14 +57,19 @@ export const HomeView: React.FC<HomeViewProps> = ({
     handleSaveProfile(randomNick, randomAv);
   };
 
-  const handleLaunchSolo = (quiz: Quiz) => {
-    if (!nickname.trim()) {
-      setSelectedQuiz(quiz);
+  // Abrir automáticamente el modal de ingreso de nombre si se accede por enlace de invitación (?quiz=...)
+  useEffect(() => {
+    if (invitedQuiz) {
+      setSelectedQuiz(invitedQuiz);
+      setErrorMessage('');
       setIsJoinModalOpen(true);
-      return;
     }
-    handleSaveProfile(nickname.trim(), selectedAvatar);
-    onStartQuiz(quiz, nickname.trim(), selectedAvatar);
+  }, [invitedQuiz]);
+
+  const handleLaunchSolo = (quiz: Quiz) => {
+    setSelectedQuiz(quiz);
+    setErrorMessage('');
+    setIsJoinModalOpen(true);
   };
 
   const handleJoinPinSubmit = (e: React.FormEvent) => {
@@ -412,79 +417,132 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
       {/* Nickname Modal before Solo Play */}
       {isJoinModalOpen && selectedQuiz && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
           <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="bg-kahoot-purple-dark border-2 border-white/20 rounded-3xl p-6 md:p-8 max-w-md w-full shadow-2xl text-center text-white"
+            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            className="bg-kahoot-purple-dark border-4 border-white/20 rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl text-center text-white relative overflow-hidden"
           >
-            <h3 className="text-2xl font-black uppercase tracking-tight mb-2">
-              ¡Casi listo para jugar!
+            {/* Botón de cierre */}
+            <button
+              onClick={() => setIsJoinModalOpen(false)}
+              className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white font-black flex items-center justify-center transition"
+              title="Cerrar"
+            >
+              ✕
+            </button>
+
+            {/* Insignia Superior */}
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-kahoot-yellow/20 border border-kahoot-yellow/40 text-xs font-black text-amber-300 uppercase tracking-widest mb-3">
+              <User className="w-4 h-4" />
+              <span>Registro de Participante</span>
+            </div>
+
+            <h3 className="text-2xl sm:text-3xl font-black uppercase tracking-tight mb-1">
+              ¿Cuál es tu nombre?
             </h3>
-            <p className="text-white/70 text-xs font-semibold mb-6">
-              Ingresa el nombre con el que se registrará tu puntaje en el cuestionario:
+            <p className="text-white/80 text-xs sm:text-sm font-medium mb-5">
+              Ingresa tu nombre y apellido para comenzar el cuestionario:
               <br />
-              <strong className="text-kahoot-yellow">{selectedQuiz.title}</strong>
+              <strong className="text-kahoot-yellow font-black text-sm sm:text-base">
+                {selectedQuiz.title}
+              </strong>
+              <span className="block text-[11px] text-white/60 mt-0.5">
+                ({selectedQuiz.questions?.length || 0} preguntas preparadas)
+              </span>
             </p>
 
-            <div className="space-y-4 mb-6">
-              <div className="flex justify-center gap-2 flex-wrap">
-                {AVATAR_OPTIONS.slice(0, 8).map(av => (
-                  <button
-                    key={av}
-                    type="button"
-                    onClick={() => setSelectedAvatar(av)}
-                    className={`w-10 h-10 text-xl rounded-xl border-2 transition ${
-                      selectedAvatar === av
-                        ? 'border-kahoot-yellow bg-white/20 scale-110 shadow-lg'
-                        : 'border-white/10 hover:border-white/30'
-                    }`}
-                  >
-                    {av}
-                  </button>
-                ))}
+            <form
+              onSubmit={e => {
+                e.preventDefault();
+                if (!nickname.trim()) {
+                  setErrorMessage('Por favor escribe tu nombre para identificarte en el ranking.');
+                  return;
+                }
+                handleSaveProfile(nickname.trim(), selectedAvatar);
+                setIsJoinModalOpen(false);
+                onStartQuiz(selectedQuiz, nickname.trim(), selectedAvatar);
+              }}
+              className="space-y-5"
+            >
+              {/* Selector de Avatar */}
+              <div>
+                <label className="block text-xs uppercase font-black text-white/70 mb-2">
+                  Elige tu avatar
+                </label>
+                <div className="flex justify-center gap-2 flex-wrap">
+                  {AVATAR_OPTIONS.map(av => (
+                    <button
+                      key={av}
+                      type="button"
+                      onClick={() => setSelectedAvatar(av)}
+                      className={`w-11 h-11 text-2xl rounded-2xl border-2 transition transform active:scale-90 flex items-center justify-center ${
+                        selectedAvatar === av
+                          ? 'border-kahoot-yellow bg-kahoot-yellow/20 scale-110 shadow-lg ring-2 ring-kahoot-yellow/50'
+                          : 'border-white/10 hover:border-white/30 bg-black/30'
+                      }`}
+                    >
+                      {av}
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Tu apodo o nombre..."
-                  value={nickname}
-                  onChange={e => setNickname(e.target.value)}
-                  className="flex-1 text-center text-lg font-black py-3 px-4 rounded-2xl bg-black/40 border-2 border-white/20 focus:border-kahoot-yellow focus:outline-none transition text-white placeholder-white/40"
-                  autoFocus
-                />
+              {/* Campo de Nombre Obligatorio */}
+              <div className="space-y-1.5 text-left">
+                <label className="block text-xs uppercase font-black text-white/70">
+                  Tu nombre y apellido <span className="text-red-400">*</span>
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Ej. Roberto Martínez..."
+                    value={nickname}
+                    onChange={e => {
+                      setNickname(e.target.value);
+                      if (errorMessage) setErrorMessage('');
+                    }}
+                    className="flex-1 text-center sm:text-left text-lg font-black py-3.5 px-4 rounded-2xl bg-black/50 border-2 border-white/20 focus:border-kahoot-yellow focus:outline-none transition text-white placeholder-white/30"
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    onClick={handleGenerateRandomName}
+                    title="Sugerir nombre divertido"
+                    className="p-3.5 bg-white/10 hover:bg-white/20 rounded-2xl border border-white/20 text-white transition active:scale-95 flex items-center justify-center"
+                  >
+                    <Dices className="w-5 h-5 text-amber-300" />
+                  </button>
+                </div>
+                {errorMessage && (
+                  <p className="text-red-400 text-xs font-bold mt-1 animate-pulse">
+                    ⚠️ {errorMessage}
+                  </p>
+                )}
+                <p className="text-[11px] text-white/50 italic">
+                  💡 Este nombre quedará registrado en las respuestas para que el administrador pueda identificarte en el ranking.
+                </p>
+              </div>
+
+              {/* Botones de Acción */}
+              <div className="flex gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={handleGenerateRandomName}
-                  title="Generar nombre aleatorio"
-                  className="p-3 bg-white/10 hover:bg-white/20 rounded-2xl border border-white/20 text-white transition active:scale-95"
+                  onClick={() => setIsJoinModalOpen(false)}
+                  className="flex-1 py-3.5 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs uppercase tracking-wider transition"
                 >
-                  <Dices className="w-5 h-5" />
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={!nickname.trim()}
+                  className="flex-[2] py-3.5 rounded-2xl bg-kahoot-yellow hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed text-black font-black text-sm uppercase tracking-wider transition shadow-2xl active:scale-95 flex items-center justify-center gap-2"
+                >
+                  <Play className="w-4 h-4 fill-current" />
+                  <span>¡Entrar al Cuestionario!</span>
                 </button>
               </div>
-            </div>
-
-            <div className="flex gap-3">
-              <button
-                onClick={() => setIsJoinModalOpen(false)}
-                className="flex-1 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs uppercase transition"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={() => {
-                  if (!nickname.trim()) return;
-                  handleSaveProfile(nickname.trim(), selectedAvatar);
-                  setIsJoinModalOpen(false);
-                  onStartQuiz(selectedQuiz, nickname.trim(), selectedAvatar);
-                }}
-                disabled={!nickname.trim()}
-                className="flex-1 py-3 rounded-xl bg-kahoot-yellow hover:bg-amber-400 disabled:opacity-40 text-black font-black text-xs uppercase tracking-wider transition shadow-lg"
-              >
-                ¡Comenzar!
-              </button>
-            </div>
+            </form>
           </motion.div>
         </div>
       )}
