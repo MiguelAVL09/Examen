@@ -123,12 +123,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (passcode.trim() === 'admin123') {
+    if (passcode.trim() === 'Mike040903') {
       setIsAuthenticated(true);
       sessionStorage.setItem('kahoot_admin_auth', 'true');
       setAuthError('');
     } else {
-      setAuthError('PIN incorrecto. (PIN por defecto: admin123)');
+      setAuthError('Contraseña incorrecta. Por favor intenta de nuevo.');
     }
   };
 
@@ -338,7 +338,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
             <div>
               <input
                 type="password"
-                placeholder="Ingresa el PIN de Admin..."
+                placeholder="Ingresa la contraseña..."
                 value={passcode}
                 onChange={e => setPasscode(e.target.value)}
                 className="w-full px-5 py-4 rounded-2xl bg-black/40 border-2 border-white/20 text-white placeholder-white/40 font-black text-center text-xl tracking-widest focus:outline-none focus:border-kahoot-yellow transition"
@@ -357,11 +357,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
             </button>
           </form>
 
-          <div className="mt-6 pt-6 border-t border-white/10 text-xs text-white/50">
-            <span>PIN predeterminado para pruebas: </span>
-            <code className="text-kahoot-yellow font-black px-1.5 py-0.5 bg-black/40 rounded">
-              admin123
-            </code>
+          <div className="mt-6 pt-6 border-t border-white/10 text-xs text-white/50 flex items-center justify-center gap-1.5">
+            <Lock className="w-3.5 h-3.5 text-amber-300" />
+            <span>Acceso seguro protegido para administradores</span>
           </div>
 
           <button
