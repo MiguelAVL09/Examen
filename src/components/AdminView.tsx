@@ -1,0 +1,954 @@
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Shield,
+  Trophy,
+  Users,
+  Search,
+  Download,
+  Trash2,
+  Plus,
+  Edit,
+  Flame,
+  CheckCircle2,
+  Database,
+  Lock,
+  RefreshCw,
+  Copy,
+  ExternalLink,
+  ChevronDown,
+  Sparkles,
+  BookOpen
+} from 'lucide-react';
+import { Participant, Quiz, Question, QuestionOption } from '../types/quiz';
+import { quizService, DEFAULT_QUIZZES } from '../services/quizService';
+import { isSupabaseConfigured } from '../services/supabaseClient';
+import { KahootShapeIcon } from './KahootShapes';
+
+interface AdminViewProps {
+  onBackToHome: () => void;
+}
+
+export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
+  // Authentication State
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    return sessionStorage.getItem('kahoot_admin_auth') === 'true';
+  });
+  const [passcode, setPasscode] = useState<string>('');
+  const [authError, setAuthError] = useState<string>('');
+
+  // Tab State
+  const [activeTab, setActiveTab] = useState<'rankings' | 'quizzes' | 'supabase'>('rankings');
+
+  // Data State
+  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
+  const [rankings, setRankings] = useState<Participant[]>([]);
+  const [selectedQuizId, setSelectedQuizId] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [syncStatus, setSyncStatus] = useState<string>('');
+
+  // Quiz Editor Modal State
+  const [isEditorOpen, setIsEditorOpen] = useState<boolean>(false);
+  const [editingQuiz, setEditingQuiz] = useState<Quiz | null>(null);
+
+  // Load Data
+  const loadData = async () => {
+    setIsLoading(true);
+    try {
+      const allQuizzes = await quizService.getQuizzes();
+      setQuizzes(allQuizzes);
+
+      const allRankings = await quizService.getRankings(
+        selectedQuizId === 'all' ? undefined : selectedQuizId
+      );
+      setRankings(allRankings);
+    } catch (err) {
+      console.error('Error cargando datos de admin:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadData();
+    }
+  }, [isAuthenticated, selectedQuizId]);
+
+  // Auth Handler
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    // Default PIN: admin123
+    if (passcode.trim() === 'admin123') {
+      setIsAuthenticated(true);
+      sessionStorage.setItem('kahoot_admin_auth', 'true');
+      setAuthError('');
+    } else {
+      setAuthError('PIN incorrecto. (PIN por defecto: admin123)');
+    }
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    sessionStorage.removeItem('kahoot_admin_auth');
+  };
+
+  // Export to CSV
+  const handleExportCSV = () => {
+    if (rankings.length === 0) return;
+
+    const headers = ['Posicion', 'Nickname', 'Cuestionario', 'Puntaje Total', 'Aciertos', 'Total Preguntas', 'Precision (%)', 'Mejor Racha', 'Fecha'];
+    const rows = filteredRankings.map((p, idx) => {
+      const q = quizzes.find(item => item.id === p.quizId);
+      return [
+        idx + 1,
+        `"${p.nickname}"`,
+        `"${q?.title || p.quizId}"`,
+        p.totalScore,
+        p.correctAnswersCount,
+        p.totalQuestionsCount,
+        `${p.accuracyPercentage}%`,
+        p.maxStreak,
+        `"${new Date(p.completedAt).toLocaleString()}"`,
+      ].join(',');
+    });
+
+    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `kahoot_rankings_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Clear Rankings
+  const handleClearRankings = async () => {
+    if (window.confirm('¿Estás seguro de que deseas borrar los rankings? Esta acción no se puede deshacer.')) {
+      await quizService.clearRankings(selectedQuizId === 'all' ? undefined : selectedQuizId);
+      await loadData();
+    }
+  };
+
+  // Sync to Supabase
+  const handleSyncToSupabase = async () => {
+    setSyncStatus('Sincronizando...');
+    const res = await quizService.syncSeedToSupabase();
+    setSyncStatus(res.message);
+  };
+
+  // Delete Quiz
+  const handleDeleteQuiz = async (quizId: string) => {
+    if (window.confirm('¿Deseas eliminar este cuestionario? Se eliminarán también sus preguntas asociadas.')) {
+      await quizService.deleteQuiz(quizId);
+      await loadData();
+    }
+  };
+
+  // Filter rankings by search query
+  const filteredRankings = rankings.filter(p =>
+    p.nickname.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  // If Not Authenticated, show Passcode Lock Screen
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-[calc(100vh-80px)] flex items-center justify-center p-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-kahoot-purple-dark/90 border-2 border-white/20 rounded-3xl p-8 max-w-md w-full shadow-2xl backdrop-blur-md text-center"
+        >
+          <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-tr from-kahoot-yellow to-amber-400 rounded-3xl flex items-center justify-center shadow-lg text-black">
+            <Lock className="w-10 h-10" />
+          </div>
+
+          <h2 className="text-2xl md:text-3xl font-black text-white uppercase tracking-tight mb-2">
+            Panel de Administración
+          </h2>
+          <p className="text-white/70 text-sm mb-6 font-semibold">
+            El sistema de rankings y gestión de cuestionarios está protegido para acceso exclusivo de administradores.
+          </p>
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <input
+                type="password"
+                placeholder="Ingresa el PIN de Admin..."
+                value={passcode}
+                onChange={e => setPasscode(e.target.value)}
+                className="w-full px-5 py-4 rounded-2xl bg-black/40 border-2 border-white/20 text-white placeholder-white/40 font-black text-center text-xl tracking-widest focus:outline-none focus:border-kahoot-yellow transition"
+                autoFocus
+              />
+              {authError && (
+                <p className="text-red-400 text-xs font-bold mt-2">{authError}</p>
+              )}
+            </div>
+
+            <button
+              type="submit"
+              className="w-full py-4 rounded-2xl bg-kahoot-yellow hover:bg-amber-400 text-black font-black uppercase tracking-wider text-sm shadow-xl active:scale-95 transition"
+            >
+              Acceder al Panel
+            </button>
+          </form>
+
+          <div className="mt-6 pt-6 border-t border-white/10 text-xs text-white/50">
+            <span>PIN predeterminado para pruebas: </span>
+            <code className="text-kahoot-yellow font-black px-1.5 py-0.5 bg-black/40 rounded">
+              admin123
+            </code>
+          </div>
+
+          <button
+            onClick={onBackToHome}
+            className="mt-4 text-xs font-bold text-white/70 hover:text-white underline"
+          >
+            Volver al menú de juegos
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // Authenticated Admin Dashboard
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 min-h-[calc(100vh-80px)]">
+      {/* Top Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+        <div>
+          <div className="flex items-center gap-3">
+            <span className="p-2.5 bg-kahoot-yellow text-black rounded-2xl shadow-md">
+              <Shield className="w-6 h-6" />
+            </span>
+            <h1 className="text-3xl md:text-4xl font-black text-white tracking-tight uppercase">
+              Control de Administrador
+            </h1>
+          </div>
+          <p className="text-white/70 font-semibold mt-1">
+            Visualización privada de rankings, métricas de participantes y creador de nuevos cuestionarios.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={loadData}
+            title="Refrescar datos"
+            className="p-3 bg-white/10 hover:bg-white/20 text-white rounded-xl border border-white/10 transition active:scale-95"
+          >
+            <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
+          </button>
+          <button
+            onClick={handleLogout}
+            className="px-4 py-2.5 bg-red-600/30 hover:bg-red-600/50 text-red-200 border border-red-500/40 font-bold rounded-xl text-sm transition active:scale-95"
+          >
+            Cerrar Sesión
+          </button>
+        </div>
+      </div>
+
+      {/* Tabs Navigation */}
+      <div className="flex gap-2 p-1.5 bg-black/30 rounded-2xl border border-white/10 mb-8 max-w-xl">
+        <button
+          onClick={() => setActiveTab('rankings')}
+          className={`flex-1 py-3 px-4 rounded-xl font-black text-xs md:text-sm uppercase tracking-wider transition flex items-center justify-center gap-2 ${
+            activeTab === 'rankings'
+              ? 'bg-kahoot-yellow text-black shadow-lg'
+              : 'text-white/70 hover:text-white'
+          }`}
+        >
+          <Trophy className="w-4 h-4" />
+          <span>Rankings & Resultados</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('quizzes')}
+          className={`flex-1 py-3 px-4 rounded-xl font-black text-xs md:text-sm uppercase tracking-wider transition flex items-center justify-center gap-2 ${
+            activeTab === 'quizzes'
+              ? 'bg-kahoot-yellow text-black shadow-lg'
+              : 'text-white/70 hover:text-white'
+          }`}
+        >
+          <BookOpen className="w-4 h-4" />
+          <span>Gestor de Cuestionarios</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('supabase')}
+          className={`flex-1 py-3 px-4 rounded-xl font-black text-xs md:text-sm uppercase tracking-wider transition flex items-center justify-center gap-2 ${
+            activeTab === 'supabase'
+              ? 'bg-kahoot-yellow text-black shadow-lg'
+              : 'text-white/70 hover:text-white'
+          }`}
+        >
+          <Database className="w-4 h-4" />
+          <span>Base de Datos</span>
+        </button>
+      </div>
+
+      {/* TAB 1: RANKINGS & RESULTS */}
+      {activeTab === 'rankings' && (
+        <div className="space-y-6">
+          {/* Quick Metrics Bar */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-kahoot-purple-dark/80 p-5 rounded-2xl border border-white/10 shadow-lg">
+              <span className="text-xs uppercase font-bold text-white/60">Total Participantes</span>
+              <div className="text-3xl font-black text-white mt-1">{rankings.length}</div>
+            </div>
+
+            <div className="bg-kahoot-purple-dark/80 p-5 rounded-2xl border border-white/10 shadow-lg">
+              <span className="text-xs uppercase font-bold text-white/60">Puntaje Récord</span>
+              <div className="text-3xl font-black text-kahoot-yellow mt-1">
+                {rankings.length > 0
+                  ? Math.max(...rankings.map(r => r.totalScore)).toLocaleString()
+                  : 0}
+              </div>
+            </div>
+
+            <div className="bg-kahoot-purple-dark/80 p-5 rounded-2xl border border-white/10 shadow-lg">
+              <span className="text-xs uppercase font-bold text-white/60">Precisión Promedio</span>
+              <div className="text-3xl font-black text-green-400 mt-1">
+                {rankings.length > 0
+                  ? Math.round(
+                      rankings.reduce((acc, curr) => acc + curr.accuracyPercentage, 0) /
+                        rankings.length
+                    )
+                  : 0}
+                %
+              </div>
+            </div>
+
+            <div className="bg-kahoot-purple-dark/80 p-5 rounded-2xl border border-white/10 shadow-lg">
+              <span className="text-xs uppercase font-bold text-white/60">Cuestionarios Activos</span>
+              <div className="text-3xl font-black text-blue-400 mt-1">{quizzes.length}</div>
+            </div>
+          </div>
+
+          {/* Filtering and Search Controls */}
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-kahoot-purple-dark/80 p-4 rounded-2xl border border-white/10 shadow-lg">
+            <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+              {/* Select Quiz Filter */}
+              <div className="relative">
+                <select
+                  value={selectedQuizId}
+                  onChange={e => setSelectedQuizId(e.target.value)}
+                  className="px-4 py-2.5 pr-10 rounded-xl bg-black/40 border border-white/20 text-white font-bold text-sm appearance-none focus:outline-none focus:border-kahoot-yellow"
+                >
+                  <option value="all">Todos los Cuestionarios ({quizzes.length})</option>
+                  {quizzes.map(q => (
+                    <option key={q.id} value={q.id}>
+                      {q.title}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="w-4 h-4 text-white/60 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+
+              {/* Search Participant */}
+              <div className="relative flex-1 md:w-64">
+                <Search className="w-4 h-4 text-white/40 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Buscar jugador..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-black/40 border border-white/20 text-white placeholder-white/40 text-sm font-semibold focus:outline-none focus:border-kahoot-yellow"
+                />
+              </div>
+            </div>
+
+            {/* Actions: Export & Reset */}
+            <div className="flex items-center gap-3 w-full md:w-auto justify-end">
+              <button
+                onClick={handleExportCSV}
+                disabled={rankings.length === 0}
+                className="flex items-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 disabled:opacity-40 text-white rounded-xl text-sm font-bold border border-white/10 transition active:scale-95"
+              >
+                <Download className="w-4 h-4" />
+                <span>Exportar CSV</span>
+              </button>
+
+              <button
+                onClick={handleClearRankings}
+                disabled={rankings.length === 0}
+                className="flex items-center gap-2 px-4 py-2.5 bg-red-600/30 hover:bg-red-600/50 disabled:opacity-40 text-red-200 rounded-xl text-sm font-bold border border-red-500/30 transition active:scale-95"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Limpiar</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Rankings Table */}
+          <div className="bg-kahoot-purple-dark/80 rounded-3xl border border-white/10 shadow-2xl overflow-hidden backdrop-blur-md">
+            {filteredRankings.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-white/10 bg-black/20 text-[11px] uppercase font-black tracking-wider text-white/60">
+                      <th className="py-4 px-6">Posición</th>
+                      <th className="py-4 px-6">Jugador</th>
+                      <th className="py-4 px-6">Cuestionario</th>
+                      <th className="py-4 px-6 text-right">Puntaje Total</th>
+                      <th className="py-4 px-6 text-center">Aciertos</th>
+                      <th className="py-4 px-6 text-center">Precisión</th>
+                      <th className="py-4 px-6 text-center">Racha Máx</th>
+                      <th className="py-4 px-6 text-right">Fecha</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5 font-semibold text-sm">
+                    {filteredRankings.map((p, index) => {
+                      const quizInfo = quizzes.find(q => q.id === p.quizId);
+                      const isTop3 = index < 3;
+                      const badge = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`;
+
+                      return (
+                        <tr
+                          key={p.id}
+                          className="hover:bg-white/5 transition-colors"
+                        >
+                          {/* Rank badge */}
+                          <td className="py-4 px-6">
+                            <span
+                              className={`inline-flex items-center justify-center w-8 h-8 rounded-full font-black text-sm ${
+                                isTop3
+                                  ? 'bg-kahoot-yellow/20 text-amber-300 border border-kahoot-yellow/40'
+                                  : 'text-white/60'
+                              }`}
+                            >
+                              {badge}
+                            </span>
+                          </td>
+
+                          {/* Nickname & Avatar */}
+                          <td className="py-4 px-6">
+                            <div className="flex items-center gap-3">
+                              <span className="text-2xl">{p.avatar || '🦊'}</span>
+                              <span className="font-extrabold text-white text-base">
+                                {p.nickname}
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* Quiz Title */}
+                          <td className="py-4 px-6 max-w-xs truncate text-white/80">
+                            {quizInfo?.title || 'Cuestionario General'}
+                          </td>
+
+                          {/* Score */}
+                          <td className="py-4 px-6 text-right">
+                            <span className="font-black text-base text-kahoot-yellow">
+                              {p.totalScore.toLocaleString()}
+                            </span>
+                            <span className="text-xs text-white/60 ml-1">pts</span>
+                          </td>
+
+                          {/* Correct Answers */}
+                          <td className="py-4 px-6 text-center text-white/90 font-bold">
+                            {p.correctAnswersCount} / {p.totalQuestionsCount}
+                          </td>
+
+                          {/* Accuracy */}
+                          <td className="py-4 px-6 text-center">
+                            <span
+                              className={`px-2.5 py-1 rounded-full text-xs font-black ${
+                                p.accuracyPercentage >= 80
+                                  ? 'bg-emerald-500/20 text-emerald-300'
+                                  : p.accuracyPercentage >= 50
+                                  ? 'bg-amber-500/20 text-amber-300'
+                                  : 'bg-red-500/20 text-red-300'
+                              }`}
+                            >
+                              {p.accuracyPercentage}%
+                            </span>
+                          </td>
+
+                          {/* Max Streak */}
+                          <td className="py-4 px-6 text-center">
+                            <div className="inline-flex items-center gap-1 text-amber-300 font-extrabold">
+                              <Flame className="w-4 h-4" />
+                              <span>x{p.maxStreak}</span>
+                            </div>
+                          </td>
+
+                          {/* Date */}
+                          <td className="py-4 px-6 text-right text-xs text-white/50">
+                            {new Date(p.completedAt).toLocaleDateString()} {new Date(p.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="py-16 text-center text-white/60">
+                <Users className="w-12 h-12 mx-auto mb-3 opacity-40" />
+                <p className="text-lg font-bold">No se encontraron participantes registrados aún.</p>
+                <p className="text-xs text-white/40 mt-1">
+                  Cuando los usuarios jueguen un cuestionario, sus resultados aparecerán aquí automáticamente.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 2: QUIZZES MANAGER & CREATOR */}
+      {activeTab === 'quizzes' && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-black uppercase text-white tracking-tight">
+              Cuestionarios Disponibles ({quizzes.length})
+            </h2>
+
+            <button
+              onClick={() => {
+                setEditingQuiz({
+                  id: 'quiz-' + Date.now(),
+                  title: '',
+                  description: '',
+                  category: 'General',
+                  coverImage: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=80',
+                  timePerQuestion: 20,
+                  createdAt: new Date().toISOString(),
+                  isPublished: true,
+                  questions: [
+                    {
+                      id: 'q-' + Date.now() + '-1',
+                      questionText: '',
+                      timeLimit: 20,
+                      pointsMultiplier: 1.0,
+                      questionType: 'multiple_choice',
+                      options: [
+                        { id: 'opt-1', text: '', isCorrect: true, color: 'red', shape: 'triangle' },
+                        { id: 'opt-2', text: '', isCorrect: false, color: 'blue', shape: 'diamond' },
+                        { id: 'opt-3', text: '', isCorrect: false, color: 'yellow', shape: 'circle' },
+                        { id: 'opt-4', text: '', isCorrect: false, color: 'green', shape: 'square' },
+                      ],
+                    },
+                  ],
+                });
+                setIsEditorOpen(true);
+              }}
+              className="flex items-center gap-2 px-5 py-3 bg-kahoot-yellow hover:bg-amber-400 text-black font-black uppercase tracking-wider text-xs md:text-sm rounded-2xl shadow-xl active:scale-95 transition"
+            >
+              <Plus className="w-5 h-5 stroke-[3]" />
+              <span>Crear Nuevo Cuestionario</span>
+            </button>
+          </div>
+
+          {/* Quizzes Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {quizzes.map(quiz => (
+              <div
+                key={quiz.id}
+                className="bg-kahoot-purple-dark/80 rounded-3xl border border-white/10 overflow-hidden shadow-xl flex flex-col justify-between group hover:border-kahoot-yellow/50 transition-all duration-300"
+              >
+                <div>
+                  {/* Cover Image */}
+                  <div className="relative h-44 overflow-hidden bg-black/40">
+                    <img
+                      src={quiz.coverImage || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=80'}
+                      alt={quiz.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                    <span className="absolute top-3 left-3 px-3 py-1 bg-black/60 backdrop-blur-md rounded-full text-[11px] font-black text-amber-300 uppercase tracking-wider border border-white/10">
+                      {quiz.category}
+                    </span>
+                    <span className="absolute top-3 right-3 px-3 py-1 bg-kahoot-purple-light/80 backdrop-blur-md rounded-full text-[11px] font-black text-white uppercase tracking-wider">
+                      {quiz.questions.length} Preguntas
+                    </span>
+                  </div>
+
+                  {/* Body Content */}
+                  <div className="p-6">
+                    <h3 className="text-xl font-black text-white mb-2 leading-snug">
+                      {quiz.title}
+                    </h3>
+                    <p className="text-white/70 text-xs line-clamp-2 leading-relaxed">
+                      {quiz.description || 'Sin descripción.'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Footer Actions */}
+                <div className="p-6 pt-0 flex items-center justify-between gap-3 border-t border-white/5 mt-4">
+                  <span className="text-xs text-white/50 font-bold">
+                    ⏱ {quiz.timePerQuestion || 20}s por pregunta
+                  </span>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setEditingQuiz(JSON.parse(JSON.stringify(quiz)));
+                        setIsEditorOpen(true);
+                      }}
+                      className="p-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl border border-white/10 transition active:scale-95"
+                      title="Editar cuestionario"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteQuiz(quiz.id)}
+                      className="p-2.5 bg-red-600/20 hover:bg-red-600/40 text-red-300 rounded-xl border border-red-500/20 transition active:scale-95"
+                      title="Eliminar cuestionario"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: SUPABASE & GITHUB CLOUD SYNC */}
+      {activeTab === 'supabase' && (
+        <div className="space-y-6 max-w-4xl">
+          {/* Supabase Status Box */}
+          <div className="bg-kahoot-purple-dark/80 rounded-3xl p-6 md:p-8 border border-white/10 shadow-2xl backdrop-blur-md">
+            <div className="flex items-center gap-3 mb-4">
+              <Database className="w-8 h-8 text-emerald-400" />
+              <div>
+                <h3 className="text-2xl font-black text-white uppercase tracking-tight">
+                  Estado de Base de Datos Supabase
+                </h3>
+                <p className="text-white/70 text-sm font-semibold">
+                  Almacena usuarios, rankings históricos y nuevos cuestionarios en la nube.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-black/40 border border-white/10 mb-6 flex items-center justify-between">
+              <div>
+                <span className="text-xs uppercase font-bold text-white/60 block">Conexión</span>
+                <span className="font-extrabold text-base text-white">
+                  {isSupabaseConfigured() ? (
+                    <span className="text-emerald-400 flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4" /> Supabase Conectado y Listo
+                    </span>
+                  ) : (
+                    <span className="text-amber-400 flex items-center gap-2">
+                      ⚠️ Modo Local Activo (Sin credenciales en .env)
+                    </span>
+                  )}
+                </span>
+              </div>
+
+              {isSupabaseConfigured() && (
+                <button
+                  onClick={handleSyncToSupabase}
+                  className="px-4 py-2 bg-kahoot-yellow hover:bg-amber-400 text-black font-black text-xs uppercase tracking-wider rounded-xl transition active:scale-95"
+                >
+                  Sincronizar Cuestionarios
+                </button>
+              )}
+            </div>
+
+            {syncStatus && (
+              <div className="p-3 bg-white/10 rounded-xl text-xs font-bold text-white mb-6">
+                {syncStatus}
+              </div>
+            )}
+
+            {/* How to Connect Instructions */}
+            <div className="space-y-4 text-xs text-white/80">
+              <h4 className="text-sm font-black text-white uppercase tracking-wider">
+                Pasos para vincular tu proyecto a Supabase:
+              </h4>
+              <ol className="list-decimal list-inside space-y-2 font-semibold">
+                <li>
+                  Crea una cuenta gratuita en{' '}
+                  <a
+                    href="https://supabase.com"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-kahoot-yellow underline"
+                  >
+                    Supabase.com
+                  </a>{' '}
+                  y crea un nuevo proyecto.
+                </li>
+                <li>
+                  Abre la pestaña <strong className="text-white">SQL Editor</strong> en Supabase y ejecuta todo el contenido de{' '}
+                  <code className="text-amber-300 bg-black/40 px-1 py-0.5 rounded">
+                    supabase/schema.sql
+                  </code>{' '}
+                  (ubicado en la raíz de este proyecto).
+                </li>
+                <li>
+                  Copia tu <strong className="text-white">Project URL</strong> y <strong className="text-white">anon public API key</strong> de Supabase en un archivo{' '}
+                  <code className="text-amber-300 bg-black/40 px-1 py-0.5 rounded">.env</code>:
+                </li>
+              </ol>
+
+              <div className="bg-black/60 p-4 rounded-xl font-mono text-xs text-emerald-300 border border-white/10 select-all overflow-x-auto">
+                VITE_SUPABASE_URL=https://tu-proyecto.supabase.co
+                <br />
+                VITE_SUPABASE_ANON_KEY=tu_clave_anonima_publica_aqui
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* QUIZ EDITOR MODAL */}
+      <AnimatePresence>
+        {isEditorOpen && editingQuiz && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              className="bg-kahoot-purple-dark border-2 border-white/20 rounded-3xl p-6 md:p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl text-white"
+            >
+              <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-6">
+                <h3 className="text-2xl font-black uppercase tracking-tight">
+                  {editingQuiz.title ? 'Editar Cuestionario' : 'Nuevo Cuestionario'}
+                </h3>
+                <button
+                  onClick={() => setIsEditorOpen(false)}
+                  className="p-2 text-white/60 hover:text-white text-xl font-black"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Quiz General Info Form */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+                <div>
+                  <label className="text-xs uppercase font-bold text-white/70 block mb-1">
+                    Título del Cuestionario *
+                  </label>
+                  <input
+                    type="text"
+                    value={editingQuiz.title}
+                    onChange={e => setEditingQuiz({ ...editingQuiz, title: e.target.value })}
+                    placeholder="Ej. Trivia de Cine y Series"
+                    className="w-full px-4 py-3 rounded-xl bg-black/40 border border-white/20 text-white font-bold text-sm focus:outline-none focus:border-kahoot-yellow"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs uppercase font-bold text-white/70 block mb-1">
+                    Categoría
+                  </label>
+                  <input
+                    type="text"
+                    value={editingQuiz.category}
+                    onChange={e => setEditingQuiz({ ...editingQuiz, category: e.target.value })}
+                    placeholder="Ej. Entretenimiento, Historia..."
+                    className="w-full px-4 py-3 rounded-xl bg-black/40 border border-white/20 text-white font-bold text-sm focus:outline-none focus:border-kahoot-yellow"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="text-xs uppercase font-bold text-white/70 block mb-1">
+                    Descripción
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={editingQuiz.description}
+                    onChange={e => setEditingQuiz({ ...editingQuiz, description: e.target.value })}
+                    placeholder="Breve resumen de qué trata el cuestionario..."
+                    className="w-full px-4 py-3 rounded-xl bg-black/40 border border-white/20 text-white font-semibold text-sm focus:outline-none focus:border-kahoot-yellow"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="text-xs uppercase font-bold text-white/70 block mb-1">
+                    URL Imagen de Portada (Opcional)
+                  </label>
+                  <input
+                    type="text"
+                    value={editingQuiz.coverImage || ''}
+                    onChange={e => setEditingQuiz({ ...editingQuiz, coverImage: e.target.value })}
+                    placeholder="https://images.unsplash.com/..."
+                    className="w-full px-4 py-3 rounded-xl bg-black/40 border border-white/20 text-white font-semibold text-sm focus:outline-none focus:border-kahoot-yellow"
+                  />
+                </div>
+              </div>
+
+              {/* Questions Section */}
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-lg font-black uppercase text-amber-300">
+                    Preguntas ({editingQuiz.questions.length})
+                  </h4>
+
+                  <button
+                    onClick={() => {
+                      const newQuestion: Question = {
+                        id: 'q-' + Date.now(),
+                        questionText: '',
+                        timeLimit: 20,
+                        pointsMultiplier: 1.0,
+                        questionType: 'multiple_choice',
+                        options: [
+                          { id: 'opt-' + Date.now() + '-1', text: '', isCorrect: true, color: 'red', shape: 'triangle' },
+                          { id: 'opt-' + Date.now() + '-2', text: '', isCorrect: false, color: 'blue', shape: 'diamond' },
+                          { id: 'opt-' + Date.now() + '-3', text: '', isCorrect: false, color: 'yellow', shape: 'circle' },
+                          { id: 'opt-' + Date.now() + '-4', text: '', isCorrect: false, color: 'green', shape: 'square' },
+                        ],
+                      };
+                      setEditingQuiz({
+                        ...editingQuiz,
+                        questions: [...editingQuiz.questions, newQuestion],
+                      });
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Agregar Pregunta</span>
+                  </button>
+                </div>
+
+                {editingQuiz.questions.map((ques, qIdx) => (
+                  <div
+                    key={ques.id}
+                    className="bg-black/30 p-5 rounded-2xl border border-white/10 space-y-4"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black uppercase text-kahoot-yellow">
+                        Pregunta #{qIdx + 1}
+                      </span>
+                      {editingQuiz.questions.length > 1 && (
+                        <button
+                          onClick={() => {
+                            const updated = editingQuiz.questions.filter((_, i) => i !== qIdx);
+                            setEditingQuiz({ ...editingQuiz, questions: updated });
+                          }}
+                          className="text-red-400 hover:text-red-300 text-xs font-bold"
+                        >
+                          Eliminar
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                      <div className="md:col-span-3">
+                        <input
+                          type="text"
+                          placeholder="Escribe la pregunta aquí..."
+                          value={ques.questionText}
+                          onChange={e => {
+                            const updated = [...editingQuiz.questions];
+                            updated[qIdx].questionText = e.target.value;
+                            setEditingQuiz({ ...editingQuiz, questions: updated });
+                          }}
+                          className="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/20 text-white font-bold text-sm focus:outline-none focus:border-kahoot-yellow"
+                        />
+                      </div>
+
+                      <div>
+                        <select
+                          value={ques.timeLimit}
+                          onChange={e => {
+                            const updated = [...editingQuiz.questions];
+                            updated[qIdx].timeLimit = Number(e.target.value);
+                            setEditingQuiz({ ...editingQuiz, questions: updated });
+                          }}
+                          className="w-full px-3 py-2.5 rounded-xl bg-black/40 border border-white/20 text-white font-bold text-sm focus:outline-none focus:border-kahoot-yellow"
+                        >
+                          <option value={10}>10 segundos</option>
+                          <option value={15}>15 segundos</option>
+                          <option value={20}>20 segundos</option>
+                          <option value={30}>30 segundos</option>
+                          <option value={60}>60 segundos</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Options Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                      {ques.options.map((opt, optIdx) => {
+                        const colorBgs = {
+                          red: 'border-l-4 border-l-red-500',
+                          blue: 'border-l-4 border-l-blue-500',
+                          yellow: 'border-l-4 border-l-yellow-500',
+                          green: 'border-l-4 border-l-green-500',
+                        }[opt.color];
+
+                        return (
+                          <div
+                            key={opt.id}
+                            className={`flex items-center gap-2 bg-black/40 p-2.5 rounded-xl border border-white/10 ${colorBgs}`}
+                          >
+                            <KahootShapeIcon shape={opt.shape} size={20} className="text-white/80" />
+                            <input
+                              type="text"
+                              placeholder={`Opción ${optIdx + 1}...`}
+                              value={opt.text}
+                              onChange={e => {
+                                const updated = [...editingQuiz.questions];
+                                updated[qIdx].options[optIdx].text = e.target.value;
+                                setEditingQuiz({ ...editingQuiz, questions: updated });
+                              }}
+                              className="flex-1 bg-transparent text-white font-semibold text-xs focus:outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = [...editingQuiz.questions];
+                                updated[qIdx].options.forEach((o, i) => {
+                                  o.isCorrect = i === optIdx;
+                                });
+                                setEditingQuiz({ ...editingQuiz, questions: updated });
+                              }}
+                              title={opt.isCorrect ? 'Respuesta correcta' : 'Marcar como correcta'}
+                              className={`p-1.5 rounded-lg text-xs font-black transition ${
+                                opt.isCorrect
+                                  ? 'bg-green-500 text-white shadow'
+                                  : 'bg-white/10 text-white/40 hover:text-white'
+                              }`}
+                            >
+                              ✓
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Modal Actions */}
+              <div className="flex items-center justify-end gap-3 pt-6 border-t border-white/10 mt-8">
+                <button
+                  onClick={() => setIsEditorOpen(false)}
+                  className="px-5 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-sm transition"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!editingQuiz.title.trim()) {
+                      alert('Por favor ingresa un título para el cuestionario.');
+                      return;
+                    }
+                    await quizService.saveQuiz(editingQuiz);
+                    setIsEditorOpen(false);
+                    await loadData();
+                  }}
+                  className="px-6 py-3 rounded-xl bg-kahoot-yellow hover:bg-amber-400 text-black font-black uppercase text-sm shadow-xl active:scale-95 transition"
+                >
+                  Guardar Cuestionario
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};

@@ -1,0 +1,80 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-kahoot-purple-deepest text-white min-h-screen font-sans antialiased selection:bg-kahoot-yellow selection:text-black overflow-x-hidden;
+    background: radial-gradient(circle at 50% 20%, #46178f 0%, #250850 50%, #14032e 100%);
+  }
+}
+
+/* Kahoot 3D Button Shadows */
+.kahoot-btn-red {
+  background-color: #e21b3c;
+  box-shadow: 0 6px 0 #a80d26, 0 10px 20px rgba(226, 27, 60, 0.4);
+}
+.kahoot-btn-red:active {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 #a80d26, 0 4px 10px rgba(226, 27, 60, 0.3);
+}
+
+.kahoot-btn-blue {
+  background-color: #1368ce;
+  box-shadow: 0 6px 0 #0a3d7d, 0 10px 20px rgba(19, 104, 206, 0.4);
+}
+.kahoot-btn-blue:active {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 #0a3d7d, 0 4px 10px rgba(19, 104, 206, 0.3);
+}
+
+.kahoot-btn-yellow {
+  background-color: #ffa602;
+  box-shadow: 0 6px 0 #bd7b00, 0 10px 20px rgba(255, 166, 2, 0.4);
+}
+.kahoot-btn-yellow:active {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 #bd7b00, 0 4px 10px rgba(255, 166, 2, 0.3);
+}
+
+.kahoot-btn-green {
+  background-color: #26890c;
+  box-shadow: 0 6px 0 #165207, 0 10px 20px rgba(38, 137, 12, 0.4);
+}
+.kahoot-btn-green:active {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 #165207, 0 4px 10px rgba(38, 137, 12, 0.3);
+}
+
+.kahoot-btn-purple {
+  background-color: #652ca8;
+  box-shadow: 0 6px 0 #34116d, 0 10px 20px rgba(101, 44, 168, 0.4);
+}
+.kahoot-btn-purple:active {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 #34116d, 0 4px 10px rgba(101, 44, 168, 0.3);
+}
+
+/* Floating background particles */
+.bg-kahoot-pattern {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1.5px, transparent 1.5px),
+                    radial-gradient(rgba(255, 255, 255, 0.04) 1.5px, transparent 1.5px);
+  background-size: 40px 40px;
+  background-position: 0 0, 20px 20px;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #1e0938;
+}
+::-webkit-scrollbar-thumb {
+  background: #652ca8;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #ffa602;
+}
