@@ -30,7 +30,10 @@ import {
   FileDown,
   FileUp,
   Files,
-  Share2
+  Share2,
+  AlertTriangle,
+  History,
+  Eye
 } from 'lucide-react';
 import type { Participant, Quiz, Question, QuestionType } from '../types/quiz';
 import { quizService, generateUUID } from '../services/quizService';
@@ -203,6 +206,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
       quizTitle,
       rankings: filteredRankings,
       isFirstAttemptOnly,
+      attemptsCountMap,
     });
   };
 
@@ -380,6 +384,18 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
   const filteredRankings = displayRankings.filter(p =>
     p.nickname.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  // Estado para el modal de inspección de historial de intentos de un participante
+  const [inspectingPlayerName, setInspectingPlayerName] = useState<string | null>(null);
+
+  // Lista de todos los intentos del participante seleccionado ordenados del 1° al último
+  const inspectingAttempts = useMemo(() => {
+    if (!inspectingPlayerName) return [];
+    const norm = normalizePlayerName(inspectingPlayerName);
+    return rankings
+      .filter(p => normalizePlayerName(p.nickname) === norm)
+      .sort((a, b) => new Date(a.completedAt).getTime() - new Date(b.completedAt).getTime());
+  }, [inspectingPlayerName, rankings]);
 
   // Pantalla de Bloqueo de Acceso
   if (!isAuthenticated) {
@@ -669,14 +685,16 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="border-b border-white/10 bg-black/20 text-[11px] uppercase font-black tracking-wider text-white/60">
-                      <th className="py-4 px-6">Posición</th>
-                      <th className="py-4 px-6">Jugador</th>
-                      <th className="py-4 px-6">Cuestionario</th>
-                      <th className="py-4 px-6 text-right">Puntaje Total</th>
-                      <th className="py-4 px-6 text-center">Aciertos</th>
-                      <th className="py-4 px-6 text-center">Precisión</th>
-                      <th className="py-4 px-6 text-center">Racha Máx</th>
-                      <th className="py-4 px-6 text-right">Fecha {isFirstAttemptOnly ? '(1er Intento)' : ''}</th>
+                      <th className="py-4 px-4 text-center">Posición</th>
+                      <th className="py-4 px-5">Jugador</th>
+                      <th className="py-4 px-4 text-center">¿Hizo Trampa?</th>
+                      <th className="py-4 px-5">Cuestionario</th>
+                      <th className="py-4 px-5 text-right">Puntaje Total</th>
+                      <th className="py-4 px-4 text-center">Aciertos</th>
+                      <th className="py-4 px-4 text-center">Precisión</th>
+                      <th className="py-4 px-4 text-center">Racha</th>
+                      <th className="py-4 px-5 text-right">Fecha {isFirstAttemptOnly ? '(1er Intento)' : ''}</th>
+                      <th className="py-4 px-4 text-center">Historial</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5 font-semibold text-sm">
@@ -687,8 +705,13 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                       const totalAttempts = attemptsCountMap.get(normalizePlayerName(p.nickname)) || 1;
 
                       return (
-                        <tr key={p.id} className="hover:bg-white/5 transition-colors">
-                          <td className="py-4 px-6">
+                        <tr
+                          key={p.id}
+                          onClick={() => setInspectingPlayerName(p.nickname)}
+                          className="hover:bg-white/10 transition-colors cursor-pointer group"
+                          title="Haz clic para inspeccionar todos los intentos de este jugador"
+                        >
+                          <td className="py-4 px-4 text-center">
                             <span
                               className={`inline-flex items-center justify-center w-8 h-8 rounded-full font-black text-sm ${
                                 isTop3
@@ -699,40 +722,45 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                               {badge}
                             </span>
                           </td>
-                          <td className="py-4 px-6">
+                          <td className="py-4 px-5">
                             <div className="flex items-center gap-3">
                               <span className="text-2xl">{p.avatar || '🦊'}</span>
                               <div>
-                                <span className="font-extrabold text-white text-base block">
+                                <span className="font-extrabold text-white text-base block group-hover:text-kahoot-yellow transition-colors">
                                   {p.nickname}
                                 </span>
-                                {totalAttempts > 1 ? (
-                                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-300/90 bg-amber-500/15 px-2 py-0.5 rounded-md border border-amber-500/30 mt-0.5" title="Este participante realizó varios intentos; solo se contabiliza el primero oficial">
-                                    <ShieldAlert className="w-3 h-3 text-amber-400" />
-                                    <span>1° intento (realizó {totalAttempts} intentos)</span>
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-300/70 bg-emerald-500/10 px-1.5 py-0.2 rounded mt-0.5">
-                                    <CheckCircle2 className="w-2.5 h-2.5 text-emerald-400" />
-                                    <span>Intento único</span>
-                                  </span>
-                                )}
+                                <span className="text-[11px] text-white/40 block">
+                                  {totalAttempts > 1 ? `${totalAttempts} intentos registrados` : '1 solo intento'}
+                                </span>
                               </div>
                             </div>
                           </td>
-                          <td className="py-4 px-6 max-w-xs truncate text-white/80">
+                          <td className="py-4 px-4 text-center">
+                            {totalAttempts > 1 ? (
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-red-500/20 text-red-300 border border-red-500/40">
+                                <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
+                                <span>SÍ ({totalAttempts} int.)</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                                <span>NO (Limpio)</span>
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-4 px-5 max-w-xs truncate text-white/80">
                             {quizInfo?.title || 'Cuestionario General'}
                           </td>
-                          <td className="py-4 px-6 text-right">
+                          <td className="py-4 px-5 text-right">
                             <span className="font-black text-base text-kahoot-yellow">
                               {p.totalScore.toLocaleString()}
                             </span>
                             <span className="text-xs text-white/60 ml-1">pts</span>
                           </td>
-                          <td className="py-4 px-6 text-center text-white/90 font-bold">
+                          <td className="py-4 px-4 text-center text-white/90 font-bold">
                             {p.correctAnswersCount} / {p.totalQuestionsCount}
                           </td>
-                          <td className="py-4 px-6 text-center">
+                          <td className="py-4 px-4 text-center">
                             <span
                               className={`px-2.5 py-1 rounded-full text-xs font-black ${
                                 p.accuracyPercentage >= 80
@@ -745,14 +773,28 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                               {p.accuracyPercentage}%
                             </span>
                           </td>
-                          <td className="py-4 px-6 text-center">
+                          <td className="py-4 px-4 text-center">
                             <div className="inline-flex items-center gap-1 text-amber-300 font-extrabold">
                               <Flame className="w-4 h-4" />
                               <span>x{p.maxStreak}</span>
                             </div>
                           </td>
-                          <td className="py-4 px-6 text-right text-xs text-white/50">
+                          <td className="py-4 px-5 text-right text-xs text-white/50">
                             {new Date(p.completedAt).toLocaleDateString()} {new Date(p.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </td>
+                          <td className="py-4 px-4 text-center">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setInspectingPlayerName(p.nickname);
+                              }}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-kahoot-yellow hover:text-black text-white/80 text-xs font-bold transition group-hover:bg-white/20"
+                              title="Ver historial de intentos"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>Ver</span>
+                            </button>
                           </td>
                         </tr>
                       );
@@ -770,6 +812,150 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Modal Historial de Intentos por Jugador */}
+      {inspectingPlayerName && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="bg-kahoot-purple-dark border-2 border-white/20 rounded-3xl p-6 sm:p-8 max-w-2xl w-full shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto"
+          >
+            {/* Modal Header */}
+            <div className="flex items-start justify-between border-b border-white/10 pb-4">
+              <div className="flex items-center gap-3">
+                <span className="text-4xl p-2 bg-white/10 rounded-2xl">
+                  {inspectingAttempts[0]?.avatar || '🦊'}
+                </span>
+                <div>
+                  <h3 className="text-xl sm:text-2xl font-black text-white">
+                    {inspectingPlayerName}
+                  </h3>
+                  <p className="text-xs text-white/60">
+                    Historial completo de intentos registrados en la base de datos
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setInspectingPlayerName(null)}
+                className="w-10 h-10 flex items-center justify-center text-white/60 hover:text-white rounded-xl bg-white/5 hover:bg-white/10 transition text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Resumen de Trampas / Intentos */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="bg-black/30 p-4 rounded-2xl border border-white/10">
+                <span className="text-xs uppercase font-bold text-white/50 block">Total de Intentos</span>
+                <span className="text-2xl font-black text-white mt-1 block">
+                  {inspectingAttempts.length} intento{inspectingAttempts.length > 1 ? 's' : ''}
+                </span>
+              </div>
+              <div className="bg-black/30 p-4 rounded-2xl border border-white/10">
+                <span className="text-xs uppercase font-bold text-white/50 block">Diagnóstico de Trampa</span>
+                {inspectingAttempts.length > 1 ? (
+                  <span className="text-sm font-black text-red-400 mt-1 flex items-center gap-1.5">
+                    <AlertTriangle className="w-4 h-4" />
+                    <span>Reintentó {inspectingAttempts.length - 1} vez/veces adicionales</span>
+                  </span>
+                ) : (
+                  <span className="text-sm font-black text-emerald-400 mt-1 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Limpio (un solo intento realizado)</span>
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Lista cronológica de intentos */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-black uppercase tracking-wider text-white/70">
+                Desglose por Intento (del primero al último)
+              </h4>
+
+              {inspectingAttempts.map((attempt, idx) => {
+                const isFirst = idx === 0;
+                const scoreDiff = !isFirst ? attempt.totalScore - inspectingAttempts[0].totalScore : 0;
+
+                return (
+                  <div
+                    key={attempt.id}
+                    className={`p-4 rounded-2xl border transition ${
+                      isFirst
+                        ? 'bg-emerald-950/30 border-emerald-500/40'
+                        : 'bg-black/20 border-white/10'
+                    }`}
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`px-2.5 py-0.5 rounded-full text-xs font-black uppercase tracking-wider ${
+                            isFirst
+                              ? 'bg-emerald-500 text-black'
+                              : 'bg-white/10 text-white/70'
+                          }`}
+                        >
+                          Intento #{idx + 1} {isFirst ? '⭐ Oficial (1er Intento)' : 'Repetición'}
+                        </span>
+                        {!isFirst && scoreDiff !== 0 && (
+                          <span
+                            className={`text-xs font-bold ${
+                              scoreDiff > 0 ? 'text-amber-400' : 'text-red-400'
+                            }`}
+                          >
+                            ({scoreDiff > 0 ? `+${scoreDiff.toLocaleString()}` : scoreDiff.toLocaleString()} pts vs 1°)
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs text-white/50 font-medium">
+                        {new Date(attempt.completedAt).toLocaleString('es-MX', {
+                          dateStyle: 'medium',
+                          timeStyle: 'medium',
+                        })}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 text-center pt-2 border-t border-white/5">
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-white/50 block">Puntaje</span>
+                        <span className="text-base font-black text-kahoot-yellow">
+                          {attempt.totalScore.toLocaleString()}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-white/50 block">Aciertos</span>
+                        <span className="text-sm font-extrabold text-white">
+                          {attempt.correctAnswersCount} / {attempt.totalQuestionsCount}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-white/50 block">Precisión</span>
+                        <span className="text-sm font-extrabold text-green-400">
+                          {attempt.accuracyPercentage}%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Footer Modal */}
+            <div className="pt-2 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setInspectingPlayerName(null)}
+                className="px-6 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-sm transition"
+              >
+                Cerrar Historial
+              </button>
+            </div>
+          </motion.div>
         </div>
       )}
 

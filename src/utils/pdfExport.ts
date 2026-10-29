@@ -6,12 +6,14 @@ export interface PDFExportOptions {
   quizTitle: string;
   rankings: Participant[];
   isFirstAttemptOnly: boolean;
+  attemptsCountMap?: Map<string, number>;
 }
 
 export const exportRankingsToPDF = ({
   quizTitle,
   rankings,
   isFirstAttemptOnly,
+  attemptsCountMap,
 }: PDFExportOptions) => {
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -86,6 +88,14 @@ export const exportRankingsToPDF = ({
   doc.text(`1er Lugar: ${topScorerName} (${topScore.toLocaleString()} pts)`, 145, startY + 16);
 
   // Table Data
+  const normalize = (name: string) =>
+    (name || '')
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ');
+
   const tableRows = rankings.map((p, index) => {
     const position = index === 0 ? '1 (Oro)' : index === 1 ? '2 (Plata)' : index === 2 ? '3 (Bronce)' : `#${index + 1}`;
     const dateFormatted = p.completedAt
@@ -95,45 +105,61 @@ export const exportRankingsToPDF = ({
         })
       : '-';
 
+    const attempts = attemptsCountMap ? (attemptsCountMap.get(normalize(p.nickname)) || 1) : 1;
+    const trampaText = attempts > 1 ? `SI (${attempts} int.)` : 'NO (Limpio)';
+
     return [
       position,
       p.nickname || 'Sin nombre',
       (p.totalScore || 0).toLocaleString(),
       `${p.correctAnswersCount || 0} / ${p.totalQuestionsCount || 8}`,
       `${p.accuracyPercentage || 0}%`,
-      p.maxStreak ? `${p.maxStreak} 🔥` : '0',
+      p.maxStreak ? `${p.maxStreak}` : '0',
+      trampaText,
       dateFormatted,
     ];
   });
 
   autoTable(doc, {
     startY: startY + 28,
-    head: [['Posición', 'Participante', 'Puntaje', 'Aciertos', 'Precisión', 'Racha', 'Fecha Primer Intento']],
+    head: [['Pos.', 'Participante', 'Puntaje', 'Aciertos', 'Precisión', 'Racha', '¿Trampa?', 'Fecha']],
     body: tableRows,
     theme: 'striped',
     headStyles: {
       fillColor: [70, 23, 143], // Kahoot purple
       textColor: [255, 255, 255],
       fontStyle: 'bold',
-      fontSize: 9,
+      fontSize: 8.5,
       halign: 'center',
     },
     styles: {
-      fontSize: 8.5,
+      fontSize: 8,
       cellPadding: 3,
       valign: 'middle',
     },
     columnStyles: {
-      0: { halign: 'center', fontStyle: 'bold', cellWidth: 20 },
-      1: { halign: 'left', fontStyle: 'bold', cellWidth: 46 },
-      2: { halign: 'right', fontStyle: 'bold', cellWidth: 24 },
-      3: { halign: 'center', cellWidth: 20 },
-      4: { halign: 'center', cellWidth: 20 },
+      0: { halign: 'center', fontStyle: 'bold', cellWidth: 16 },
+      1: { halign: 'left', fontStyle: 'bold', cellWidth: 44 },
+      2: { halign: 'right', fontStyle: 'bold', cellWidth: 22 },
+      3: { halign: 'center', cellWidth: 18 },
+      4: { halign: 'center', cellWidth: 18 },
       5: { halign: 'center', cellWidth: 16 },
-      6: { halign: 'center', cellWidth: 38 },
+      6: { halign: 'center', fontStyle: 'bold', cellWidth: 24 },
+      7: { halign: 'center', cellWidth: 24 },
     },
     alternateRowStyles: {
       fillColor: [248, 248, 252],
+    },
+    didParseCell: (data) => {
+      // Si la columna es '¿Trampa?' (índice 6) y dice 'SI', marcar texto en rojo oscuro
+      if (data.section === 'body' && data.column.index === 6) {
+        if (data.cell.raw && String(data.cell.raw).startsWith('SI')) {
+          data.cell.styles.textColor = [190, 30, 30]; // Dark red
+          data.cell.styles.fontStyle = 'bold';
+        } else {
+          data.cell.styles.textColor = [20, 130, 40]; // Dark green
+        }
+      }
     },
     didDrawPage: (data) => {
       // Footer page numbering
