@@ -7,155 +7,55 @@ const LOCAL_STORAGE_SESSIONS_KEY = 'kahoot_sessions_v1';
 
 export const DEFAULT_QUIZZES: Quiz[] = [
   {
-    id: 'quiz-cultura-general',
-    title: '🌍 Desafío Supremo: Cultura General y Curiosidades',
-    description: 'Pon a prueba tus conocimientos con diferentes tipos de preguntas: opción múltiple, verdadero/falso, puzzles de ordenar y escribir respuestas.',
-    category: 'Cultura General',
-    coverImage: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=80',
+    id: 'f3f7aa07-4389-4769-a162-3fb8b989bfc0',
+    title: 'Cinepolis Máster ¿Qué tanto sabemos?',
+    description: 'Prueba tus conocimientos como cinepolito con esta pequeño cuestionario interactivo',
+    category: 'General',
+    coverImage: '/cinepolis-cover.jpg',
     timePerQuestion: 20,
-    createdAt: new Date().toISOString(),
+    createdAt: '2026-10-29T01:33:05.752Z',
     isPublished: true,
     questions: [
       {
-        id: 'q1-1',
-        questionText: '¿Cuál es el planeta más caliente de todo nuestro sistema solar?',
+        id: 'q-1793237314249-1',
+        questionText: '¿Qué porcentaje de puntos se gana con cada uno de los niveles?',
         timeLimit: 20,
         pointsMultiplier: 1.0,
         questionType: 'multiple_choice',
-        imageUrl: 'https://images.unsplash.com/photo-1614728894747-a83421e2b9c9?w=800&auto=format&fit=crop&q=80',
+        imageUrl: '',
         options: [
-          { id: 'opt-1-1', text: 'Venus (por su efecto invernadero)', isCorrect: true, color: 'red', shape: 'triangle' },
-          { id: 'opt-1-2', text: 'Mercurio (por estar más cerca)', isCorrect: false, color: 'blue', shape: 'diamond' },
-          { id: 'opt-1-3', text: 'Marte', isCorrect: false, color: 'yellow', shape: 'circle' },
-          { id: 'opt-1-4', text: 'Júpiter', isCorrect: false, color: 'green', shape: 'square' },
-        ],
-      },
-      {
-        id: 'q1-2',
-        questionText: '¿El Monte Everest continúa creciendo unos milímetros cada año debido al choque de placas tectónicas?',
-        timeLimit: 15,
-        pointsMultiplier: 1.0,
-        questionType: 'true_false',
-        imageUrl: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800&auto=format&fit=crop&q=80',
-        options: [
-          { id: 'opt-2-1', text: 'VERDADERO', isCorrect: true, color: 'blue', shape: 'diamond' },
-          { id: 'opt-2-2', text: 'FALSO', isCorrect: false, color: 'red', shape: 'triangle' },
-        ],
-      },
-      {
-        id: 'q1-3',
-        questionText: '🧩 PUZZLE: ¡Ordena estos acontecimientos históricos del más ANTIGUO al más RECIENTE!',
-        timeLimit: 30,
-        pointsMultiplier: 2.0,
-        questionType: 'puzzle',
-        imageUrl: 'https://images.unsplash.com/photo-1447069387593-a5de0862481e?w=800&auto=format&fit=crop&q=80',
-        options: [
-          { id: 'puz-1-1', text: 'Construcción de las Pirámides de Guiza', isCorrect: true, color: 'red', shape: 'triangle', orderIndex: 0 },
-          { id: 'puz-1-2', text: 'Caída del Imperio Romano de Occidente', isCorrect: true, color: 'blue', shape: 'diamond', orderIndex: 1 },
-          { id: 'puz-1-3', text: 'Descubrimiento de América (1492)', isCorrect: true, color: 'yellow', shape: 'circle', orderIndex: 2 },
-          { id: 'puz-1-4', text: 'Llegada del Hombre a la Luna (1969)', isCorrect: true, color: 'green', shape: 'square', orderIndex: 3 },
-        ],
-        correctOrder: ['puz-1-1', 'puz-1-2', 'puz-1-3', 'puz-1-4'],
-      },
-      {
-        id: 'q1-4',
-        questionText: '¿En qué año cayó el Muro de Berlín? (Escribe el año numérico de 4 dígitos)',
-        timeLimit: 20,
-        pointsMultiplier: 1.5,
-        questionType: 'type_answer',
-        imageUrl: 'https://images.unsplash.com/photo-1541872703-74c5e44368f9?w=800&auto=format&fit=crop&q=80',
-        options: [],
-        acceptedAnswers: ['1989', 'el año 1989', 'en 1989'],
-      },
-      {
-        id: 'q1-5',
-        questionText: '¿Qué animal marino posee 3 corazones y sangre de color azul?',
-        timeLimit: 15,
-        pointsMultiplier: 1.0,
-        questionType: 'multiple_choice',
-        imageUrl: 'https://images.unsplash.com/photo-1545671913-b89ac1b4ac10?w=800&auto=format&fit=crop&q=80',
-        options: [
-          { id: 'opt-5-1', text: 'El Delfín', isCorrect: false, color: 'red', shape: 'triangle' },
-          { id: 'opt-5-2', text: 'El Tiburón Blanco', isCorrect: false, color: 'blue', shape: 'diamond' },
-          { id: 'opt-5-3', text: 'La Mantarraya', isCorrect: false, color: 'yellow', shape: 'circle' },
-          { id: 'opt-5-4', text: 'El Pulpo', isCorrect: true, color: 'green', shape: 'square' },
-        ],
-      },
-    ],
-  },
-  {
-    id: 'quiz-tecnologia-programacion',
-    title: '💻 Reto Tech: Programación y Desarrollo Web',
-    description: 'Demuestra qué tanto sabes sobre JavaScript, React, arquitectura web y comandos esenciales de desarrollo.',
-    category: 'Tecnología',
-    coverImage: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=800&auto=format&fit=crop&q=80',
-    timePerQuestion: 20,
-    createdAt: new Date().toISOString(),
-    isPublished: true,
-    questions: [
-      {
-        id: 'q2-1',
-        questionText: '¿Quién creó el lenguaje JavaScript en tan solo 10 días en el año 1995?',
-        timeLimit: 20,
-        pointsMultiplier: 1.0,
-        questionType: 'multiple_choice',
-        imageUrl: 'https://images.unsplash.com/photo-1579468118864-1b9ea3c0db4a?w=800&auto=format&fit=crop&q=80',
-        options: [
-          { id: 'opt-2-1-1', text: 'Brendan Eich', isCorrect: true, color: 'red', shape: 'triangle' },
-          { id: 'opt-2-1-2', text: 'Guido van Rossum', isCorrect: false, color: 'blue', shape: 'diamond' },
-          { id: 'opt-2-1-3', text: 'James Gosling', isCorrect: false, color: 'yellow', shape: 'circle' },
-          { id: 'opt-2-1-4', text: 'Tim Berners-Lee', isCorrect: false, color: 'green', shape: 'square' },
-        ],
-      },
-      {
-        id: 'q2-2',
-        questionText: '¿El lenguaje Python debe su nombre a la compañía cómica británica "Monty Python" y no a la serpiente?',
-        timeLimit: 15,
-        pointsMultiplier: 1.0,
-        questionType: 'true_false',
-        imageUrl: 'https://images.unsplash.com/photo-1526379095098-d400fd0bf935?w=800&auto=format&fit=crop&q=80',
-        options: [
-          { id: 'opt-2-2-1', text: 'VERDADERO', isCorrect: true, color: 'blue', shape: 'diamond' },
-          { id: 'opt-2-2-2', text: 'FALSO', isCorrect: false, color: 'red', shape: 'triangle' },
-        ],
-      },
-      {
-        id: 'q2-3',
-        questionText: '🧩 PUZZLE: ¡Ordena las etapas del ciclo de vida de desarrollo de software (SDLC) en su orden correcto!',
-        timeLimit: 30,
-        pointsMultiplier: 2.0,
-        questionType: 'puzzle',
-        imageUrl: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=800&auto=format&fit=crop&q=80',
-        options: [
-          { id: 'puz-2-1', text: '1. Análisis y Levantamiento de Requisitos', isCorrect: true, color: 'red', shape: 'triangle', orderIndex: 0 },
-          { id: 'puz-2-2', text: '2. Diseño de Arquitectura y UI', isCorrect: true, color: 'blue', shape: 'diamond', orderIndex: 1 },
-          { id: 'puz-2-3', text: '3. Codificación y Construcción', isCorrect: true, color: 'yellow', shape: 'circle', orderIndex: 2 },
-          { id: 'puz-2-4', text: '4. Pruebas (Testing) y Despliegue', isCorrect: true, color: 'green', shape: 'square', orderIndex: 3 },
-        ],
-        correctOrder: ['puz-2-1', 'puz-2-2', 'puz-2-3', 'puz-2-4'],
-      },
-      {
-        id: 'q2-4',
-        questionText: '¿Cuál es el comando estándar de Git para descargar cambios de un repositorio remoto y fusionarlos con tu rama actual?',
-        timeLimit: 20,
-        pointsMultiplier: 1.5,
-        questionType: 'type_answer',
-        imageUrl: 'https://images.unsplash.com/photo-1556075798-4825dfaaf498?w=800&auto=format&fit=crop&q=80',
-        options: [],
-        acceptedAnswers: ['pull', 'git pull', 'git pull origin'],
-      },
-      {
-        id: 'q2-5',
-        questionText: '¿Qué significa la letra "S" en el protocolo de navegación web HTTPS?',
-        timeLimit: 15,
-        pointsMultiplier: 1.0,
-        questionType: 'multiple_choice',
-        imageUrl: 'https://images.unsplash.com/photo-1563986768609-322da13575f3?w=800&auto=format&fit=crop&q=80',
-        options: [
-          { id: 'opt-2-5-1', text: 'Standard', isCorrect: false, color: 'red', shape: 'triangle' },
-          { id: 'opt-2-5-2', text: 'Secure', isCorrect: true, color: 'blue', shape: 'diamond' },
-          { id: 'opt-2-5-3', text: 'Socket', isCorrect: false, color: 'yellow', shape: 'circle' },
-          { id: 'opt-2-5-4', text: 'Server', isCorrect: false, color: 'green', shape: 'square' },
+          {
+            id: 'opt-1',
+            text: 'Fan 5%, Fanático 8% y Superfanático 10%',
+            isCorrect: false,
+            color: 'red',
+            shape: 'triangle',
+            orderIndex: 0,
+          },
+          {
+            id: 'opt-2',
+            text: 'Fan 5%, Fanático 10% y SuperFanático 10%',
+            isCorrect: true,
+            color: 'blue',
+            shape: 'diamond',
+            orderIndex: 1,
+          },
+          {
+            id: 'opt-3',
+            text: 'Fan 3%, Fanático 6% y SuperFanático 10%',
+            isCorrect: false,
+            color: 'yellow',
+            shape: 'circle',
+            orderIndex: 2,
+          },
+          {
+            id: 'opt-4',
+            text: 'Fan 2%, Fanático 6% y SuperFanático 12%',
+            isCorrect: false,
+            color: 'green',
+            shape: 'square',
+            orderIndex: 3,
+          },
         ],
       },
     ],
@@ -165,13 +65,37 @@ export const DEFAULT_QUIZZES: Quiz[] = [
 // Helper para inicializar LocalStorage de forma segura preservando cuestionarios creados
 const initializeLocalQuizzes = (): Quiz[] => {
   const stored = localStorage.getItem(LOCAL_STORAGE_QUIZZES_KEY);
-  if (!stored) {
+  if (stored === null) {
+    // Si no existe v2, verificar si existe v1 del usuario
+    const storedV1 = localStorage.getItem('kahoot_quizzes_v1');
+    if (storedV1) {
+      try {
+        const parsedV1 = JSON.parse(storedV1);
+        if (Array.isArray(parsedV1) && parsedV1.length > 0) {
+          localStorage.setItem(LOCAL_STORAGE_QUIZZES_KEY, JSON.stringify(parsedV1));
+          return parsedV1;
+        }
+      } catch {}
+    }
     localStorage.setItem(LOCAL_STORAGE_QUIZZES_KEY, JSON.stringify(DEFAULT_QUIZZES));
     return DEFAULT_QUIZZES;
   }
   try {
     const parsed: Quiz[] = JSON.parse(stored);
-    if (Array.isArray(parsed) && parsed.length > 0) {
+    if (Array.isArray(parsed)) {
+      // Si el navegador contiene en caché únicamente los cuestionarios de prueba antiguos ("quiz-cultura-general", "quiz-tecnologia-programacion")
+      // y no tiene el de Cinépolis, actualizar automáticamente a DEFAULT_QUIZZES
+      const hasCinepolis = parsed.some(
+        q => (q.title && q.title.toLowerCase().includes('cinepolis')) || q.id === DEFAULT_QUIZZES[0].id
+      );
+      const onlyHasOldDemos =
+        parsed.length > 0 &&
+        parsed.every(q => q.id === 'quiz-cultura-general' || q.id === 'quiz-tecnologia-programacion');
+
+      if (onlyHasOldDemos && !hasCinepolis) {
+        localStorage.setItem(LOCAL_STORAGE_QUIZZES_KEY, JSON.stringify(DEFAULT_QUIZZES));
+        return DEFAULT_QUIZZES;
+      }
       return parsed;
     }
     return DEFAULT_QUIZZES;
@@ -230,6 +154,7 @@ export const quizService = {
               };
             })
           );
+          localStorage.setItem(LOCAL_STORAGE_QUIZZES_KEY, JSON.stringify(quizzesWithQuestions));
           return quizzesWithQuestions;
         }
       } catch (err) {
@@ -309,12 +234,17 @@ export const quizService = {
 
   async deleteQuiz(id: string): Promise<boolean> {
     const current = initializeLocalQuizzes();
-    const filtered = current.filter(q => q.id !== id);
+    const filtered = current.filter(
+      q => q.id !== id && q.id !== 'quiz-cultura-general' && q.id !== 'quiz-tecnologia-programacion'
+    );
     localStorage.setItem(LOCAL_STORAGE_QUIZZES_KEY, JSON.stringify(filtered));
 
     if (isSupabaseConfigured() && supabase) {
       try {
         await supabase.from('quizzes').delete().eq('id', id);
+        // También intentar borrar los demos si estaban en Supabase
+        await supabase.from('quizzes').delete().eq('id', 'quiz-cultura-general');
+        await supabase.from('quizzes').delete().eq('id', 'quiz-tecnologia-programacion');
       } catch (err) {
         console.warn('Error al borrar quiz en Supabase:', err);
       }

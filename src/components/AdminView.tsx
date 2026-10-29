@@ -218,6 +218,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
     if (window.confirm('¿Deseas eliminar este cuestionario? Se eliminarán también sus preguntas asociadas.')) {
       await quizService.deleteQuiz(quizId);
       await loadData();
+      setJsonBackupStatus('¡Cuestionario eliminado correctamente!');
+      setTimeout(() => setJsonBackupStatus(''), 4000);
     }
   };
 

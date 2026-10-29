@@ -1,0 +1,51 @@
+[
+  {
+    "id": "quiz-1793237314249",
+    "title": "Cinepolis Máster ¿Qué tanto sabemos?",
+    "description": "Prueba tus conocimientos como cinepolito con esta pequeño cuestionario interactivo",
+    "category": "General",
+    "coverImage": "https://scontent.fntr9-1.fna.fbcdn.net/v/t39.30808-6/857141599_122204173508749622_4499062872184788329_n.jpg?stp=dst-jpg_tt6&cstp=mx1368x1077&ctp=s1368x1077&_nc_cat=110&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=833d8c&_nc_eui2=AeGfsriZg4lLZ-VFLyNjrNsNk-71iRjPx2qT7vWJGM_HamPmnjL_zAxqOxK9RrM9wSgCMgLICeB_FJgbPxcdZVI_&_nc_ohc=HoLQFKgc3nwQ7kNvwGTha2M&_nc_oc=Adqzqf6vX9Mikqhtmoq0C6bDXjsT7g1nieuqSCzFZKnVcIkNYx6qsgdYfb2lLXHUcv8&_nc_zt=23&_nc_ht=scontent.fntr9-1.fna&_nc_gid=hCDuQii-dIGpRwIKG3NaDg&_nc_ss=7b2a8&oh=00_AQTXMdVykI2sYFJ4du4Zaeh82wzdaW8uAbfAcxZ2m379yg&oe=6AE87B3A",
+    "timePerQuestion": 20,
+    "createdAt": "2026-10-29T01:33:05.752Z",
+    "isPublished": true,
+    "questions": [
+      {
+        "id": "q-1793237314249-1",
+        "questionText": "¿Qué porcentaje de puntos se gana con cada uno de los niveles?",
+        "timeLimit": 20,
+        "pointsMultiplier": 1,
+        "questionType": "multiple_choice",
+        "options": [
+          {
+            "id": "opt-1",
+            "text": "Fan 5%, Fanático 8% y Superfanático 10%",
+            "isCorrect": false,
+            "color": "red",
+            "shape": "triangle"
+          },
+          {
+            "id": "opt-2",
+            "text": "Fan 5%, Fanático 10% y SuperFanático 10%",
+            "isCorrect": true,
+            "color": "blue",
+            "shape": "diamond"
+          },
+          {
+            "id": "opt-3",
+            "text": "Fan 3%, Fanático 6% y SuperFanático 10%",
+            "isCorrect": false,
+            "color": "yellow",
+            "shape": "circle"
+          },
+          {
+            "id": "opt-4",
+            "text": "Fan 2%, Fanático 6% y SuperFanático 12%",
+            "isCorrect": false,
+            "color": "green",
+            "shape": "square"
+          }
+        ]
+      }
+    ]
+  }
+]
