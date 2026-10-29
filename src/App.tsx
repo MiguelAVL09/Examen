@@ -46,6 +46,13 @@ export function App() {
         );
         if (found) {
           setInvitedQuiz(found);
+        } else {
+          // Si el enlace tiene un ID antiguo (ej. quiz-1793237314249) o cualquier otro parámetro,
+          // redirigir automáticamente al cuestionario oficial activo de Cinépolis
+          const fallback = quizzes.find(q => q.id === 'f3f7aa07-4389-4769-a162-3fb8b989bfc0') || quizzes[0];
+          if (fallback) {
+            setInvitedQuiz(fallback);
+          }
         }
       }
     }

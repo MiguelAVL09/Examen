@@ -308,7 +308,7 @@ export const DEFAULT_QUIZZES: Quiz[] = [
   },
 ];
 
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+export const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export const generateUUID = (id?: string): string => {
   if (id && UUID_REGEX.test(id)) {
@@ -631,10 +631,15 @@ export const quizService = {
   },
 
   async saveParticipantResult(rawParticipant: Participant): Promise<Participant> {
+    const OFFICIAL_QUIZ_UUID = 'f3f7aa07-4389-4769-a162-3fb8b989bfc0';
+    const validQuizId = (rawParticipant.quizId && UUID_REGEX.test(rawParticipant.quizId))
+      ? rawParticipant.quizId
+      : OFFICIAL_QUIZ_UUID;
+
     const participant: Participant = {
       ...rawParticipant,
       id: generateUUID(rawParticipant.id),
-      quizId: generateUUID(rawParticipant.quizId),
+      quizId: validQuizId,
     };
 
     const stored = localStorage.getItem(LOCAL_STORAGE_PARTICIPANTS_KEY);
