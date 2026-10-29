@@ -47,22 +47,24 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, onNavigate }) => {
 
         {/* Right Navigation & Controls */}
         <div className="flex items-center gap-2 md:gap-3">
-          {/* Supabase Indicator Pill */}
-          <div
-            title={
-              supabaseActive
-                ? 'Conectado a la base de datos de Supabase'
-                : 'Modo local activo (configura VITE_SUPABASE_URL en .env para enlazar)'
-            }
-            className={`hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-extrabold border ${
-              supabaseActive
-                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-                : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
-            }`}
-          >
-            <Database className="w-3.5 h-3.5" />
-            <span>{supabaseActive ? 'Supabase Conectado' : 'Modo Local / Demo'}</span>
-          </div>
+          {/* Supabase Indicator Pill - VISIBLE ÚNICAMENTE EN INTERFAZ ADMIN */}
+          {currentView === 'admin' && (
+            <div
+              title={
+                supabaseActive
+                  ? 'Conectado a la base de datos de Supabase'
+                  : 'Modo local activo (configura VITE_SUPABASE_URL en .env para enlazar)'
+              }
+              className={`hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-extrabold border ${
+                supabaseActive
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                  : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+              }`}
+            >
+              <Database className="w-3.5 h-3.5" />
+              <span>{supabaseActive ? 'Supabase Conectado' : 'Modo Local / Demo'}</span>
+            </div>
+          )}
 
           {/* Audio Mute/Unmute Toggle */}
           <button

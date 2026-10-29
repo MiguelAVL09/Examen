@@ -26,13 +26,15 @@ import {
   Copy,
   FileDown,
   FileUp,
-  Files
+  Files,
+  Share2
 } from 'lucide-react';
 import type { Participant, Quiz, Question, QuestionType } from '../types/quiz';
 import { quizService, generateUUID } from '../services/quizService';
 import { isSupabaseConfigured } from '../services/supabaseClient';
 import { processImageUpload, PRESET_IMAGES } from '../utils/imageUtils';
 import { KahootShapeIcon } from './KahootShapes';
+import { ShareQuizModal } from './ShareQuizModal';
 
 interface AdminViewProps {
   onBackToHome: () => void;
@@ -58,6 +60,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
 
   const [isEditorOpen, setIsEditorOpen] = useState<boolean>(false);
   const [editingQuiz, setEditingQuiz] = useState<Quiz | null>(null);
+  const [sharingQuiz, setSharingQuiz] = useState<Quiz | null>(null);
   const [isSavingQuiz, setIsSavingQuiz] = useState<boolean>(false);
   const [savedDraft, setSavedDraft] = useState<Quiz | null>(() => {
     try {
@@ -386,6 +389,17 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
           <p className="text-white/70 font-semibold mt-1">
             Visualización de rankings privados, gestor de cuestionarios y respaldo seguro de tus preguntas creadas.
           </p>
+          <div className="flex items-center gap-2 mt-2.5">
+            {isSupabaseConfigured() ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm">
+                <Database className="w-3.5 h-3.5" /> Supabase Conectado y Listo
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm">
+                <Database className="w-3.5 h-3.5" /> Modo Local / Demo
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-3">
@@ -797,6 +811,14 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                   </span>
 
                   <div className="flex items-center gap-1.5">
+                    {/* Compartir */}
+                    <button
+                      onClick={() => setSharingQuiz(quiz)}
+                      className="p-2.5 bg-kahoot-yellow/20 hover:bg-kahoot-yellow/40 text-amber-300 rounded-xl border border-kahoot-yellow/30 transition active:scale-95"
+                      title="Compartir enlace o código QR de este cuestionario"
+                    >
+                      <Share2 className="w-4 h-4" />
+                    </button>
                     {/* Duplicar Cuestionario */}
                     <button
                       onClick={() => handleDuplicateQuiz(quiz)}
@@ -1563,6 +1585,14 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Share Quiz Modal */}
+      {sharingQuiz && (
+        <ShareQuizModal
+          quiz={sharingQuiz}
+          onClose={() => setSharingQuiz(null)}
+        />
+      )}
     </div>
   );
 };

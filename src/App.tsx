@@ -11,6 +11,7 @@ export function App() {
   const [currentView, setCurrentView] = useState<'home' | 'game' | 'admin' | 'host'>('home');
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [activeQuiz, setActiveQuiz] = useState<Quiz | null>(null);
+  const [invitedQuiz, setInvitedQuiz] = useState<Quiz | null>(null);
   const [playerNickname, setPlayerNickname] = useState<string>('Jugador');
   const [playerAvatar, setPlayerAvatar] = useState<string>('🦊');
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -31,6 +32,22 @@ export function App() {
   useEffect(() => {
     refreshQuizzes();
   }, []);
+
+  // Check URL query parameters for direct quiz links (e.g. ?quiz=<id>)
+  useEffect(() => {
+    if (quizzes.length > 0) {
+      const params = new URLSearchParams(window.location.search);
+      const quizParam = params.get('quiz');
+      if (quizParam) {
+        const found = quizzes.find(
+          q => q.id === quizParam || q.title.toLowerCase().includes(quizParam.toLowerCase())
+        );
+        if (found) {
+          setInvitedQuiz(found);
+        }
+      }
+    }
+  }, [quizzes]);
 
   // Handle Solo Quiz Start
   const handleStartQuiz = (quiz: Quiz, nickname: string, avatar: string) => {
@@ -82,6 +99,8 @@ export function App() {
             {currentView === 'home' && (
               <HomeView
                 quizzes={quizzes}
+                invitedQuiz={invitedQuiz}
+                onClearInvitation={() => setInvitedQuiz(null)}
                 onStartQuiz={handleStartQuiz}
                 onHostGame={handleHostGame}
                 onJoinWithPin={handleJoinWithPin}

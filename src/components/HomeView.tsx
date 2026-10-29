@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Play, Users, Sparkles, Clock, ArrowRight, Gamepad2, Dices } from 'lucide-react';
+import { Play, Users, Sparkles, Clock, ArrowRight, Gamepad2, Dices, Share2, Flame } from 'lucide-react';
 import type { Quiz } from '../types/quiz';
 import { KahootShapeIcon } from './KahootShapes';
+import { ShareQuizModal } from './ShareQuizModal';
 
 interface HomeViewProps {
   quizzes: Quiz[];
+  invitedQuiz?: Quiz | null;
+  onClearInvitation?: () => void;
   onStartQuiz: (quiz: Quiz, nickname: string, avatar: string) => void;
   onHostGame: (quiz: Quiz) => void;
   onJoinWithPin: (pin: string, nickname: string, avatar: string) => void;
@@ -22,6 +25,8 @@ const RANDOM_NAMES = [
 
 export const HomeView: React.FC<HomeViewProps> = ({
   quizzes,
+  invitedQuiz,
+  onClearInvitation,
   onStartQuiz,
   onHostGame,
   onJoinWithPin,
@@ -35,6 +40,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   });
   const [gamePin, setGamePin] = useState<string>('');
   const [selectedQuiz, setSelectedQuiz] = useState<Quiz | null>(null);
+  const [sharingQuiz, setSharingQuiz] = useState<Quiz | null>(null);
   const [isJoinModalOpen, setIsJoinModalOpen] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
 
@@ -106,6 +112,58 @@ export const HomeView: React.FC<HomeViewProps> = ({
       >
         <KahootShapeIcon shape="square" size={58} />
       </motion.div>
+
+      {/* Invitation Hero Banner if user opened direct link ?quiz=... */}
+      {invitedQuiz && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95, y: -20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          className="bg-gradient-to-r from-kahoot-yellow via-amber-300 to-yellow-500 rounded-3xl p-6 sm:p-8 text-black shadow-2xl relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6 border-4 border-white/40"
+        >
+          <div className="flex items-center gap-4 sm:gap-6">
+            <img
+              src={invitedQuiz.coverImage || '/cinepolis-cover.jpg'}
+              alt={invitedQuiz.title}
+              className="w-20 h-20 sm:w-28 sm:h-28 rounded-2xl object-cover border-2 border-black/20 shadow-xl flex-shrink-0"
+            />
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="bg-black text-amber-300 text-[10px] sm:text-xs font-black uppercase px-3 py-1 rounded-full tracking-wider shadow">
+                  🎉 ¡Invitación a Desafío!
+                </span>
+                <span className="bg-white/80 text-black text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-full">
+                  {invitedQuiz.category || 'General'}
+                </span>
+              </div>
+              <h2 className="text-xl sm:text-3xl font-black tracking-tight leading-tight">
+                {invitedQuiz.title}
+              </h2>
+              <p className="text-xs sm:text-sm font-bold text-black/80 mt-1">
+                {invitedQuiz.questions?.length || 0} preguntas preparadas • ¿Aceptas el reto de ponerte en el ranking?
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 w-full md:w-auto">
+            <button
+              onClick={() => handleLaunchSolo(invitedQuiz)}
+              className="flex-1 md:flex-none px-8 py-4 bg-kahoot-purple hover:bg-kahoot-purple-light text-white font-black uppercase text-sm sm:text-base rounded-2xl shadow-2xl active:scale-95 transition flex items-center justify-center gap-2"
+            >
+              <Play className="w-5 h-5 fill-current" />
+              <span>¡Comenzar Desafío Ahora!</span>
+            </button>
+            {onClearInvitation && (
+              <button
+                onClick={onClearInvitation}
+                className="p-3 bg-black/10 hover:bg-black/20 text-black rounded-2xl font-black text-sm transition"
+                title="Cerrar invitación"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        </motion.div>
+      )}
 
       {/* Hero Section */}
       <div className="relative text-center max-w-4xl mx-auto pt-4 pb-4">
@@ -284,13 +342,23 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   <span>Jugar Ahora (Desafío)</span>
                 </button>
 
-                <button
-                  onClick={() => onHostGame(quiz)}
-                  className="w-full py-2.5 px-4 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold uppercase tracking-wider text-xs border border-white/10 active:scale-95 transition flex items-center justify-center gap-2"
-                >
-                  <Users className="w-4 h-4" />
-                  <span>Crear Sala en Vivo (PIN)</span>
-                </button>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => onHostGame(quiz)}
+                    className="py-2.5 px-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold uppercase tracking-wider text-xs border border-white/10 active:scale-95 transition flex items-center justify-center gap-1.5"
+                  >
+                    <Users className="w-3.5 h-3.5" />
+                    <span>Crear Sala</span>
+                  </button>
+
+                  <button
+                    onClick={() => setSharingQuiz(quiz)}
+                    className="py-2.5 px-3 rounded-xl bg-white/10 hover:bg-kahoot-yellow/20 text-amber-300 font-bold uppercase tracking-wider text-xs border border-amber-300/30 active:scale-95 transition flex items-center justify-center gap-1.5 shadow"
+                  >
+                    <Share2 className="w-3.5 h-3.5" />
+                    <span>Compartir</span>
+                  </button>
+                </div>
               </div>
             </motion.div>
           ))}
@@ -419,6 +487,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
             </div>
           </motion.div>
         </div>
+      )}
+
+      {/* Share Quiz Modal */}
+      {sharingQuiz && (
+        <ShareQuizModal
+          quiz={sharingQuiz}
+          onClose={() => setSharingQuiz(null)}
+        />
       )}
     </div>
   );
