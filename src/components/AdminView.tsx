@@ -40,13 +40,15 @@ import {
   Calendar,
   Check,
   Clock,
-  Sliders
+  Sliders,
+  ChevronUp,
+  XCircle
 } from 'lucide-react';
 import type { Participant, Quiz, Question, QuestionType } from '../types/quiz';
-import { quizService, generateUUID, type ExamSettings, type QuestionAnalytics } from '../services/quizService';
+import { quizService, generateUUID, type ExamSettings, type QuestionAnalytics, type DetailedParticipantAnswer } from '../services/quizService';
 import { isSupabaseConfigured } from '../services/supabaseClient';
 import { processImageUpload, PRESET_IMAGES } from '../utils/imageUtils';
-import { exportRankingsToPDF, exportDiplomaPDF, exportTop3Diplomas } from '../utils/pdfExport';
+import { exportRankingsToPDF, exportDiplomaPDF, exportTop3Diplomas, exportQuestionAnalyticsPDF } from '../utils/pdfExport';
 import { KahootShapeIcon } from './KahootShapes';
 import { ShareQuizModal } from './ShareQuizModal';
 
@@ -455,6 +457,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
 
   // Estado para el modal de inspección de historial de intentos de un participante
   const [inspectingPlayerName, setInspectingPlayerName] = useState<string | null>(null);
+  const [expandedAttemptId, setExpandedAttemptId] = useState<string | null>(null);
+  const [attemptAnswers, setAttemptAnswers] = useState<Record<string, DetailedParticipantAnswer[]>>({});
+  const [isLoadingAnswers, setIsLoadingAnswers] = useState<boolean>(false);
 
   // Lista de todos los intentos del participante seleccionado ordenados del 1° al último
   const inspectingAttempts = useMemo(() => {
@@ -464,6 +469,31 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
       .filter(p => normalizePlayerName(p.nickname) === norm)
       .sort((a, b) => new Date(a.completedAt).getTime() - new Date(b.completedAt).getTime());
   }, [inspectingPlayerName, rankings]);
+
+  const loadAnswersForAttempt = async (attemptId: string) => {
+    if (attemptAnswers[attemptId]) {
+      setExpandedAttemptId(prev => prev === attemptId ? null : attemptId);
+      return;
+    }
+    setExpandedAttemptId(attemptId);
+    setIsLoadingAnswers(true);
+    try {
+      const selectedQuiz = quizzes.find(q => q.id === selectedQuizId) || quizzes[0];
+      const details = await quizService.getParticipantAnswers(attemptId, selectedQuiz);
+      setAttemptAnswers(prev => ({ ...prev, [attemptId]: details }));
+    } catch (err) {
+      console.warn('Error cargando respuestas del participante:', err);
+    } finally {
+      setIsLoadingAnswers(false);
+    }
+  };
+
+  useEffect(() => {
+    if (inspectingPlayerName && inspectingAttempts.length > 0) {
+      const firstId = inspectingAttempts[0].id;
+      loadAnswersForAttempt(firstId);
+    }
+  }, [inspectingPlayerName]);
 
   // Pantalla de Bloqueo de Acceso
   if (!isAuthenticated) {
@@ -924,7 +954,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="bg-kahoot-purple-dark border-2 border-white/20 rounded-3xl p-6 sm:p-8 max-w-2xl w-full shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto"
+            className="bg-kahoot-purple-dark border-2 border-white/20 rounded-3xl p-6 sm:p-8 max-w-3xl w-full shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto"
           >
             {/* Modal Header */}
             <div className="flex items-start justify-between border-b border-white/10 pb-4">
@@ -937,7 +967,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                     {inspectingPlayerName}
                   </h3>
                   <p className="text-xs text-white/60">
-                    Historial completo de intentos registrados en la base de datos
+                    Historial de intentos y desglose exacto de preguntas correctas e incorrectas
                   </p>
                 </div>
               </div>
@@ -974,8 +1004,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
               </div>
             </div>
 
-            {/* Lista cronológica de intentos */}
-            <div className="space-y-3">
+            {/* Lista cronológica de intentos con desglose de preguntas */}
+            <div className="space-y-4">
               <h4 className="text-xs font-black uppercase tracking-wider text-white/70">
                 Desglose por Intento (del primero al último)
               </h4>
@@ -983,17 +1013,19 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
               {inspectingAttempts.map((attempt, idx) => {
                 const isFirst = idx === 0;
                 const scoreDiff = !isFirst ? attempt.totalScore - inspectingAttempts[0].totalScore : 0;
+                const isExpanded = expandedAttemptId === attempt.id;
+                const answers = attemptAnswers[attempt.id];
 
                 return (
                   <div
                     key={attempt.id}
-                    className={`p-4 rounded-2xl border transition ${
+                    className={`p-4 sm:p-5 rounded-2xl border transition ${
                       isFirst
                         ? 'bg-emerald-950/30 border-emerald-500/40'
                         : 'bg-black/20 border-white/10'
                     }`}
                   >
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
                       <div className="flex items-center gap-2">
                         <span
                           className={`px-2.5 py-0.5 rounded-full text-xs font-black uppercase tracking-wider ${
@@ -1022,7 +1054,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-2 text-center pt-2 border-t border-white/5">
+                    <div className="grid grid-cols-3 gap-2 text-center py-2 border-y border-white/5">
                       <div>
                         <span className="text-[10px] uppercase font-bold text-white/50 block">Puntaje</span>
                         <span className="text-base font-black text-kahoot-yellow">
@@ -1042,6 +1074,153 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                         </span>
                       </div>
                     </div>
+
+                    {/* Botón para expandir/colapsar preguntas de este intento */}
+                    <div className="pt-3 flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={() => loadAnswersForAttempt(attempt.id)}
+                        className="inline-flex items-center gap-2 text-xs font-bold text-amber-300 hover:text-white transition py-1.5 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>
+                          {isExpanded
+                            ? 'Ocultar desglose de preguntas'
+                            : `Ver preguntas contestadas (${attempt.correctAnswersCount}/${attempt.totalQuestionsCount})`}
+                        </span>
+                        {isExpanded ? (
+                          <ChevronUp className="w-3.5 h-3.5" />
+                        ) : (
+                          <ChevronDown className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+
+                      <span className="text-[11px] text-white/40 font-mono">
+                        ID: {attempt.id.slice(0, 8)}...
+                      </span>
+                    </div>
+
+                    {/* Desglose desplegable de preguntas del intento */}
+                    {isExpanded && (
+                      <div className="mt-4 pt-4 border-t border-white/10 space-y-3">
+                        {isLoadingAnswers && !answers ? (
+                          <div className="py-6 text-center text-xs text-white/60 flex items-center justify-center gap-2">
+                            <RefreshCw className="w-4 h-4 animate-spin text-kahoot-yellow" />
+                            <span>Cargando detalle de preguntas registradas...</span>
+                          </div>
+                        ) : answers && answers.length > 0 ? (
+                          <>
+                            {/* Resumen rápido de qué preguntas falló */}
+                            {(() => {
+                              const wrongAnswers = answers.filter(a => !a.isCorrect);
+                              const correctAnswers = answers.filter(a => a.isCorrect);
+                              return (
+                                <div className="p-3 rounded-xl bg-black/40 border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                                  <div className="flex items-center gap-3">
+                                    <span className="font-black text-emerald-400 flex items-center gap-1">
+                                      <CheckCircle2 className="w-3.5 h-3.5" />
+                                      <span>{correctAnswers.length} Acertadas</span>
+                                    </span>
+                                    <span className="font-black text-red-400 flex items-center gap-1">
+                                      <XCircle className="w-3.5 h-3.5" />
+                                      <span>{wrongAnswers.length} Falladas</span>
+                                    </span>
+                                  </div>
+                                  {wrongAnswers.length > 0 ? (
+                                    <span className="text-red-300 font-bold text-[11px]">
+                                      Falló en: Pregunta #{wrongAnswers.map(a => a.orderIndex + 1).join(', #')}
+                                    </span>
+                                  ) : (
+                                    <span className="text-emerald-300 font-bold text-[11px]">
+                                      ⭐ ¡Excelente! Todas las preguntas fueron correctas
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })()}
+
+                            {/* Tarjetas individuales por pregunta */}
+                            <div className="space-y-2.5 max-h-[45vh] overflow-y-auto pr-1">
+                              {answers.map(ans => {
+                                const isAnsCorrect = ans.isCorrect;
+                                return (
+                                  <div
+                                    key={ans.id}
+                                    className={`p-3.5 rounded-2xl border text-xs transition ${
+                                      isAnsCorrect
+                                        ? 'bg-emerald-950/20 border-emerald-500/30'
+                                        : 'bg-red-950/25 border-red-500/40'
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between gap-2 mb-2">
+                                      <div className="flex items-center gap-2">
+                                        <span
+                                          className={`w-6 h-6 rounded-lg font-black text-[11px] flex items-center justify-center shrink-0 ${
+                                            isAnsCorrect
+                                              ? 'bg-emerald-500 text-black'
+                                              : 'bg-red-500 text-white'
+                                          }`}
+                                        >
+                                          #{ans.orderIndex + 1}
+                                        </span>
+                                        <span
+                                          className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                                            isAnsCorrect
+                                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                              : 'bg-red-500/20 text-red-300 border border-red-500/30'
+                                          }`}
+                                        >
+                                          {isAnsCorrect
+                                            ? `✓ Correcta (+${ans.pointsAwarded} pts)`
+                                            : '✗ Incorrecta (0 pts)'}
+                                        </span>
+                                      </div>
+
+                                      <span className="text-[11px] text-white/50 font-medium">
+                                        ⏱️ {(ans.timeTakenMs / 1000).toFixed(1)}s
+                                      </span>
+                                    </div>
+
+                                    <p className="font-extrabold text-white text-xs mb-2">
+                                      {ans.questionText}
+                                    </p>
+
+                                    {isAnsCorrect ? (
+                                      <div className="p-2 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-200 text-xs flex items-start gap-2">
+                                        <span className="text-emerald-400 font-bold shrink-0">Respuesta elegida:</span>
+                                        <span className="font-semibold">{ans.selectedOptionText}</span>
+                                      </div>
+                                    ) : (
+                                      <div className="space-y-1.5">
+                                        <div className="p-2 rounded-xl bg-red-950/50 border border-red-500/40 text-red-200 text-xs flex items-start gap-2">
+                                          <span className="text-red-400 font-bold shrink-0">Eligió (Errónea):</span>
+                                          <span className="font-semibold">{ans.selectedOptionText}</span>
+                                        </div>
+                                        {ans.correctOptionText && (
+                                          <div className="p-2 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-200 text-xs flex items-start gap-2">
+                                            <span className="text-emerald-400 font-bold shrink-0">Respuesta correcta era:</span>
+                                            <span className="font-semibold">{ans.correctOptionText}</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </>
+                        ) : (
+                          <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-center text-xs text-white/60">
+                            <p className="font-semibold text-white/80">
+                              ℹ️ Desglose individual de preguntas no disponible para este intento.
+                            </p>
+                            <p className="text-[11px] text-white/40 mt-1">
+                              Fue registrado en una versión previa donde solo se almacenaban puntaje ({attempt.totalScore.toLocaleString()} pts) y aciertos ({attempt.correctAnswersCount}/{attempt.totalQuestionsCount}).
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -1078,184 +1257,312 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
       )}
 
       {/* TAB: PREGUNTAS MÁS DIFÍCILES & ANALÍTICAS */}
-      {activeTab === 'analytics' && (
-        <div className="space-y-6">
-          <div className="bg-kahoot-purple-dark/80 p-6 rounded-3xl border border-white/10 shadow-lg">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="p-2 bg-red-500/20 text-red-300 rounded-xl">
-                    <BarChart3 className="w-5 h-5" />
-                  </span>
-                  <h2 className="text-2xl font-black uppercase text-white tracking-tight">
-                    Preguntas Más Difíciles y Tasa de Error
-                  </h2>
+      {activeTab === 'analytics' && (() => {
+        const totalAnswersEvaluated = questionAnalytics.reduce((sum, q) => sum + q.totalAnswers, 0);
+        const totalCorrectEvaluated = questionAnalytics.reduce((sum, q) => sum + q.correctAnswers, 0);
+        const totalIncorrectEvaluated = questionAnalytics.reduce((sum, q) => sum + q.incorrectAnswers, 0);
+        const hardestQ = questionAnalytics[0];
+        const bestQ = questionAnalytics[questionAnalytics.length - 1];
+
+        return (
+          <div className="space-y-6">
+            <div className="bg-kahoot-purple-dark/80 p-6 rounded-3xl border border-white/10 shadow-lg">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="p-2 bg-red-500/20 text-red-300 rounded-xl">
+                      <BarChart3 className="w-5 h-5" />
+                    </span>
+                    <h2 className="text-2xl font-black uppercase text-white tracking-tight">
+                      Preguntas Más Difíciles y Tasa de Error
+                    </h2>
+                  </div>
+                  <p className="text-xs text-white/70 mt-1">
+                    Promedio exacto de cuántas personas contestaron bien y cuántas mal por pregunta, tiempos de respuesta y opciones elegidas.
+                  </p>
                 </div>
-                <p className="text-xs text-white/70 mt-1">
-                  Identifica las preguntas donde los colaboradores tuvieron mayor dificultad para enfocar la capacitación.
+
+                <div className="flex items-center gap-3 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const selectedQuiz = quizzes.find(q => q.id === selectedQuizId) || quizzes[0];
+                      exportQuestionAnalyticsPDF(questionAnalytics, selectedQuiz?.title || 'Cinepolis Master');
+                    }}
+                    disabled={questionAnalytics.length === 0}
+                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white rounded-xl text-xs font-black border border-white/10 transition shadow-lg active:scale-95 shrink-0"
+                    title="Descargar reporte analítico completo en PDF con tasa de aciertos y fallos"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Descargar Reporte PDF</span>
+                  </button>
+
+                  <span className="px-3 py-1 bg-white/10 text-amber-300 text-xs font-bold rounded-xl border border-white/10">
+                    Mayor índice de fallo primero ⚠️
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Resumen Superior de Métricas */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="bg-kahoot-purple-dark/80 p-5 rounded-2xl border border-red-500/30 shadow-lg">
+                <span className="text-xs uppercase font-bold text-red-300">🚨 Pregunta con Mayor Fallo</span>
+                <div className="text-2xl font-black text-red-400 mt-1">
+                  {100 - (hardestQ?.accuracyPercentage || 0)}% de Error
+                </div>
+                <div className="text-xs font-bold text-white/90 mt-1">
+                  Fallaron: <span className="text-red-400 font-extrabold">{hardestQ?.incorrectAnswers || 0} personas</span> | Acertaron: <span className="text-emerald-400">{hardestQ?.correctAnswers || 0}</span>
+                </div>
+                <p className="text-xs text-white/50 mt-1 line-clamp-1">
+                  {hardestQ?.questionText || 'Cargando...'}
                 </p>
               </div>
 
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-white/50">Ordenado por:</span>
-                <span className="px-3 py-1 bg-white/10 text-amber-300 text-xs font-bold rounded-xl border border-white/10">
-                  Mayor índice de fallo primero ⚠️
-                </span>
+              <div className="bg-kahoot-purple-dark/80 p-5 rounded-2xl border border-white/10 shadow-lg">
+                <span className="text-xs uppercase font-bold text-white/60">Tasa Global de Acierto</span>
+                <div className="text-2xl font-black text-white mt-1">
+                  {totalAnswersEvaluated > 0
+                    ? Math.round((totalCorrectEvaluated / totalAnswersEvaluated) * 100)
+                    : 0}
+                  %
+                </div>
+                <div className="text-xs font-bold text-white/90 mt-1">
+                  <span className="text-emerald-400">{totalCorrectEvaluated} aciertos</span> vs <span className="text-red-400">{totalIncorrectEvaluated} fallos</span>
+                </div>
+                <p className="text-xs text-white/50 mt-1">
+                  Muestra acumulada de {totalAnswersEvaluated} respuestas analizadas
+                </p>
+              </div>
+
+              <div className="bg-kahoot-purple-dark/80 p-5 rounded-2xl border border-emerald-500/30 shadow-lg">
+                <span className="text-xs uppercase font-bold text-emerald-300">✅ Pregunta con Mayor Dominio</span>
+                <div className="text-2xl font-black text-emerald-400 mt-1">
+                  {bestQ?.accuracyPercentage || 0}% de Aciertos
+                </div>
+                <div className="text-xs font-bold text-white/90 mt-1">
+                  Acertaron: <span className="text-emerald-400 font-extrabold">{bestQ?.correctAnswers || 0} de {bestQ?.totalAnswers || 0} personas</span>
+                </div>
+                <p className="text-xs text-white/50 mt-1 line-clamp-1">
+                  {bestQ?.questionText || 'Cargando...'}
+                </p>
               </div>
             </div>
-          </div>
 
-          {/* Resumen Superior de Métricas */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-kahoot-purple-dark/80 p-5 rounded-2xl border border-red-500/30 shadow-lg">
-              <span className="text-xs uppercase font-bold text-red-300">🚨 Pregunta #1 Más Difícil</span>
-              <div className="text-2xl font-black text-red-400 mt-1">
-                {questionAnalytics[0]?.accuracyPercentage || 0}% de Aciertos
-              </div>
-              <p className="text-xs text-white/60 mt-1 line-clamp-1">
-                {questionAnalytics[0]?.questionText || 'Cargando...'}
-              </p>
-            </div>
+            {/* Lista Detallada de Preguntas de Mayor a Menor Dificultad */}
+            <div className="space-y-4">
+              {questionAnalytics.map((q, idx) => {
+                const isCritical = q.accuracyPercentage < 50;
+                const isModerate = q.accuracyPercentage >= 50 && q.accuracyPercentage < 75;
 
-            <div className="bg-kahoot-purple-dark/80 p-5 rounded-2xl border border-white/10 shadow-lg">
-              <span className="text-xs uppercase font-bold text-white/60">Tasa Global de Acierto</span>
-              <div className="text-2xl font-black text-white mt-1">
-                {questionAnalytics.length > 0
-                  ? Math.round(
-                      questionAnalytics.reduce((acc, q) => acc + q.accuracyPercentage, 0) /
-                        questionAnalytics.length
-                    )
-                  : 0}
-                %
-              </div>
-              <p className="text-xs text-white/50 mt-1">Promedio en todas las preguntas</p>
-            </div>
+                // Encontrar cuál fue el distractor incorrecto más votado
+                const wrongOptions = (q.options || []).filter(o => !o.isCorrect);
+                const mostChosenWrongOpt = wrongOptions.length > 0
+                  ? wrongOptions.reduce((prev, curr) => (curr.count > prev.count ? curr : prev), wrongOptions[0])
+                  : null;
 
-            <div className="bg-kahoot-purple-dark/80 p-5 rounded-2xl border border-emerald-500/30 shadow-lg">
-              <span className="text-xs uppercase font-bold text-emerald-300">✅ Pregunta con Mayor Dominio</span>
-              <div className="text-2xl font-black text-emerald-400 mt-1">
-                {questionAnalytics[questionAnalytics.length - 1]?.accuracyPercentage || 0}% de Aciertos
-              </div>
-              <p className="text-xs text-white/60 mt-1 line-clamp-1">
-                {questionAnalytics[questionAnalytics.length - 1]?.questionText || 'Cargando...'}
-              </p>
-            </div>
-          </div>
-
-          {/* Lista Detallada de Preguntas de Mayor a Menor Dificultad */}
-          <div className="space-y-4">
-            {questionAnalytics.map((q, idx) => {
-              const isCritical = q.accuracyPercentage < 50;
-              const isModerate = q.accuracyPercentage >= 50 && q.accuracyPercentage < 75;
-
-              return (
-                <div
-                  key={q.questionId}
-                  className={`p-5 rounded-3xl border transition-all shadow-md ${
-                    isCritical
-                      ? 'bg-red-950/20 border-red-500/40 hover:border-red-500/70'
-                      : isModerate
-                      ? 'bg-amber-950/20 border-amber-500/40 hover:border-amber-500/70'
-                      : 'bg-kahoot-purple-dark/80 border-white/10 hover:border-white/20'
-                  }`}
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
-                    <div className="flex items-center gap-3">
-                      <span
-                        className={`w-8 h-8 rounded-xl font-black text-xs flex items-center justify-center shrink-0 ${
-                          isCritical
-                            ? 'bg-red-500 text-white shadow-md'
-                            : isModerate
-                            ? 'bg-amber-500 text-black'
-                            : 'bg-emerald-500/30 text-emerald-300 border border-emerald-500/40'
-                        }`}
-                      >
-                        #{idx + 1}
-                      </span>
-                      <div>
-                        <span className="text-[11px] font-bold text-white/50 uppercase tracking-wider block">
-                          Pregunta original {q.orderIndex + 1}
+                return (
+                  <div
+                    key={q.questionId}
+                    className={`p-5 rounded-3xl border transition-all shadow-md ${
+                      isCritical
+                        ? 'bg-red-950/20 border-red-500/40 hover:border-red-500/70'
+                        : isModerate
+                        ? 'bg-amber-950/20 border-amber-500/40 hover:border-amber-500/70'
+                        : 'bg-kahoot-purple-dark/80 border-white/10 hover:border-white/20'
+                    }`}
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={`w-8 h-8 rounded-xl font-black text-xs flex items-center justify-center shrink-0 ${
+                            isCritical
+                              ? 'bg-red-500 text-white shadow-md'
+                              : isModerate
+                              ? 'bg-amber-500 text-black'
+                              : 'bg-emerald-500/30 text-emerald-300 border border-emerald-500/40'
+                          }`}
+                        >
+                          #{idx + 1}
                         </span>
-                        <h3 className="text-base font-extrabold text-white">
-                          {q.questionText}
-                        </h3>
+                        <div>
+                          <span className="text-[11px] font-bold text-white/50 uppercase tracking-wider block">
+                            Pregunta original {q.orderIndex + 1}
+                          </span>
+                          <h3 className="text-base font-extrabold text-white">
+                            {q.questionText}
+                          </h3>
+                        </div>
+                      </div>
+
+                      <div className="text-right shrink-0">
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider inline-flex items-center gap-1.5 ${
+                            isCritical
+                              ? 'bg-red-500/20 text-red-300 border border-red-500/40'
+                              : isModerate
+                              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                              : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                          }`}
+                        >
+                          {isCritical ? (
+                            <>
+                              <AlertTriangle className="w-3.5 h-3.5" />
+                              <span>Alta Dificultad ({100 - q.accuracyPercentage}% fallos)</span>
+                            </>
+                          ) : isModerate ? (
+                            <>
+                              <AlertTriangle className="w-3.5 h-3.5" />
+                              <span>Dificultad Media ({100 - q.accuracyPercentage}% fallos)</span>
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>Buen Dominio ({q.accuracyPercentage}% aciertos)</span>
+                            </>
+                          )}
+                        </span>
                       </div>
                     </div>
 
-                    <div className="text-right shrink-0">
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider inline-flex items-center gap-1.5 ${
-                          isCritical
-                            ? 'bg-red-500/20 text-red-300 border border-red-500/40'
-                            : isModerate
-                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                            : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                        }`}
-                      >
-                        {isCritical ? (
-                          <>
-                            <AlertTriangle className="w-3.5 h-3.5" />
-                            <span>Alta Dificultad ({q.accuracyPercentage}%)</span>
-                          </>
-                        ) : isModerate ? (
-                          <>
-                            <AlertTriangle className="w-3.5 h-3.5" />
-                            <span>Dificultad Media ({q.accuracyPercentage}%)</span>
-                          </>
-                        ) : (
-                          <>
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            <span>Buen Dominio ({q.accuracyPercentage}%)</span>
-                          </>
-                        )}
+                    {/* Cajas de métricas clave: Contestaron Bien vs Contestaron Mal */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 my-3">
+                      <div className="bg-emerald-950/40 border border-emerald-500/30 p-3 rounded-2xl text-center">
+                        <span className="text-[10px] uppercase font-black text-emerald-400/80 block">Contestaron BIEN</span>
+                        <span className="text-xl font-black text-emerald-300 mt-0.5 block">
+                          {q.correctAnswers} personas
+                        </span>
+                        <span className="text-[11px] text-emerald-400/70 font-bold block">
+                          ({q.accuracyPercentage}% del total)
+                        </span>
+                      </div>
+
+                      <div className="bg-red-950/40 border border-red-500/30 p-3 rounded-2xl text-center">
+                        <span className="text-[10px] uppercase font-black text-red-400/80 block">Contestaron MAL</span>
+                        <span className="text-xl font-black text-red-300 mt-0.5 block">
+                          {q.incorrectAnswers} personas
+                        </span>
+                        <span className="text-[11px] text-red-400/70 font-bold block">
+                          ({100 - q.accuracyPercentage}% de error)
+                        </span>
+                      </div>
+
+                      <div className="bg-black/30 border border-white/10 p-3 rounded-2xl text-center">
+                        <span className="text-[10px] uppercase font-black text-white/50 block">Tiempo Promedio</span>
+                        <span className="text-xl font-black text-amber-300 mt-0.5 block">
+                          {q.avgTimeSeconds ? `${q.avgTimeSeconds}s` : '—'}
+                        </span>
+                        <span className="text-[11px] text-white/40 font-bold block">
+                          para responder
+                        </span>
+                      </div>
+
+                      <div className="bg-black/30 border border-white/10 p-3 rounded-2xl text-center">
+                        <span className="text-[10px] uppercase font-black text-white/50 block">Muestra Evaluada</span>
+                        <span className="text-xl font-black text-white mt-0.5 block">
+                          {q.totalAnswers}
+                        </span>
+                        <span className="text-[11px] text-white/40 font-bold block">
+                          evaluaciones
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Barra Visual de Proporción Acierto vs Fallo */}
+                    <div className="space-y-1.5 pt-1">
+                      <div className="flex justify-between text-xs font-bold">
+                        <span className="text-emerald-400 font-extrabold">
+                          ✓ {q.correctAnswers} acertaron ({q.accuracyPercentage}%)
+                        </span>
+                        <span className="text-red-400 font-extrabold">
+                          ✗ {q.incorrectAnswers} fallaron ({100 - q.accuracyPercentage}%)
+                        </span>
+                      </div>
+
+                      <div className="w-full h-3.5 bg-black/50 rounded-full overflow-hidden border border-white/10 flex">
+                        <div
+                          style={{ width: `${q.accuracyPercentage}%` }}
+                          className="h-full bg-emerald-500 transition-all duration-500"
+                        />
+                        <div
+                          style={{ width: `${100 - q.accuracyPercentage}%` }}
+                          className="h-full bg-red-600 transition-all duration-500"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Desglose de Opciones Elegidas por los Participantes */}
+                    {q.options && q.options.length > 0 && (
+                      <div className="mt-3.5 pt-3.5 border-t border-white/10">
+                        <span className="text-[11px] font-black uppercase tracking-wider text-white/60 block mb-2">
+                          Distribución de Respuestas por Opción:
+                        </span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {q.options.map(opt => {
+                            const isOptCorrect = opt.isCorrect;
+                            const isTopDistractor = !isOptCorrect && mostChosenWrongOpt && mostChosenWrongOpt.optionId === opt.optionId && opt.count > 0;
+
+                            return (
+                              <div
+                                key={opt.optionId}
+                                className={`p-2.5 rounded-xl border text-xs flex items-center justify-between gap-2 transition ${
+                                  isOptCorrect
+                                    ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-200'
+                                    : isTopDistractor
+                                    ? 'bg-red-950/30 border-red-500/40 text-red-200'
+                                    : opt.count > 0
+                                    ? 'bg-black/30 border-white/10 text-white/80'
+                                    : 'bg-black/20 border-white/5 text-white/30'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span
+                                    className={`w-2 h-2 rounded-full shrink-0 ${
+                                      isOptCorrect ? 'bg-emerald-400' : isTopDistractor ? 'bg-red-400' : 'bg-white/30'
+                                    }`}
+                                  />
+                                  <span className="truncate font-medium">{opt.optionText}</span>
+                                  {isOptCorrect && (
+                                    <span className="shrink-0 px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[10px] font-black uppercase">
+                                      Correcta
+                                    </span>
+                                  )}
+                                  {isTopDistractor && (
+                                    <span className="shrink-0 px-1.5 py-0.5 rounded bg-red-500/20 text-red-300 text-[10px] font-black uppercase">
+                                      Trampa más común
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="shrink-0 text-right font-black">
+                                  <span className={isOptCorrect ? 'text-emerald-300' : isTopDistractor ? 'text-red-300' : 'text-white/70'}>
+                                    {opt.count} pers. ({opt.percentage}%)
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Recomendación Didáctica para Cinépolis */}
+                    <div className="mt-3 pt-3 border-t border-white/5 text-xs text-white/60 flex items-center gap-2">
+                      <span className="font-bold text-white/80 shrink-0">💡 Diagnóstico:</span>
+                      <span>
+                        {isCritical
+                          ? 'Se recomienda reforzar este tema específico con el equipo de Cinépolis ya que presenta la tasa de error más alta.'
+                          : isModerate
+                          ? 'Tema con comprensión intermedia. Con un breve recordatorio o ficha informativa puede consolidarse.'
+                          : 'El equipo domina este concepto de forma consistente.'}
                       </span>
                     </div>
                   </div>
-
-                  {/* Barra Visual de Precisión */}
-                  <div className="space-y-1.5 pt-2">
-                    <div className="flex justify-between text-xs font-bold">
-                      <span className="text-white/60">Aciertos vs Fallos ({q.totalAnswers} respuestas)</span>
-                      <span className="text-white">
-                        {q.correctAnswers} aciertos ({q.accuracyPercentage}%) • {q.incorrectAnswers} fallos ({100 - q.accuracyPercentage}%)
-                      </span>
-                    </div>
-
-                    <div className="w-full h-3 bg-black/40 rounded-full overflow-hidden border border-white/10 flex">
-                      <div
-                        style={{ width: `${q.accuracyPercentage}%` }}
-                        className={`h-full transition-all duration-500 ${
-                          isCritical
-                            ? 'bg-red-500'
-                            : isModerate
-                            ? 'bg-amber-400'
-                            : 'bg-emerald-400'
-                        }`}
-                      />
-                      <div
-                        style={{ width: `${100 - q.accuracyPercentage}%` }}
-                        className="h-full bg-red-950/70"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Recomendación Didáctica para Cinépolis */}
-                  <div className="mt-3 pt-3 border-t border-white/5 text-xs text-white/60 flex items-center gap-2">
-                    <span className="font-bold text-white/80 shrink-0">💡 Diagnóstico:</span>
-                    <span>
-                      {isCritical
-                        ? 'Se recomienda reforzar este tema específico con el equipo de Cinépolis ya que presenta la tasa de error más alta.'
-                        : isModerate
-                        ? 'Tema con comprensión intermedia. Con un breve recordatorio o ficha informativa puede consolidarse.'
-                        : 'El equipo domina este concepto de forma consistente.'}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* TAB: CANDADOS & CONTROL DE EXAMEN */}
       {activeTab === 'controls' && (

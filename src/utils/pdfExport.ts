@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type { Participant, Quiz } from '../types/quiz';
+import type { QuestionAnalytics } from '../services/quizService';
 
 export interface PDFExportOptions {
   quizTitle: string;
@@ -368,4 +369,121 @@ export const exportTop3Diplomas = (
   top3.slice(0, 3).forEach((p, idx) => {
     exportDiplomaPDF(p, idx + 1, quizTitle);
   });
+};
+
+export const exportQuestionAnalyticsPDF = (
+  analytics: QuestionAnalytics[],
+  quizTitle: string = 'Cinepolis Master'
+) => {
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4',
+  });
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const today = new Date().toLocaleDateString('es-MX', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  // Header Banner
+  doc.setFillColor(11, 27, 61); // Cinepolis navy
+  doc.rect(0, 0, pageWidth, 40, 'F');
+
+  // Accent Line
+  doc.setFillColor(243, 178, 30); // Cinepolis gold
+  doc.rect(0, 40, pageWidth, 2.5, 'F');
+
+  // Title & Subtitle
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.setTextColor(255, 255, 255);
+  doc.text('REPORTE DE DIFICULTAD Y FALLOS POR PREGUNTA', 14, 18);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.setTextColor(220, 225, 235);
+  doc.text(`Evaluacion: ${quizTitle} | Cinepolis`, 14, 26);
+  doc.setFontSize(8.5);
+  doc.setTextColor(180, 190, 210);
+  doc.text(`Generado: ${today}`, 14, 33);
+
+  // Table
+  const tableData = analytics.map((q, idx) => {
+    const errorPct = 100 - q.accuracyPercentage;
+    const diffLabel = q.accuracyPercentage < 50 ? 'Alta (Critica)' : q.accuracyPercentage < 75 ? 'Media' : 'Baja (Dominado)';
+    return [
+      `#${idx + 1}`,
+      q.questionText,
+      `${q.correctAnswers} (${q.accuracyPercentage}%)`,
+      `${q.incorrectAnswers} (${errorPct}%)`,
+      `${q.avgTimeSeconds ? q.avgTimeSeconds + 's' : '-'}`,
+      diffLabel,
+    ];
+  });
+
+  autoTable(doc, {
+    startY: 48,
+    head: [['#', 'Pregunta', 'Contestaron Bien', 'Contestaron Mal', 'Tiempo Prom.', 'Dificultad']],
+    body: tableData,
+    theme: 'grid',
+    headStyles: {
+      fillColor: [11, 27, 61],
+      textColor: [255, 255, 255],
+      fontSize: 8.5,
+      fontStyle: 'bold',
+      halign: 'center',
+    },
+    columnStyles: {
+      0: { cellWidth: 10, halign: 'center', fontStyle: 'bold' },
+      1: { cellWidth: 70, fontStyle: 'normal' },
+      2: { cellWidth: 32, halign: 'center', textColor: [20, 140, 60], fontStyle: 'bold' },
+      3: { cellWidth: 32, halign: 'center', textColor: [190, 30, 30], fontStyle: 'bold' },
+      4: { cellWidth: 22, halign: 'center' },
+      5: { cellWidth: 24, halign: 'center', fontStyle: 'bold' },
+    },
+    styles: {
+      fontSize: 8,
+      cellPadding: 3,
+      overflow: 'linebreak',
+    },
+    alternateRowStyles: {
+      fillColor: [248, 250, 253],
+    },
+  });
+
+  // Summary box at bottom
+  const finalY = (doc as any).lastAutoTable?.finalY || 200;
+  if (finalY < 250) {
+    doc.setFillColor(245, 247, 250);
+    doc.roundedRect(14, finalY + 8, pageWidth - 28, 26, 3, 3, 'F');
+    doc.setDrawColor(220, 225, 235);
+    doc.roundedRect(14, finalY + 8, pageWidth - 28, 26, 3, 3, 'D');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(30, 40, 60);
+    doc.text('Recomendacion Didactica para el Equipo:', 18, finalY + 16);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(80, 90, 110);
+    doc.text(
+      'Enfocar la proxima capacitacion y retroalimentacion en las preguntas marcadas con Dificultad Alta,',
+      18,
+      finalY + 22
+    );
+    doc.text(
+      'reforzando los conceptos de Club Cinepolis, beneficios de registro y requisitos de nivel.',
+      18,
+      finalY + 28
+    );
+  }
+
+  doc.save(`Reporte_Preguntas_Dificiles_${quizTitle.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`);
 };

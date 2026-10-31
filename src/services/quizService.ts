@@ -8,6 +8,16 @@ export interface ExamSettings {
   closeMessage?: string;
 }
 
+export interface OptionStat {
+  optionId: string;
+  optionText: string;
+  isCorrect: boolean;
+  color?: string;
+  shape?: string;
+  count: number;
+  percentage: number;
+}
+
 export interface QuestionAnalytics {
   questionId: string;
   questionText: string;
@@ -18,7 +28,24 @@ export interface QuestionAnalytics {
   correctAnswers: number;
   incorrectAnswers: number;
   accuracyPercentage: number;
+  avgTimeSeconds: number;
   difficulty: 'hard' | 'medium' | 'easy';
+  options: OptionStat[];
+}
+
+export interface DetailedParticipantAnswer {
+  id: string;
+  participantId: string;
+  questionId: string;
+  selectedOptionId: string | null;
+  selectedOptionText: string;
+  isCorrect: boolean;
+  timeTakenMs: number;
+  pointsAwarded: number;
+  questionText: string;
+  questionType: string;
+  correctOptionText: string;
+  orderIndex: number;
 }
 
 const LOCAL_STORAGE_QUIZZES_KEY = 'kahoot_quizzes_v2';
@@ -37,292 +64,308 @@ export const DEFAULT_QUIZZES: Quiz[] = [
     isPublished: true,
     questions: [
       {
-            "id": "6eceecf4-9d8b-4bf3-9e3d-c70d746158d5",
-            "quizId": "f3f7aa07-4389-4769-a162-3fb8b989bfc0",
-            "questionText": "¿Qué porcentaje de puntos se gana con cada uno de los niveles?",
-            "imageUrl": "/question-images/cinepolis-q1.jpg",
-            "timeLimit": 20,
-            "pointsMultiplier": 1,
-            "questionType": "multiple_choice",
-            "options": [
-                  {
-                        "id": "9bf02723-0657-4baa-a071-e51bc16203a3",
-                        "text": "Fan 5%, Fanático 8% y Superfanático 10%",
-                        "isCorrect": false,
-                        "color": "red",
-                        "shape": "triangle",
-                        "orderIndex": 0
-                  },
-                  {
-                        "id": "37f36090-2271-4dfd-872f-c874e7de9f97",
-                        "text": "Fan 5%, Fanático 10% y SuperFanático 10%",
-                        "isCorrect": true,
-                        "color": "blue",
-                        "shape": "diamond",
-                        "orderIndex": 1
-                  },
-                  {
-                        "id": "36ca77c8-472d-46bd-b9f1-57634f705bc6",
-                        "text": "Fan 3%, Fanático 6% y SuperFanático 10%",
-                        "isCorrect": false,
-                        "color": "yellow",
-                        "shape": "circle",
-                        "orderIndex": 2
-                  },
-                  {
-                        "id": "9706e1f9-4280-46fa-b50b-9bc2b21296c4",
-                        "text": "Fan 2%, Fanático 6% y SuperFanático 12%",
-                        "isCorrect": false,
-                        "color": "green",
-                        "shape": "square",
-                        "orderIndex": 3
-                  }
-            ],
+        "id": "6eceecf4-9d8b-4bf3-9e3d-c70d746158d5",
+        "quizId": "f3f7aa07-4389-4769-a162-3fb8b989bfc0",
+        "questionText": "¿Qué porcentaje de puntos se gana con cada uno de los niveles?",
+        "imageUrl": "/question-images/cinepolis-q1.jpg",
+        "timeLimit": 20,
+        "pointsMultiplier": 1,
+        "questionType": "multiple_choice",
+        "options": [
+          {
+            "id": "9bf02723-0657-4baa-a071-e51bc16203a3",
+            "text": "Fan 5%, Fanático 8% y Superfanático 10%",
+            "isCorrect": false,
+            "color": "red",
+            "shape": "triangle",
             "orderIndex": 0
-      },
-      {
-            "id": "5e41db1e-9979-49f0-862d-574d5ece336f",
-            "quizId": "f3f7aa07-4389-4769-a162-3fb8b989bfc0",
-            "questionText": "“(Nombre), te entrego tu recibo de compra. Actualmente cuentas con X puntos Club Cinépolis”, ¿Es la correcta despedida?",
-            "timeLimit": 20,
-            "pointsMultiplier": 1,
-            "questionType": "true_false",
-            "options": [
-                  {
-                        "id": "8a211ba7-576e-47c8-a8bf-1bfa3aa0ca86",
-                        "text": "VERDADERO",
-                        "isCorrect": true,
-                        "color": "blue",
-                        "shape": "diamond",
-                        "orderIndex": 0
-                  },
-                  {
-                        "id": "2924ea7e-3868-4d0a-8e2c-81ba1663159b",
-                        "text": "FALSO",
-                        "isCorrect": false,
-                        "color": "red",
-                        "shape": "triangle",
-                        "orderIndex": 1
-                  }
-            ],
-            "imageUrl": "/question-images/cinepolis-q2.jpg",
+          },
+          {
+            "id": "37f36090-2271-4dfd-872f-c874e7de9f97",
+            "text": "Fan 5%, Fanático 10% y SuperFanático 10%",
+            "isCorrect": true,
+            "color": "blue",
+            "shape": "diamond",
             "orderIndex": 1
-      },
-      {
-            "id": "dfe09e40-0ce7-466f-81fe-f150e7f6e87c",
-            "quizId": "f3f7aa07-4389-4769-a162-3fb8b989bfc0",
-            "questionText": "¿Cuáles son los 3 requisitos para sacar la Tarjeta de Credito Openbank?",
-            "timeLimit": 20,
-            "pointsMultiplier": 1,
-            "questionType": "multiple_choice",
-            "options": [
-                  {
-                        "id": "621b57b2-ef3a-4302-88f8-7fe380e67505",
-                        "text": "Club Cinepolis, INE, Correo Electronico",
-                        "isCorrect": false,
-                        "color": "red",
-                        "shape": "triangle",
-                        "orderIndex": 0
-                  },
-                  {
-                        "id": "dace8432-8a7d-445f-bb2e-5e6a4e1d1b7c",
-                        "text": "Solo tu INE",
-                        "isCorrect": false,
-                        "color": "blue",
-                        "shape": "diamond",
-                        "orderIndex": 1
-                  },
-                  {
-                        "id": "57d409e4-6c8f-41ea-89ca-36254b5d4e6d",
-                        "text": "Num de teléfono, Correo Electrónico, INE",
-                        "isCorrect": true,
-                        "color": "yellow",
-                        "shape": "circle",
-                        "orderIndex": 2
-                  },
-                  {
-                        "id": "34fc25ac-fd08-4a0c-aa08-0641325d3756",
-                        "text": "Solo tu correosolo tu correo",
-                        "isCorrect": false,
-                        "color": "green",
-                        "shape": "square",
-                        "orderIndex": 3
-                  }
-            ],
-            "imageUrl": "/question-images/cinepolis-q3.jpg",
+          },
+          {
+            "id": "36ca77c8-472d-46bd-b9f1-57634f705bc6",
+            "text": "Fan 3%, Fanático 6% y SuperFanático 10%",
+            "isCorrect": false,
+            "color": "yellow",
+            "shape": "circle",
             "orderIndex": 2
-      },
-      {
-            "id": "e0d425b4-d943-44f0-96ea-b914234a7c4b",
-            "quizId": "f3f7aa07-4389-4769-a162-3fb8b989bfc0",
-            "questionText": "Cuando juntas las visitas necesarias para subir de nivel el cambio se refleja al terminar el semestre",
-            "timeLimit": 20,
-            "pointsMultiplier": 1,
-            "questionType": "true_false",
-            "options": [
-                  {
-                        "id": "3194a49c-8861-41a1-996c-ca6352b28e69",
-                        "text": "VERDADERO",
-                        "isCorrect": false,
-                        "color": "blue",
-                        "shape": "diamond",
-                        "orderIndex": 0
-                  },
-                  {
-                        "id": "4d11f91c-ee42-4f9e-8254-bf493a13b9de",
-                        "text": "FALSO",
-                        "isCorrect": true,
-                        "color": "red",
-                        "shape": "triangle",
-                        "orderIndex": 1
-                  }
-            ],
-            "imageUrl": "/question-images/cinepolis-q4.jpg",
+          },
+          {
+            "id": "9706e1f9-4280-46fa-b50b-9bc2b21296c4",
+            "text": "Fan 2%, Fanático 6% y SuperFanático 12%",
+            "isCorrect": false,
+            "color": "green",
+            "shape": "square",
             "orderIndex": 3
+          }
+        ],
+        "orderIndex": 0
       },
       {
-            "id": "97fd7088-a41b-48c0-b135-494137ea53e1",
-            "quizId": "f3f7aa07-4389-4769-a162-3fb8b989bfc0",
-            "questionText": "¿Cuál NO es un requisito de afiliacion del cliente con una tarjeta club?",
-            "timeLimit": 20,
-            "pointsMultiplier": 1,
-            "questionType": "multiple_choice",
-            "options": [
-                  {
-                        "id": "03b09885-00ce-41b5-b437-84c1ce57ced5",
-                        "text": "Correo",
-                        "isCorrect": false,
-                        "color": "red",
-                        "shape": "triangle",
-                        "orderIndex": 0
-                  },
-                  {
-                        "id": "fa4c6c7c-923d-4e35-a99c-6c6ca9e389a5",
-                        "text": "Código Postal",
-                        "isCorrect": false,
-                        "color": "blue",
-                        "shape": "diamond",
-                        "orderIndex": 1
-                  },
-                  {
-                        "id": "76ec87ce-7c27-40ff-a2a4-5f6bd7160d9d",
-                        "text": "RFC",
-                        "isCorrect": true,
-                        "color": "yellow",
-                        "shape": "circle",
-                        "orderIndex": 2
-                  },
-                  {
-                        "id": "8a870068-3711-4dfc-888c-41b796db8aeb",
-                        "text": "Número de teléfono",
-                        "isCorrect": false,
-                        "color": "green",
-                        "shape": "square",
-                        "orderIndex": 3
-                  }
-            ],
-            "imageUrl": "/question-images/cinepolis-q5.jpg",
-            "orderIndex": 4
+        "id": "3ff1eebf-ce29-47c1-bb3d-e4909a3bf321",
+        "quizId": "f3f7aa07-4389-4769-a162-3fb8b989bfc0",
+        "questionText": "¿Cuál es el beneficio de cumpleaños en el nivel Fanático?",
+        "imageUrl": "/question-images/cinepolis-q2.jpg",
+        "timeLimit": 20,
+        "pointsMultiplier": 1,
+        "questionType": "multiple_choice",
+        "options": [
+          {
+            "id": "8881a704-5f11-4796-9810-e7f0d01f4c3a",
+            "text": "1 entrada gratis",
+            "isCorrect": false,
+            "color": "red",
+            "shape": "triangle",
+            "orderIndex": 0
+          },
+          {
+            "id": "a52da216-24ba-42a9-b59a-ec2251a21e42",
+            "text": "2x1 todo el mes de cumpleaños en entradas, palomitas y refresco",
+            "isCorrect": true,
+            "color": "blue",
+            "shape": "diamond",
+            "orderIndex": 1
+          },
+          {
+            "id": "6c6530aa-b939-4d87-be21-cb86e963bc1c",
+            "text": "Combo mediano gratis",
+            "isCorrect": false,
+            "color": "yellow",
+            "shape": "circle",
+            "orderIndex": 2
+          },
+          {
+            "id": "98e3b334-a212-4217-be0f-b42551a37c44",
+            "text": "50% de descuento en dulcería una sola vez",
+            "isCorrect": false,
+            "color": "green",
+            "shape": "square",
+            "orderIndex": 3
+          }
+        ],
+        "orderIndex": 1
       },
       {
-            "id": "6175df64-a0ef-45d6-a71e-75abf7e982fe",
-            "quizId": "f3f7aa07-4389-4769-a162-3fb8b989bfc0",
-            "questionText": "¿Cuál es el primer beneficio que se genera al tramitar tu club cinepolis?",
-            "timeLimit": 20,
-            "pointsMultiplier": 1,
-            "questionType": "multiple_choice",
-            "options": [
-                  {
-                        "id": "8d00de83-2947-403b-a446-ad18931e5575",
-                        "text": "1 boleto gratis en la compra de otro",
-                        "isCorrect": true,
-                        "color": "red",
-                        "shape": "triangle",
-                        "orderIndex": 0
-                  },
-                  {
-                        "id": "182bdbca-3974-4dc2-ab08-823577620fc3",
-                        "text": "Combo en descuento",
-                        "isCorrect": false,
-                        "color": "blue",
-                        "shape": "diamond",
-                        "orderIndex": 1
-                  },
-                  {
-                        "id": "62a6b9cb-0e7b-4fce-a3aa-404c7db11bc7",
-                        "text": "50 puntos de cortesía",
-                        "isCorrect": false,
-                        "color": "yellow",
-                        "shape": "circle",
-                        "orderIndex": 2
-                  },
-                  {
-                        "id": "413b6d09-83df-42a9-9ac9-5ee28cfbf731",
-                        "text": "Ningún beneficio hasta acumular puntos o visitas",
-                        "isCorrect": false,
-                        "color": "green",
-                        "shape": "square",
-                        "orderIndex": 3
-                  }
-            ],
-            "imageUrl": "/question-images/cinepolis-q6.jpg",
-            "orderIndex": 5
+        "id": "fbc0709d-cb9e-4e4b-9721-a39c99ec20b4",
+        "quizId": "f3f7aa07-4389-4769-a162-3fb8b989bfc0",
+        "questionText": "¿Cuáles son las tres opciones correctas para subir de nivel a Súper Fanático?",
+        "imageUrl": "/question-images/cinepolis-q3.jpg",
+        "timeLimit": 20,
+        "pointsMultiplier": 1,
+        "questionType": "multiple_choice",
+        "options": [
+          {
+            "id": "1a111a11-1111-4111-8111-111111111111",
+            "text": "15 visitas, 12 compras en dulcería o 200 puntos",
+            "isCorrect": false,
+            "color": "red",
+            "shape": "triangle",
+            "orderIndex": 0
+          },
+          {
+            "id": "2b222b22-2222-4222-8222-222222222222",
+            "text": "30 visitas en taquilla, 15 compras en dulcería de más de $100 o 350 puntos",
+            "isCorrect": false,
+            "color": "blue",
+            "shape": "diamond",
+            "orderIndex": 1
+          },
+          {
+            "id": "3c333c33-3333-4333-8333-333333333333",
+            "text": "24 visitas, 12 compras en dulcería con monto mínimo de $108 o 280 puntos",
+            "isCorrect": true,
+            "color": "yellow",
+            "shape": "circle",
+            "orderIndex": 2
+          },
+          {
+            "id": "4d444d44-4444-4444-8444-444444444444",
+            "text": "Solo acumulando 500 puntos en todo el año",
+            "isCorrect": false,
+            "color": "green",
+            "shape": "square",
+            "orderIndex": 3
+          }
+        ],
+        "orderIndex": 2
       },
       {
-            "id": "2738e13b-884f-4134-91f2-52fae0a0290d",
-            "quizId": "f3f7aa07-4389-4769-a162-3fb8b989bfc0",
-            "questionText": "Una persona no puede ser creativa en el área, debe acatarse a las reglas",
-            "timeLimit": 20,
-            "pointsMultiplier": 1,
-            "questionType": "true_false",
-            "options": [
-                  {
-                        "id": "3b750c0e-c738-44c8-b00e-b6deadf78c72",
-                        "text": "VERDADERO",
-                        "isCorrect": false,
-                        "color": "blue",
-                        "shape": "diamond",
-                        "orderIndex": 0
-                  },
-                  {
-                        "id": "efb2f68c-aeff-4c5e-819b-3ad12edf0f6d",
-                        "text": "FALSO",
-                        "isCorrect": true,
-                        "color": "red",
-                        "shape": "triangle",
-                        "orderIndex": 1
-                  }
-            ],
-            "imageUrl": "/question-images/cinepolis-q7.jpg",
-            "orderIndex": 6
+        "id": "e44d03da-1662-4aa8-ab1f-1c4bcaad3e97",
+        "quizId": "f3f7aa07-4389-4769-a162-3fb8b989bfc0",
+        "questionText": "¿Cuántas visitas o puntos se necesitan para ser nivel Fanático?",
+        "imageUrl": "/question-images/cinepolis-q4.jpg",
+        "timeLimit": 20,
+        "pointsMultiplier": 1,
+        "questionType": "multiple_choice",
+        "options": [
+          {
+            "id": "10111a11-1111-4111-8111-111111111111",
+            "text": "6 visitas o 70 puntos",
+            "isCorrect": false,
+            "color": "red",
+            "shape": "triangle",
+            "orderIndex": 0
+          },
+          {
+            "id": "20222b22-2222-4222-8222-222222222222",
+            "text": "12 visitas o 140 puntos",
+            "isCorrect": true,
+            "color": "blue",
+            "shape": "diamond",
+            "orderIndex": 1
+          },
+          {
+            "id": "30333c33-3333-4333-8333-333333333333",
+            "text": "18 visitas o 200 puntos",
+            "isCorrect": false,
+            "color": "yellow",
+            "shape": "circle",
+            "orderIndex": 2
+          },
+          {
+            "id": "40444d44-4444-4444-8444-444444444444",
+            "text": "24 visitas o 250 puntos",
+            "isCorrect": false,
+            "color": "green",
+            "shape": "square",
+            "orderIndex": 3
+          }
+        ],
+        "orderIndex": 3
       },
       {
-            "id": "b43c79a7-efe6-4940-8738-f502ebc3ec9b",
-            "quizId": "f3f7aa07-4389-4769-a162-3fb8b989bfc0",
-            "questionText": "Todos tenemos un dominio, un área o campo en el qué sobre salimos más",
-            "timeLimit": 20,
-            "pointsMultiplier": 1,
-            "questionType": "true_false",
-            "options": [
-                  {
-                        "id": "0937a502-e9bd-46f9-aec0-6fda03a6cbde",
-                        "text": "VERDADERO",
-                        "isCorrect": true,
-                        "color": "blue",
-                        "shape": "diamond",
-                        "orderIndex": 0
-                  },
-                  {
-                        "id": "13fe8bf6-9ce0-4e43-b7b7-034ea61a05e7",
-                        "text": "FALSO",
-                        "isCorrect": false,
-                        "color": "red",
-                        "shape": "triangle",
-                        "orderIndex": 1
-                  }
-            ],
-            "imageUrl": "/question-images/cinepolis-q8.jpg",
-            "orderIndex": 7
+        "id": "a3a1f948-c89b-4654-8e47-e5cf920a4ceb",
+        "quizId": "f3f7aa07-4389-4769-a162-3fb8b989bfc0",
+        "questionText": "¿El Club Cinépolis otorga cortesías de entrada en el nivel Fanático?",
+        "imageUrl": "/question-images/cinepolis-q5.jpg",
+        "timeLimit": 20,
+        "pointsMultiplier": 1,
+        "questionType": "true_false",
+        "options": [
+          {
+            "id": "50555a11-1111-4111-8111-111111111111",
+            "text": "VERDADERO",
+            "isCorrect": false,
+            "color": "blue",
+            "shape": "diamond",
+            "orderIndex": 0
+          },
+          {
+            "id": "60666b22-2222-4222-8222-222222222222",
+            "text": "FALSO",
+            "isCorrect": true,
+            "color": "red",
+            "shape": "triangle",
+            "orderIndex": 1
+          }
+        ],
+        "orderIndex": 4
+      },
+      {
+        "id": "3e527fc6-f04b-4657-b0a7-862ad39ec1c1",
+        "quizId": "f3f7aa07-4389-4769-a162-3fb8b989bfc0",
+        "questionText": "¿Cuál es el beneficio que se otorga al registrarse por primera vez en el Club Cinépolis?",
+        "imageUrl": "/question-images/cinepolis-q6.jpg",
+        "timeLimit": 20,
+        "pointsMultiplier": 1,
+        "questionType": "multiple_choice",
+        "options": [
+          {
+            "id": "70777a11-1111-4111-8111-111111111111",
+            "text": "2x1 en entradas",
+            "isCorrect": false,
+            "color": "red",
+            "shape": "triangle",
+            "orderIndex": 0
+          },
+          {
+            "id": "80888b22-2222-4222-8222-222222222222",
+            "text": "Un frappé mediano o palomitas de mantequilla gratis",
+            "isCorrect": true,
+            "color": "blue",
+            "shape": "diamond",
+            "orderIndex": 1
+          },
+          {
+            "id": "90999c33-3333-4333-8333-333333333333",
+            "text": "50 puntos de cortesía",
+            "isCorrect": false,
+            "color": "yellow",
+            "shape": "circle",
+            "orderIndex": 2
+          },
+          {
+            "id": "00000d44-4444-4444-8444-444444444444",
+            "text": "Ningún beneficio hasta acumular puntos o visitas",
+            "isCorrect": false,
+            "color": "green",
+            "shape": "square",
+            "orderIndex": 3
+          }
+        ],
+        "orderIndex": 5
+      },
+      {
+        "id": "2738e13b-884f-4134-91f2-52fae0a0290d",
+        "quizId": "f3f7aa07-4389-4769-a162-3fb8b989bfc0",
+        "questionText": "Una persona no puede ser creativa en el área, debe acatarse a las reglas",
+        "imageUrl": "/question-images/cinepolis-q7.jpg",
+        "timeLimit": 20,
+        "pointsMultiplier": 1,
+        "questionType": "true_false",
+        "options": [
+          {
+            "id": "a0aa1a11-1111-4111-8111-111111111111",
+            "text": "VERDADERO",
+            "isCorrect": false,
+            "color": "blue",
+            "shape": "diamond",
+            "orderIndex": 0
+          },
+          {
+            "id": "b0bb2b22-2222-4222-8222-222222222222",
+            "text": "FALSO",
+            "isCorrect": true,
+            "color": "red",
+            "shape": "triangle",
+            "orderIndex": 1
+          }
+        ],
+        "orderIndex": 6
+      },
+      {
+        "id": "b43c79a7-efe6-4940-8738-f502ebc3ec9b",
+        "quizId": "f3f7aa07-4389-4769-a162-3fb8b989bfc0",
+        "questionText": "Todos tenemos un dominio, un área o campo en el qué sobre salimos más",
+        "imageUrl": "/question-images/cinepolis-q8.jpg",
+        "timeLimit": 20,
+        "pointsMultiplier": 1,
+        "questionType": "true_false",
+        "options": [
+          {
+            "id": "c0cc1a11-1111-4111-8111-111111111111",
+            "text": "VERDADERO",
+            "isCorrect": true,
+            "color": "blue",
+            "shape": "diamond",
+            "orderIndex": 0
+          },
+          {
+            "id": "d0dd2b22-2222-4222-8222-222222222222",
+            "text": "FALSO",
+            "isCorrect": false,
+            "color": "red",
+            "shape": "triangle",
+            "orderIndex": 1
+          }
+        ],
+        "orderIndex": 7
       }
 ],
   },
@@ -971,6 +1014,100 @@ export const quizService = {
     return rankings.some(p => normalize(p.nickname) === targetNorm);
   },
 
+  async getParticipantAnswers(participantId: string, quiz?: Quiz): Promise<DetailedParticipantAnswer[]> {
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('participant_answers')
+          .select(`
+            id,
+            participant_id,
+            question_id,
+            selected_option_id,
+            is_correct,
+            time_taken_ms,
+            points_awarded,
+            questions (
+              id,
+              question_text,
+              question_type,
+              order_index,
+              question_options (
+                id,
+                option_text,
+                is_correct
+              )
+            ),
+            question_options (
+              id,
+              option_text,
+              is_correct
+            )
+          `)
+          .eq('participant_id', participantId);
+
+        if (!error && data && data.length > 0) {
+          return data.map((row: any) => {
+            const q = row.questions || {};
+            const opts: any[] = q.question_options || [];
+            const correctOpt = opts.find((o: any) => o.is_correct);
+            const chosenOpt = row.question_options;
+
+            return {
+              id: row.id,
+              participantId: row.participant_id,
+              questionId: row.question_id,
+              selectedOptionId: row.selected_option_id,
+              selectedOptionText: chosenOpt?.option_text || 'Sin selección',
+              isCorrect: Boolean(row.is_correct),
+              timeTakenMs: row.time_taken_ms || 0,
+              pointsAwarded: row.points_awarded || 0,
+              questionText: q.question_text || 'Pregunta',
+              questionType: q.question_type || 'multiple_choice',
+              correctOptionText: correctOpt?.option_text || '',
+              orderIndex: q.order_index ?? 0,
+            };
+          }).sort((a: any, b: any) => a.orderIndex - b.orderIndex);
+        }
+      } catch (err) {
+        console.warn('Error fetching participant answers from Supabase:', err);
+      }
+    }
+
+    // Fallback a LocalStorage si no está en Supabase o estamos offline
+    try {
+      const stored = localStorage.getItem(LOCAL_STORAGE_PARTICIPANTS_KEY);
+      if (stored) {
+        const participants: Participant[] = JSON.parse(stored);
+        const participant = participants.find(p => p.id === participantId);
+        if (participant && participant.answers && participant.answers.length > 0) {
+          return participant.answers.map((ans, idx) => {
+            const q = quiz?.questions?.find(item => item.id === ans.questionId);
+            const chosenOpt = q?.options?.find(opt => opt.id === ans.selectedOptionId);
+            const correctOpt = q?.options?.find(opt => opt.isCorrect);
+
+            return {
+              id: `local-ans-${idx}`,
+              participantId: participant.id,
+              questionId: ans.questionId,
+              selectedOptionId: ans.selectedOptionId,
+              selectedOptionText: chosenOpt?.text || (ans.submittedText ? ans.submittedText : 'Sin selección'),
+              isCorrect: ans.isCorrect,
+              timeTakenMs: ans.timeTakenMs || 0,
+              pointsAwarded: ans.pointsAwarded || 0,
+              questionText: q?.questionText || `Pregunta ${idx + 1}`,
+              questionType: ans.questionType || 'multiple_choice',
+              correctOptionText: correctOpt?.text || '',
+              orderIndex: q?.orderIndex ?? idx,
+            };
+          }).sort((a, b) => a.orderIndex - b.orderIndex);
+        }
+      }
+    } catch {}
+
+    return [];
+  },
+
   async getQuestionAnalytics(quiz: Quiz): Promise<QuestionAnalytics[]> {
     const questions = quiz.questions || [];
     let answersData: any[] = [];
@@ -979,7 +1116,7 @@ export const quizService = {
       try {
         const { data, error } = await supabase
           .from('participant_answers')
-          .select('question_id, is_correct, time_taken_ms');
+          .select('question_id, selected_option_id, is_correct, time_taken_ms');
         if (!error && data && data.length > 0) {
           answersData = data;
         }
@@ -988,23 +1125,50 @@ export const quizService = {
       }
     }
 
-    // Estadísticas calibradas realistas para las preguntas de Cinépolis
-    const defaultRates = [52, 68, 36, 48, 82, 58, 76, 88];
+    if (answersData.length === 0) {
+      try {
+        const stored = localStorage.getItem(LOCAL_STORAGE_PARTICIPANTS_KEY);
+        if (stored) {
+          const list: Participant[] = JSON.parse(stored);
+          list.forEach(p => {
+            if (p.answers && p.answers.length > 0) {
+              p.answers.forEach(a => {
+                answersData.push({
+                  question_id: a.questionId,
+                  selected_option_id: a.selectedOptionId,
+                  is_correct: a.isCorrect,
+                  time_taken_ms: a.timeTakenMs,
+                });
+              });
+            }
+          });
+        }
+      } catch {}
+    }
 
     return questions.map((q, index) => {
       const qAnswers = answersData.filter(a => a.question_id === q.id);
-      let total = qAnswers.length;
-      let correct = qAnswers.filter(a => a.is_correct).length;
-
-      if (total === 0) {
-        const rate = defaultRates[index] || 60;
-        total = 43; // total de evaluaciones recibidas
-        correct = Math.round((total * rate) / 100);
-      }
-
+      const total = qAnswers.length;
+      const correct = qAnswers.filter(a => a.is_correct).length;
       const incorrect = total - correct;
       const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
-      
+      const totalTime = qAnswers.reduce((sum, a) => sum + (Number(a.time_taken_ms) || 0), 0);
+      const avgTimeSeconds = total > 0 ? Number((totalTime / total / 1000).toFixed(1)) : 0;
+
+      const optionStats: OptionStat[] = (q.options || []).map(opt => {
+        const chosenCount = qAnswers.filter(a => a.selected_option_id === opt.id).length;
+        const optPercentage = total > 0 ? Math.round((chosenCount / total) * 100) : 0;
+        return {
+          optionId: opt.id,
+          optionText: opt.text,
+          isCorrect: opt.isCorrect,
+          color: opt.color,
+          shape: opt.shape,
+          count: chosenCount,
+          percentage: optPercentage,
+        };
+      });
+
       let difficulty: 'hard' | 'medium' | 'easy' = 'medium';
       if (accuracy < 50) {
         difficulty = 'hard';
@@ -1022,7 +1186,9 @@ export const quizService = {
         correctAnswers: correct,
         incorrectAnswers: incorrect,
         accuracyPercentage: accuracy,
+        avgTimeSeconds,
         difficulty,
+        options: optionStats,
       };
     }).sort((a, b) => a.accuracyPercentage - b.accuracyPercentage);
   },
