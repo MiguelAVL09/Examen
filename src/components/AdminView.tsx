@@ -54,7 +54,8 @@ import {
   KeyRound,
   Sparkles,
   UserPlus,
-  RotateCcw
+  RotateCcw,
+  Filter
 } from 'lucide-react';
 import type { Participant, Quiz, Question, QuestionType, UserAccount } from '../types/quiz';
 import { quizService, generateUUID, DEFAULT_DEPARTMENTS, DEFAULT_EXPLANATIONS, type ExamSettings, type QuestionAnalytics, type DetailedParticipantAnswer } from '../services/quizService';
@@ -112,11 +113,14 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
   const [usersList, setUsersList] = useState<UserAccount[]>([]);
   const [userSearchQuery, setUserSearchQuery] = useState<string>('');
   const [userRoleFilter, setUserRoleFilter] = useState<'all' | 'admin' | 'user'>('all');
+  const [userQuizFilter, setUserQuizFilter] = useState<string>('all');
+  const [userQuizStatusFilter, setUserQuizStatusFilter] = useState<'all' | 'completed' | 'pending'>('all');
   const [editingUser, setEditingUser] = useState<UserAccount | null>(null);
   const [resettingUserPassword, setResettingUserPassword] = useState<{ id: string; name: string } | null>(null);
   const [newTempPassword, setNewTempPassword] = useState<string>('');
   const [userActionMessage, setUserActionMessage] = useState<string>('');
   const [showTemplatesModal, setShowTemplatesModal] = useState<boolean>(false);
+  const [quizKindFilter, setQuizKindFilter] = useState<'all' | 'exam' | 'simulator' | 'survey'>('all');
 
   const [isEditorOpen, setIsEditorOpen] = useState<boolean>(false);
   const [editingQuiz, setEditingQuiz] = useState<Quiz | null>(null);
@@ -939,6 +943,71 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
         </button>
       </div>
 
+      {/* BARRA DE FILTRO GLOBAL SINCRONIZADA POR CUESTIONARIO O ENCUESTA */}
+      <div className="bg-gradient-to-r from-black/70 via-kahoot-purple-dark/90 to-black/70 p-4 rounded-2xl border border-amber-400/30 shadow-xl backdrop-blur-md flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-amber-400/20 text-amber-300 border border-amber-400/30 flex items-center justify-center shrink-0">
+            <Filter className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-black uppercase tracking-wider text-amber-300">
+                Filtro Global por Cuestionario o Encuesta
+              </span>
+              {selectedQuizId !== 'all' ? (
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-400/20 text-amber-300 border border-amber-400/40">
+                  🎯 Vista Específica Activa
+                </span>
+              ) : (
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-500/20 text-blue-300 border border-blue-500/40">
+                  🌐 Mostrando Todos ({quizzes.length})
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-white/60 mt-0.5">
+              Sincroniza y filtra los datos mostrados en Rankings, Preguntas Más Difíciles, y Reglas de Acceso.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <div className="relative min-w-[270px] flex-1 sm:flex-none">
+            <select
+              value={selectedQuizId}
+              onChange={e => setSelectedQuizId(e.target.value)}
+              className="w-full px-3.5 py-2.5 pr-9 rounded-xl bg-slate-900 border border-amber-400/30 text-white font-bold text-xs sm:text-sm appearance-none focus:outline-none focus:border-amber-400 shadow-inner"
+            >
+              <option value="all">🌐 Todos los Cuestionarios ({quizzes.length})</option>
+              {quizzes.map(q => {
+                const prefix = q.isAnonymousSurvey
+                  ? '🛡️ [Encuesta] '
+                  : q.quizKind === 'simulator'
+                  ? '🎭 [Simulador] '
+                  : '⭐ [Examen] ';
+                return (
+                  <option key={q.id} value={q.id} className="bg-slate-900 text-white">
+                    {prefix}{q.title}
+                  </option>
+                );
+              })}
+            </select>
+            <ChevronDown className="w-4 h-4 text-amber-300 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          </div>
+
+          {selectedQuizId !== 'all' && (
+            <button
+              type="button"
+              onClick={() => setSelectedQuizId('all')}
+              className="px-3 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center gap-1.5 transition active:scale-95 border border-white/10"
+              title="Restablecer para ver todos los cuestionarios combinados"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-amber-300" />
+              <span>Ver Todo</span>
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* TAB 1: RANKINGS */}
       {activeTab === 'rankings' && (
         <div className="space-y-6">
@@ -1008,12 +1077,19 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
                     onChange={e => setSelectedQuizId(e.target.value)}
                     className="px-3.5 py-2.5 pr-9 rounded-xl bg-black/40 border border-white/20 text-white font-bold text-xs sm:text-sm appearance-none focus:outline-none focus:border-kahoot-yellow"
                   >
-                    <option value="all">Todos los Cuestionarios ({quizzes.length})</option>
-                    {quizzes.map(q => (
-                      <option key={q.id} value={q.id}>
-                        {q.title}
-                      </option>
-                    ))}
+                    <option value="all">🌐 Todos los Cuestionarios ({quizzes.length})</option>
+                    {quizzes.map(q => {
+                      const prefix = q.isAnonymousSurvey
+                        ? '🛡️ [Encuesta] '
+                        : q.quizKind === 'simulator'
+                        ? '🎭 [Simulador] '
+                        : '⭐ [Examen] ';
+                      return (
+                        <option key={q.id} value={q.id}>
+                          {prefix}{q.title}
+                        </option>
+                      );
+                    })}
                   </select>
                   <ChevronDown className="w-4 h-4 text-white/60 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 </div>
@@ -1187,6 +1263,27 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
               </div>
             )}
           </div>
+
+          {(() => {
+            const currentQ = quizzes.find(q => q.id === selectedQuizId);
+            if (!currentQ?.isAnonymousSurvey) return null;
+            return (
+              <div className="bg-gradient-to-r from-blue-950/40 via-indigo-950/30 to-blue-950/40 border border-blue-400/40 rounded-2xl p-4 flex items-start gap-3 text-blue-200 shadow-lg">
+                <Shield className="w-5 h-5 text-blue-300 shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="text-sm font-black text-white flex items-center gap-2">
+                    <span>🛡️ Encuesta de Clima Laboral 100% Confidencial y Anónima</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-500/30 text-blue-200 border border-blue-400/40">
+                      Voz del Colaborador
+                    </span>
+                  </h4>
+                  <p className="text-xs text-blue-200/80 mt-1">
+                    Los nombres, identificadores de dispositivo y métricas personales han sido desvinculados criptográficamente para garantizar la honestidad absoluta de los colaboradores de Cinépolis. Las participaciones registradas a continuación son 100% anónimas y no generan penalizaciones ni alertas de trampa.
+                  </p>
+                </div>
+              </div>
+            );
+          })()}
 
           <div className="bg-kahoot-purple-dark/80 rounded-3xl border border-white/10 shadow-2xl overflow-hidden backdrop-blur-md">
             {filteredRankings.length > 0 ? (
@@ -1767,6 +1864,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
 
       {/* TAB: PREGUNTAS MÁS DIFÍCILES & ANALÍTICAS */}
       {activeTab === 'analytics' && (() => {
+        const currentTargetQuiz = selectedQuizId === 'all'
+          ? (quizzes.find(q => q.id === 'f3f7aa07-4389-4769-a162-3fb8b989bfc0') || quizzes[0])
+          : (quizzes.find(q => q.id === selectedQuizId) || quizzes[0]);
+        const isSurvey = currentTargetQuiz?.isAnonymousSurvey === true;
         const totalAnswersEvaluated = questionAnalytics.reduce((sum, q) => sum + q.totalAnswers, 0);
         const totalCorrectEvaluated = questionAnalytics.reduce((sum, q) => sum + q.correctAnswers, 0);
         const totalIncorrectEvaluated = questionAnalytics.reduce((sum, q) => sum + q.incorrectAnswers, 0);
@@ -1783,20 +1884,45 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
                       <BarChart3 className="w-5 h-5" />
                     </span>
                     <h2 className="text-2xl font-black uppercase text-white tracking-tight">
-                      Preguntas Más Difíciles y Tasa de Error
+                      {isSurvey ? 'Resultados & Percepción de Encuesta' : 'Preguntas Más Difíciles y Tasa de Error'}
                     </h2>
                   </div>
                   <p className="text-xs text-white/70 mt-1">
-                    Promedio exacto de cuántas personas contestaron bien y cuántas mal por pregunta, tiempos de respuesta y opciones elegidas.
+                    {isSurvey
+                      ? `Analizando resultados de: "${currentTargetQuiz?.title}". Distribución de respuestas y opciones elegidas por el equipo.`
+                      : `Analizando evaluación: "${currentTargetQuiz?.title}". Promedio de aciertos, fallos, tiempos de respuesta y distractores.`}
                   </p>
                 </div>
 
                 <div className="flex items-center gap-3 flex-wrap">
+                  {/* Selector directo de Cuestionario / Encuesta */}
+                  <div className="relative min-w-[240px]">
+                    <select
+                      value={selectedQuizId === 'all' ? (currentTargetQuiz?.id || 'all') : selectedQuizId}
+                      onChange={e => setSelectedQuizId(e.target.value)}
+                      className="w-full px-3.5 py-2.5 pr-8 rounded-xl bg-black/50 border border-amber-400/40 text-amber-300 font-bold text-xs appearance-none focus:outline-none focus:border-amber-300 shadow-md cursor-pointer"
+                      title="Seleccionar cuestionario o encuesta a analizar"
+                    >
+                      {quizzes.map(q => {
+                        const prefix = q.isAnonymousSurvey
+                          ? '🛡️ [Encuesta] '
+                          : q.quizKind === 'simulator'
+                          ? '🎭 [Simulador] '
+                          : '⭐ [Examen] ';
+                        return (
+                          <option key={q.id} value={q.id} className="bg-slate-900 text-white">
+                            {prefix}{q.title}
+                          </option>
+                        );
+                      })}
+                    </select>
+                    <ChevronDown className="w-3.5 h-3.5 text-amber-300 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
+
                   <button
                     type="button"
                     onClick={() => {
-                      const selectedQuiz = quizzes.find(q => q.id === selectedQuizId) || quizzes[0];
-                      exportQuestionAnalyticsPDF(questionAnalytics, selectedQuiz?.title || 'Cinepolis Master');
+                      exportQuestionAnalyticsPDF(questionAnalytics, currentTargetQuiz?.title || 'Cinepolis Master');
                     }}
                     disabled={questionAnalytics.length === 0}
                     className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white rounded-xl text-xs font-black border border-white/10 transition shadow-lg active:scale-95 shrink-0"
@@ -1807,7 +1933,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
                   </button>
 
                   <span className="px-3 py-1 bg-white/10 text-amber-300 text-xs font-bold rounded-xl border border-white/10">
-                    Mayor índice de fallo primero ⚠️
+                    {isSurvey ? 'Resultados de Encuesta 📊' : 'Mayor índice de fallo primero ⚠️'}
                   </span>
                 </div>
               </div>
@@ -2126,11 +2252,16 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
                 className="w-full px-4 py-3 pr-9 rounded-xl bg-slate-900 border border-white/20 text-white font-bold text-xs sm:text-sm appearance-none focus:outline-none focus:border-amber-400"
               >
                 {quizzes.map(q => {
+                  const prefix = q.isAnonymousSurvey
+                    ? '🛡️ [Encuesta] '
+                    : q.quizKind === 'simulator'
+                    ? '🎭 [Simulador] '
+                    : '⭐ [Examen] ';
                   const maxAtt = q.maxAttemptsPerUser !== undefined ? q.maxAttemptsPerUser : (q.preventRetries ? 1 : 0);
                   const attTag = maxAtt === 1 ? '1 intento único' : maxAtt > 1 ? `${maxAtt} intentos` : 'ilimitado';
                   return (
                     <option key={q.id} value={q.id} className="bg-slate-900 text-white">
-                      {q.title} — [{attTag}]
+                      {prefix}{q.title} — [{attTag}]
                     </option>
                   );
                 })}
@@ -2590,9 +2721,84 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
             </motion.div>
           )}
 
+          {/* Barra de Filtro de Cuestionarios por Tipo */}
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-black/40 p-3.5 rounded-2xl border border-white/10 shadow-lg">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-bold text-white/50 mr-1 flex items-center gap-1.5">
+                <Filter className="w-3.5 h-3.5 text-amber-300" />
+                <span>Tipo:</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setQuizKindFilter('all')}
+                className={`px-3 py-1.5 rounded-xl font-bold text-xs transition ${
+                  quizKindFilter === 'all'
+                    ? 'bg-amber-400 text-black shadow-md shadow-amber-400/20'
+                    : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'
+                }`}
+              >
+                Todos ({quizzes.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setQuizKindFilter('exam')}
+                className={`px-3 py-1.5 rounded-xl font-bold text-xs transition flex items-center gap-1.5 ${
+                  quizKindFilter === 'exam'
+                    ? 'bg-amber-400 text-black shadow-md shadow-amber-400/20'
+                    : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'
+                }`}
+              >
+                <span>⭐ Exámenes</span>
+                <span className="opacity-70 text-[10px]">({quizzes.filter(q => !q.isAnonymousSurvey && q.quizKind !== 'simulator').length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setQuizKindFilter('simulator')}
+                className={`px-3 py-1.5 rounded-xl font-bold text-xs transition flex items-center gap-1.5 ${
+                  quizKindFilter === 'simulator'
+                    ? 'bg-purple-500 text-white shadow-md shadow-purple-500/20'
+                    : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'
+                }`}
+              >
+                <span>🎭 Simuladores</span>
+                <span className="opacity-70 text-[10px]">({quizzes.filter(q => q.quizKind === 'simulator').length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setQuizKindFilter('survey')}
+                className={`px-3 py-1.5 rounded-xl font-bold text-xs transition flex items-center gap-1.5 ${
+                  quizKindFilter === 'survey'
+                    ? 'bg-blue-500 text-white shadow-md shadow-blue-500/20'
+                    : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'
+                }`}
+              >
+                <span>🛡️ Encuestas</span>
+                <span className="opacity-70 text-[10px]">({quizzes.filter(q => q.isAnonymousSurvey).length})</span>
+              </button>
+            </div>
+
+            <div className="text-xs text-white/50">
+              Mostrando {
+                quizzes.filter(q => {
+                  if (quizKindFilter === 'survey') return q.isAnonymousSurvey === true;
+                  if (quizKindFilter === 'simulator') return q.quizKind === 'simulator';
+                  if (quizKindFilter === 'exam') return !q.isAnonymousSurvey && q.quizKind !== 'simulator';
+                  return true;
+                }).length
+              } de {quizzes.length} cuestionarios
+            </div>
+          </div>
+
           {/* Quizzes Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {quizzes.map(quiz => (
+            {quizzes
+              .filter(q => {
+                if (quizKindFilter === 'survey') return q.isAnonymousSurvey === true;
+                if (quizKindFilter === 'simulator') return q.quizKind === 'simulator';
+                if (quizKindFilter === 'exam') return !q.isAnonymousSurvey && q.quizKind !== 'simulator';
+                return true;
+              })
+              .map(quiz => (
               <div
                 key={quiz.id}
                 className="bg-kahoot-purple-dark/80 rounded-3xl border border-white/10 overflow-hidden shadow-xl flex flex-col justify-between group hover:border-kahoot-yellow/50 transition-all duration-300"
@@ -2730,7 +2936,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
           </div>
 
           {/* Filtros de Búsqueda de Usuarios */}
-          <div className="bg-kahoot-purple-dark/80 p-4 rounded-2xl border border-white/10 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="bg-kahoot-purple-dark/80 p-4 rounded-2xl border border-white/10 shadow-lg flex flex-col lg:flex-row items-center justify-between gap-3">
             <div className="relative flex-1 w-full">
               <Search className="w-4 h-4 text-white/40 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
@@ -2742,22 +2948,67 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
               />
             </div>
 
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <select
-                value={userRoleFilter}
-                onChange={e => setUserRoleFilter(e.target.value as any)}
-                className="px-3.5 py-2.5 rounded-xl bg-black/40 border border-white/20 text-white font-bold text-xs sm:text-sm appearance-none focus:outline-none focus:border-amber-400"
-              >
-                <option value="all">Todos los Roles</option>
-                <option value="admin">Solo Administradores</option>
-                <option value="user">Solo Colaboradores</option>
-              </select>
+            <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+              {/* Filtro por Cuestionario / Encuesta */}
+              <div className="relative">
+                <select
+                  value={userQuizFilter}
+                  onChange={e => setUserQuizFilter(e.target.value)}
+                  className="px-3 py-2.5 pr-8 rounded-xl bg-black/40 border border-white/20 text-white font-bold text-xs appearance-none focus:outline-none focus:border-amber-400"
+                  title="Filtrar por evaluación o encuesta para ver quién ha contestado"
+                >
+                  <option value="all">🌐 Todos los Cuestionarios ({quizzes.length})</option>
+                  {quizzes.map(q => {
+                    const prefix = q.isAnonymousSurvey
+                      ? '🛡️ [Encuesta] '
+                      : q.quizKind === 'simulator'
+                      ? '🎭 [Simulador] '
+                      : '⭐ [Examen] ';
+                    return (
+                      <option key={q.id} value={q.id} className="bg-slate-900 text-white">
+                        {prefix}{q.title}
+                      </option>
+                    );
+                  })}
+                </select>
+                <ChevronDown className="w-3.5 h-3.5 text-white/60 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+
+              {/* Filtro por Estado de Evaluación */}
+              <div className="relative">
+                <select
+                  value={userQuizStatusFilter}
+                  onChange={e => setUserQuizStatusFilter(e.target.value as any)}
+                  className="px-3 py-2.5 pr-8 rounded-xl bg-black/40 border border-white/20 text-white font-bold text-xs appearance-none focus:outline-none focus:border-amber-400"
+                  title="Filtrar colaboradores que ya completaron o que aún tienen pendiente responder"
+                >
+                  <option value="all">Todos los Estados</option>
+                  <option value="completed">✓ Ya completaron</option>
+                  <option value="pending">⏳ Pendientes de contestar</option>
+                </select>
+                <ChevronDown className="w-3.5 h-3.5 text-white/60 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+
+              {/* Filtro por Rol */}
+              <div className="relative">
+                <select
+                  value={userRoleFilter}
+                  onChange={e => setUserRoleFilter(e.target.value as any)}
+                  className="px-3.5 py-2.5 pr-8 rounded-xl bg-black/40 border border-white/20 text-white font-bold text-xs appearance-none focus:outline-none focus:border-amber-400"
+                >
+                  <option value="all">Todos los Roles</option>
+                  <option value="admin">Solo Administradores</option>
+                  <option value="user">Solo Colaboradores</option>
+                </select>
+                <ChevronDown className="w-3.5 h-3.5 text-white/60 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
 
               <button
                 type="button"
                 onClick={async () => {
                   const u = await authService.getUsers();
                   setUsersList(u);
+                  await loadData();
                 }}
                 className="p-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl border border-white/10 transition active:scale-95"
                 title="Actualizar lista de usuarios"
@@ -2773,6 +3024,19 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
               const q = userSearchQuery.trim().toLowerCase();
               const filtered = usersList.filter(u => {
                 if (userRoleFilter !== 'all' && u.role !== userRoleFilter) return false;
+
+                const uNickNorm = normalizePlayerName(u.nickname || '');
+                const uNameNorm = normalizePlayerName(u.name || u.fullName || '');
+                const userAttempts = rankings.filter(r => {
+                  if (userQuizFilter !== 'all' && r.quizId !== userQuizFilter) return false;
+                  const rNorm = normalizePlayerName(r.nickname || '');
+                  return rNorm === uNickNorm || rNorm === uNameNorm;
+                });
+                const hasCompleted = userAttempts.length > 0;
+
+                if (userQuizStatusFilter === 'completed' && !hasCompleted) return false;
+                if (userQuizStatusFilter === 'pending' && hasCompleted) return false;
+
                 if (!q) return true;
                 const displayName = (u.name || u.fullName || '').toLowerCase();
                 return (
@@ -2793,7 +3057,21 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
                 );
               }
 
-              return filtered.map(u => (
+              return filtered.map(u => {
+                const uNickNorm = normalizePlayerName(u.nickname || '');
+                const uNameNorm = normalizePlayerName(u.name || u.fullName || '');
+                const userAttempts = rankings.filter(r => {
+                  if (userQuizFilter !== 'all' && r.quizId !== userQuizFilter) return false;
+                  const rNorm = normalizePlayerName(r.nickname || '');
+                  return rNorm === uNickNorm || rNorm === uNameNorm;
+                });
+                const hasCompleted = userAttempts.length > 0;
+                const bestScore = hasCompleted ? Math.max(...userAttempts.map(a => a.totalScore)) : 0;
+                const bestAccuracy = hasCompleted
+                  ? userAttempts.reduce((max, a) => (a.accuracyPercentage > max ? a.accuracyPercentage : max), 0)
+                  : 0;
+
+                return (
                 <div
                   key={u.id}
                   className="bg-kahoot-purple-dark/80 p-4 sm:p-5 rounded-2xl border border-white/10 shadow-lg flex flex-col lg:flex-row lg:items-center justify-between gap-4 hover:border-white/20 transition"
@@ -2822,6 +3100,18 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
                         ) : (
                           <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500/20 text-red-300 border border-red-500/30">
                             Suspendido
+                          </span>
+                        )}
+
+                        {hasCompleted ? (
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                            <Check className="w-3 h-3 text-emerald-400" />
+                            {userAttempts.length} evaluación{userAttempts.length > 1 ? `es (${userAttempts.length} intentos)` : ' completada'} • {bestScore.toLocaleString()} pts ({bestAccuracy}%)
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-400/10 text-amber-300/80 border border-amber-400/20 flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-amber-300" />
+                            {userQuizFilter !== 'all' ? 'Pendiente en este cuestionario' : 'Sin evaluaciones registradas'}
                           </span>
                         )}
                       </div>
@@ -2899,8 +3189,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
                     )}
                   </div>
                 </div>
-              ));
-            })()}
+              );
+            });
+          })()}
           </div>
         </div>
       )}
