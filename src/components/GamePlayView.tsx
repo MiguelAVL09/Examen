@@ -21,6 +21,7 @@ import {
   Lightbulb,
   RotateCcw,
   BookOpen,
+  Film,
 } from 'lucide-react';
 
 interface GamePlayViewProps {
@@ -67,6 +68,7 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
   const [correctCount, setCorrectCount] = useState<number>(0);
   const [lastPointsAwarded, setLastPointsAwarded] = useState<number>(0);
   const [lastAnswerCorrect, setLastAnswerCorrect] = useState<boolean>(false);
+  const [currentScenarioFeedback, setCurrentScenarioFeedback] = useState<string | null>(null);
   const [participantAnswers, setParticipantAnswers] = useState<ParticipantAnswer[]>([]);
 
   // State for multiple_choice & true_false
@@ -140,6 +142,15 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
     const totalTimeMs = (currentQuestion.timeLimit || 20) * 1000;
     let pointsAwarded = 0;
 
+    let scenarioFeedbackText: string | undefined = undefined;
+    if (details.optionId && currentQuestion.options) {
+      const chosen = currentQuestion.options.find(o => o.id === details.optionId);
+      scenarioFeedbackText = chosen?.scenarioFeedback;
+      setCurrentScenarioFeedback(chosen?.scenarioFeedback || null);
+    } else {
+      setCurrentScenarioFeedback(null);
+    }
+
     if (isCorrect) {
       // Kahoot score formula based on speed
       const timeFactor = Math.max(0, 1 - (timeTakenMs / totalTimeMs) / 2);
@@ -183,12 +194,13 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
       isCorrect,
       timeTakenMs,
       pointsAwarded,
+      scenarioFeedback: scenarioFeedbackText,
     };
     setParticipantAnswers(prev => [...prev, answerRecord]);
     setShowFeedback(true);
   }, [isQuestionActive, currentQuestion, streak, maxStreak]);
 
-  // Handler for Multiple Choice & True/False
+  // Handler for Multiple Choice, True/False, Scenario & Survey Rating
   const handleSelectOption = useCallback((optionId: string | null) => {
     if (!isQuestionActive) return;
     setSelectedOptionId(optionId);
@@ -196,7 +208,11 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
     let isCorrect = false;
     if (optionId !== null) {
       const chosen = currentQuestion.options.find(o => o.id === optionId);
-      isCorrect = !!chosen?.isCorrect;
+      if (currentQuestion.questionType === 'survey_rating') {
+        isCorrect = true; // En encuestas anónimas toda respuesta es válida
+      } else {
+        isCorrect = !!chosen?.isCorrect;
+      }
     }
     evaluateAnswer(isCorrect, { optionId });
   }, [isQuestionActive, currentQuestion, evaluateAnswer]);
@@ -296,12 +312,17 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
     const OFFICIAL_QUIZ_UUID = 'f3f7aa07-4389-4769-a162-3fb8b989bfc0';
     const targetQuizId = (quiz?.id && UUID_REGEX.test(quiz.id)) ? quiz.id : OFFICIAL_QUIZ_UUID;
 
+    const isAnonymous = quiz.isAnonymousSurvey === true;
+    const finalNickname = isAnonymous
+      ? `Colaborador Anónimo #${Math.floor(1000 + Math.random() * 9000)}`
+      : (nickname && nickname.trim() ? nickname.trim() : 'Participante');
+
     const participantData: Participant = {
       id: generateUUID(),
       quizId: targetQuizId,
-      nickname: nickname && nickname.trim() ? nickname.trim() : 'Participante',
-      avatar,
-      totalScore,
+      nickname: finalNickname,
+      avatar: isAnonymous ? '🛡️' : avatar,
+      totalScore: isAnonymous ? 0 : totalScore,
       streak,
       maxStreak,
       correctAnswersCount: correctCount,
@@ -309,11 +330,11 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
       accuracyPercentage: accuracy,
       completedAt: new Date().toISOString(),
       answers: participantAnswers,
-      branch: branch || undefined,
       department: department || undefined,
-      tabSwitches,
-      timeAwayMs,
-      deviceId: getDeviceFingerprint(),
+      tabSwitches: isAnonymous ? 0 : tabSwitches,
+      timeAwayMs: isAnonymous ? 0 : timeAwayMs,
+      deviceId: isAnonymous ? undefined : getDeviceFingerprint(),
+      isAnonymous,
     };
     setCompletedParticipant(participantData);
 
@@ -375,6 +396,8 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
             {currentQuestion.questionType === 'type_answer' && '⌨️ Escribir Respuesta'}
             {currentQuestion.questionType === 'true_false' && '⚖️ Verdadero / Falso'}
             {currentQuestion.questionType === 'multiple_choice' && '🔘 Opción Múltiple'}
+            {currentQuestion.questionType === 'scenario' && '🎭 Simulador de Casos'}
+            {currentQuestion.questionType === 'survey_rating' && '⭐ Encuesta de Satisfacción'}
           </span>
         </div>
 
@@ -491,6 +514,63 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
             </div>
           )}
 
+          {/* 2b. Simulador de Casos y Toma de Decisiones */}
+          {currentQuestion.questionType === 'scenario' && (
+            <div className="space-y-3 pb-2">
+              {currentQuestion.scenarioContext && (
+                <div className="bg-amber-500/15 border border-amber-400/30 rounded-2xl p-3.5 text-left flex items-start gap-3">
+                  <span className="p-2 bg-amber-400 text-black rounded-xl text-lg font-black shrink-0">🎭</span>
+                  <div>
+                    <span className="text-[11px] uppercase font-black tracking-wider text-amber-300 block">
+                      Contexto Operativo del Incidente
+                    </span>
+                    <p className="text-xs sm:text-sm text-white font-medium leading-relaxed mt-0.5">
+                      {currentQuestion.scenarioContext}
+                    </p>
+                  </div>
+                </div>
+              )}
+              <div className="grid grid-cols-1 gap-2.5 sm:gap-3">
+                {currentQuestion.options.map((opt, idx) => (
+                  <KahootOptionButton
+                    key={opt.id}
+                    option={opt}
+                    index={idx}
+                    isSelected={selectedOptionId === opt.id}
+                    isDisabled={!isQuestionActive}
+                    revealResult={showFeedback}
+                    onSelect={handleSelectOption}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 2c. Encuesta de Clima Laboral / Satisfacción (Rating) */}
+          {currentQuestion.questionType === 'survey_rating' && (
+            <div className="space-y-3 pb-2">
+              <div className="bg-blue-500/15 border border-blue-400/30 rounded-2xl p-3 text-left flex items-center gap-2.5">
+                <span className="p-1.5 bg-blue-500/30 text-blue-200 rounded-xl text-base">🛡️</span>
+                <span className="text-xs text-blue-200 font-bold">
+                  Respuesta anónima y confidencial. Selecciona la opción que mejor represente tu experiencia.
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-4">
+                {currentQuestion.options.map((opt, idx) => (
+                  <KahootOptionButton
+                    key={opt.id}
+                    option={opt}
+                    index={idx}
+                    isSelected={selectedOptionId === opt.id}
+                    isDisabled={!isQuestionActive}
+                    revealResult={showFeedback}
+                    onSelect={handleSelectOption}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* 3. Puzzle / Ordering Sequence */}
           {currentQuestion.questionType === 'puzzle' && (
             <div className="space-y-6">
@@ -600,6 +680,63 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
             </div>
           )}
 
+          {/* 2b. Simulador de Casos y Toma de Decisiones */}
+          {currentQuestion.questionType === 'scenario' && (
+            <div className="space-y-3 pb-2">
+              {currentQuestion.scenarioContext && (
+                <div className="bg-amber-500/15 border border-amber-400/30 rounded-2xl p-3.5 text-left flex items-start gap-3">
+                  <span className="p-2 bg-amber-400 text-black rounded-xl text-lg font-black shrink-0">🎭</span>
+                  <div>
+                    <span className="text-[11px] uppercase font-black tracking-wider text-amber-300 block">
+                      Contexto Operativo del Incidente
+                    </span>
+                    <p className="text-xs sm:text-sm text-white font-medium leading-relaxed mt-0.5">
+                      {currentQuestion.scenarioContext}
+                    </p>
+                  </div>
+                </div>
+              )}
+              <div className="grid grid-cols-1 gap-2.5 sm:gap-3">
+                {currentQuestion.options.map((opt, idx) => (
+                  <KahootOptionButton
+                    key={opt.id}
+                    option={opt}
+                    index={idx}
+                    isSelected={selectedOptionId === opt.id}
+                    isDisabled={!isQuestionActive}
+                    revealResult={showFeedback}
+                    onSelect={handleSelectOption}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 2c. Encuesta de Clima Laboral / Satisfacción (Rating) */}
+          {currentQuestion.questionType === 'survey_rating' && (
+            <div className="space-y-3 pb-2">
+              <div className="bg-blue-500/15 border border-blue-400/30 rounded-2xl p-3 text-left flex items-center gap-2.5">
+                <span className="p-1.5 bg-blue-500/30 text-blue-200 rounded-xl text-base">🛡️</span>
+                <span className="text-xs text-blue-200 font-bold">
+                  Respuesta anónima y confidencial. Selecciona la opción que mejor represente tu experiencia.
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-4">
+                {currentQuestion.options.map((opt, idx) => (
+                  <KahootOptionButton
+                    key={opt.id}
+                    option={opt}
+                    index={idx}
+                    isSelected={selectedOptionId === opt.id}
+                    isDisabled={!isQuestionActive}
+                    revealResult={showFeedback}
+                    onSelect={handleSelectOption}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* 4. Type Answer Open Text Input */}
           {currentQuestion.questionType === 'type_answer' && (
             <motion.div
@@ -697,7 +834,7 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
                         </div>
                       )}
 
-                      {['multiple_choice', 'true_false'].includes(currentQuestion.questionType) && (
+                      {['multiple_choice', 'true_false', 'scenario'].includes(currentQuestion.questionType) && (
                         <div className="bg-black/30 p-2.5 sm:p-3 rounded-xl border border-white/20 text-xs font-semibold">
                           Respuesta correcta:{' '}
                           <span className="text-amber-300 font-black">
@@ -705,6 +842,19 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
                           </span>
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {/* Consecuencia del Simulador de Casos */}
+                  {currentScenarioFeedback && (
+                    <div className="mb-4 p-3.5 sm:p-4 rounded-2xl bg-black/40 border border-amber-400/40 text-left space-y-1">
+                      <div className="flex items-center gap-1.5 text-[10px] sm:text-xs font-black uppercase tracking-wider text-amber-300">
+                        <Film className="w-3.5 h-3.5 shrink-0" />
+                        <span>Consecuencia Inmediata de tu Decisión</span>
+                      </div>
+                      <p className="text-xs sm:text-sm text-white font-medium leading-relaxed">
+                        {currentScenarioFeedback}
+                      </p>
                     </div>
                   )}
 

@@ -70,9 +70,10 @@ import { ShareQuizModal } from './ShareQuizModal';
 
 interface AdminViewProps {
   onBackToHome: () => void;
+  onOpenKiosk?: () => void;
 }
 
-export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
+export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk }) => {
   // Authentication State: Si el usuario ya inició sesión con rol admin, se autentica directamente
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     return authService.isAdmin() || sessionStorage.getItem('kahoot_admin_auth') === 'true';
@@ -86,10 +87,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
   const [rankings, setRankings] = useState<Participant[]>([]);
   const [selectedQuizId, setSelectedQuizId] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>('all');
   const [selectedDeptFilter, setSelectedDeptFilter] = useState<string>('all');
   const [privacyMode, setPrivacyMode] = useState<'normal' | 'surname' | 'avatar'>('normal');
-  const [showBranchBreakdown, setShowBranchBreakdown] = useState<boolean>(false);
+  const [showDeptBreakdown, setShowDeptBreakdown] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [syncStatus, setSyncStatus] = useState<string>('');
   const [jsonBackupStatus, setJsonBackupStatus] = useState<string>('');
@@ -103,11 +103,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
     preventRetries: false,
     closeMessage: 'Esta evaluación se encuentra cerrada por el administrador.',
     shuffleQuestions: true,
-    branches: [],
     departments: DEFAULT_DEPARTMENTS,
     maxAttemptsPerUser: 1,
   });
-  const [branchesInput, setBranchesInput] = useState<string>('');
 
   // Estados para Gestión de Usuarios & Accesos Cinépolis
   const [usersList, setUsersList] = useState<UserAccount[]>([]);
@@ -204,18 +202,15 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
         const analytics = await quizService.getQuestionAnalytics(targetQuiz);
         setQuestionAnalytics(analytics);
         const settings = quizService.getExamSettings(targetQuiz.id);
-        const loadedBranches = targetQuiz.branches || settings.branches || [];
         setExamSettings({
           isExamOpen: targetQuiz.isExamOpen ?? settings.isExamOpen ?? true,
           closeDate: targetQuiz.closeDate || settings.closeDate,
           preventRetries: targetQuiz.preventRetries ?? settings.preventRetries ?? false,
           closeMessage: targetQuiz.closeMessage || settings.closeMessage,
           shuffleQuestions: targetQuiz.shuffleQuestions ?? settings.shuffleQuestions ?? true,
-          branches: loadedBranches,
           departments: targetQuiz.departments || settings.departments || DEFAULT_DEPARTMENTS,
           maxAttemptsPerUser: targetQuiz.maxAttemptsPerUser ?? settings.maxAttemptsPerUser ?? 1,
         });
-        setBranchesInput(loadedBranches.join(', '));
       }
 
       // Cargar lista de usuarios registrados
@@ -331,7 +326,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
     exportDiplomaPDF(participant, rank, quizTitle);
   };
 
-  // Exportar a Excel (.xlsx) con pestañas de Ranking, Sucursales/Áreas y Preguntas
+  // Exportar a Excel (.xlsx) con pestañas de Ranking, Áreas y Preguntas
   const handleExportExcel = async () => {
     if (filteredRankings.length === 0) return;
     const currentQuiz = quizzes.find(item => item.id === selectedQuizId);
@@ -345,20 +340,14 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
     });
   };
 
-  // Guardar configuración y candados de examen (abrir/cerrar, fecha límite, reintentos, orden aleatorio y sucursales)
+  // Guardar configuración y candados de examen (abrir/cerrar, fecha límite, reintentos y orden aleatorio)
   const handleSaveExamSettings = async () => {
     const targetQuizId = selectedQuizId === 'all'
       ? (quizzes.find(q => q.id === 'f3f7aa07-4389-4769-a162-3fb8b989bfc0')?.id || quizzes[0]?.id || 'f3f7aa07-4389-4769-a162-3fb8b989bfc0')
       : selectedQuizId;
 
-    const parsedBranches = branchesInput
-      .split(',')
-      .map(s => s.trim())
-      .filter(Boolean);
-
     const updatedSettings: ExamSettings = {
       ...examSettings,
-      branches: parsedBranches,
     };
 
     setIsLoading(true);
@@ -384,7 +373,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
       fullName: editingUser.name,
       email: editingUser.email,
       employeeNumber: editingUser.employeeNumber,
-      branch: editingUser.branch,
       department: editingUser.department,
       role: editingUser.role,
     });
@@ -656,15 +644,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
     });
   }, [rankings, isFirstAttemptOnly]);
 
-  // Sucursales y Áreas disponibles en los registros actuales
-  const availableBranches = useMemo(() => {
-    const set = new Set<string>();
-    displayRankings.forEach(p => {
-      if (p.branch && p.branch.trim()) set.add(p.branch.trim());
-    });
-    return Array.from(set).sort();
-  }, [displayRankings]);
-
+  // Áreas del cine disponibles en los registros actuales
   const availableDepartments = useMemo(() => {
     const set = new Set<string>(DEFAULT_DEPARTMENTS);
     displayRankings.forEach(p => {
@@ -673,22 +653,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
     return Array.from(set);
   }, [displayRankings]);
 
-  // Promedios por Sucursal y por Área / Departamento
-  const { branchSummaries, deptSummaries } = useMemo(() => {
-    const bMap = new Map<string, { count: number; scoreSum: number; accSum: number }>();
+  // Promedios por Área / Departamento en el Cine
+  const deptSummaries = useMemo(() => {
     const dMap = new Map<string, { count: number; scoreSum: number; accSum: number }>();
 
     displayRankings.forEach(p => {
-      const bKey = (p.branch || '').trim();
-      if (bKey) {
-        const cur = bMap.get(bKey) || { count: 0, scoreSum: 0, accSum: 0 };
-        cur.count += 1;
-        cur.scoreSum += p.totalScore || 0;
-        cur.accSum += p.accuracyPercentage || 0;
-        bMap.set(bKey, cur);
-      }
-
-      const dKey = (p.department || '').trim();
+      const dKey = (p.department || 'General').trim();
       if (dKey) {
         const cur = dMap.get(dKey) || { count: 0, scoreSum: 0, accSum: 0 };
         cur.count += 1;
@@ -698,7 +668,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
       }
     });
 
-    const branchList = Array.from(bMap.entries())
+    return Array.from(dMap.entries())
       .map(([name, s]) => ({
         name,
         count: s.count,
@@ -706,29 +676,15 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
         avgAccuracy: Math.round(s.accSum / s.count),
       }))
       .sort((a, b) => b.avgScore - a.avgScore);
-
-    const deptList = Array.from(dMap.entries())
-      .map(([name, s]) => ({
-        name,
-        count: s.count,
-        avgScore: Math.round(s.scoreSum / s.count),
-        avgAccuracy: Math.round(s.accSum / s.count),
-      }))
-      .sort((a, b) => b.avgScore - a.avgScore);
-
-    return { branchSummaries: branchList, deptSummaries: deptList };
   }, [displayRankings]);
 
   const filteredRankings = displayRankings.filter(p => {
     const matchesSearch =
       p.nickname.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (p.branch || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
       (p.department || '').toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesBranch =
-      selectedBranchFilter === 'all' || (p.branch || '').trim() === selectedBranchFilter;
     const matchesDept =
       selectedDeptFilter === 'all' || (p.department || '').trim() === selectedDeptFilter;
-    return matchesSearch && matchesBranch && matchesDept;
+    return matchesSearch && matchesDept;
   });
 
   // Estado para el modal de inspección de historial de intentos de un participante
@@ -860,6 +816,16 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
         </div>
 
         <div className="flex items-center gap-3">
+          {onOpenKiosk && (
+            <button
+              onClick={onOpenKiosk}
+              className="px-4 py-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-black rounded-xl text-xs sm:text-sm transition shadow-lg flex items-center gap-2 active:scale-95 border border-cyan-400/30"
+              title="Abrir terminal para Sala de Empleados / Pantalla de Descanso"
+            >
+              <Smartphone className="w-4 h-4 text-cyan-200" />
+              <span>Modo Kiosco</span>
+            </button>
+          )}
           <button
             onClick={loadData}
             title="Refrescar datos"
@@ -1030,23 +996,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                   <ChevronDown className="w-4 h-4 text-white/60 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 </div>
 
-                {/* Filtro por Sucursal / Conjunto */}
-                <div className="relative">
-                  <select
-                    value={selectedBranchFilter}
-                    onChange={e => setSelectedBranchFilter(e.target.value)}
-                    className="px-3.5 py-2.5 pr-8 rounded-xl bg-black/40 border border-white/20 text-white font-bold text-xs sm:text-sm appearance-none focus:outline-none focus:border-kahoot-yellow"
-                  >
-                    <option value="all">🏢 Todas las Sucursales ({availableBranches.length})</option>
-                    {availableBranches.map(b => (
-                      <option key={b} value={b}>
-                        {b}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="w-3.5 h-3.5 text-white/60 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                </div>
-
                 {/* Filtro por Área / Departamento */}
                 <div className="relative">
                   <select
@@ -1064,11 +1013,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                   <ChevronDown className="w-3.5 h-3.5 text-white/60 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 </div>
 
-                <div className="relative flex-1 sm:w-52">
+                <div className="relative flex-1 sm:w-56">
                   <Search className="w-4 h-4 text-white/40 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
-                    placeholder="Buscar nombre, cine o área..."
+                    placeholder="Buscar colaborador o área..."
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
                     className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-black/40 border border-white/20 text-white placeholder-white/40 text-xs sm:text-sm font-semibold focus:outline-none focus:border-kahoot-yellow"
@@ -1117,19 +1066,19 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                   </span>
                 </button>
 
-                {/* Botón Ver Ranking por Sucursal / Área */}
+                {/* Botón Ver Ranking por Área del Cine */}
                 <button
                   type="button"
-                  onClick={() => setShowBranchBreakdown(prev => !prev)}
+                  onClick={() => setShowDeptBreakdown(prev => !prev)}
                   className={`flex items-center gap-1.5 px-3 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition border ${
-                    showBranchBreakdown
+                    showDeptBreakdown
                       ? 'bg-amber-400/20 text-amber-300 border-amber-400/40'
                       : 'bg-white/5 text-white/70 border-white/10 hover:bg-white/10'
                   }`}
-                  title="Ver promedios comparativos por Sucursal y por Área de Cinépolis"
+                  title="Ver promedios comparativos por Área de Cinépolis"
                 >
-                  <Building2 className="w-4 h-4 text-amber-300" />
-                  <span>Por Cine / Área</span>
+                  <Briefcase className="w-4 h-4 text-amber-300" />
+                  <span>Por Área</span>
                 </button>
 
                 <button
@@ -1156,7 +1105,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                   onClick={handleExportExcel}
                   disabled={filteredRankings.length === 0}
                   className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 disabled:opacity-40 text-white rounded-xl text-xs font-black border border-emerald-400/30 transition shadow-lg active:scale-95"
-                  title="Exportar base de datos completa en Excel (.xlsx) con pestañas de Participantes, Sucursales y Preguntas"
+                  title="Exportar base de datos completa en Excel (.xlsx) con pestañas de Participantes y Preguntas"
                 >
                   <FileSpreadsheet className="w-4 h-4" />
                   <span>Excel (.xlsx)</span>
@@ -1183,46 +1132,18 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
               </div>
             </div>
 
-            {/* Desglose Comparativo por Sucursal y por Área */}
-            {showBranchBreakdown && (
-              <div className="pt-3 border-t border-white/10 grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Desglose Comparativo por Área */}
+            {showDeptBreakdown && (
+              <div className="pt-3 border-t border-white/10">
                 <div className="bg-black/30 rounded-2xl p-4 border border-white/10">
                   <h4 className="text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5 mb-2.5">
-                    <Building2 className="w-4 h-4" />
-                    <span>Promedio por Sucursal / Conjunto ({branchSummaries.length})</span>
-                  </h4>
-                  {branchSummaries.length > 0 ? (
-                    <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
-                      {branchSummaries.map((b, i) => (
-                        <div key={b.name} className="flex items-center justify-between text-xs bg-white/5 px-3 py-2 rounded-xl border border-white/5">
-                          <span className="font-bold text-white truncate">
-                            {i + 1}. {b.name} <span className="text-white/40 font-normal">({b.count} colab.)</span>
-                          </span>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <span className="text-kahoot-yellow font-black">{b.avgScore.toLocaleString()} pts</span>
-                            <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-black text-[10px]">
-                              {b.avgAccuracy}%
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-white/40 py-3">
-                      Los nuevos intentos que incluyan sucursal aparecerán comparados aquí.
-                    </p>
-                  )}
-                </div>
-
-                <div className="bg-black/30 rounded-2xl p-4 border border-white/10">
-                  <h4 className="text-xs font-black uppercase tracking-wider text-blue-300 flex items-center gap-1.5 mb-2.5">
                     <Briefcase className="w-4 h-4" />
-                    <span>Promedio por Área / Departamento ({deptSummaries.length})</span>
+                    <span>Promedio por Área / Departamento en el Cine ({deptSummaries.length})</span>
                   </h4>
                   {deptSummaries.length > 0 ? (
-                    <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-56 overflow-y-auto pr-1">
                       {deptSummaries.map((d, i) => (
-                        <div key={d.name} className="flex items-center justify-between text-xs bg-white/5 px-3 py-2 rounded-xl border border-white/5">
+                        <div key={d.name} className="flex items-center justify-between text-xs bg-white/5 px-3.5 py-2.5 rounded-xl border border-white/5 hover:border-amber-400/30 transition">
                           <span className="font-bold text-white truncate">
                             {i + 1}. {d.name} <span className="text-white/40 font-normal">({d.count} colab.)</span>
                           </span>
@@ -1237,7 +1158,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                     </div>
                   ) : (
                     <p className="text-xs text-white/40 py-3">
-                      Los nuevos intentos que incluyan departamento (Taquilla, Dulcería, Spyral, etc.) aparecerán aquí.
+                      Aún no hay colaboradores con área asignada para comparar.
                     </p>
                   )}
                 </div>
@@ -1303,11 +1224,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                                   <span className="text-[11px] text-white/40">
                                     {totalAttempts > 1 ? `${totalAttempts} intentos` : '1 intento'}
                                   </span>
-                                  {p.branch && (
-                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30 font-bold">
-                                      🏢 {p.branch}
-                                    </span>
-                                  )}
                                   {p.department && (
                                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">
                                       🍿 {p.department}
@@ -1433,11 +1349,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                     {inspectingPlayerName}
                   </h3>
                   <div className="flex flex-wrap items-center gap-2 mt-1">
-                    {inspectingAttempts[0]?.branch && (
-                      <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 font-bold">
-                        🏢 {inspectingAttempts[0].branch}
-                      </span>
-                    )}
                     {inspectingAttempts[0]?.department && (
                       <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">
                         🍿 Área: {inspectingAttempts[0].department}
@@ -2408,25 +2319,26 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
               </div>
             </div>
 
-            {/* Control 5: Catálogo de Sucursales / Conjuntos */}
+            {/* Control 5: Tipo de Evaluación & Clima Laboral Anónimo */}
             <div className="bg-kahoot-purple-dark/80 p-6 rounded-3xl border border-white/10 shadow-lg space-y-3">
               <div>
                 <h3 className="text-lg font-black text-white flex items-center gap-2">
-                  <Building2 className="w-5 h-5 text-blue-400" />
-                  <span>Sucursales / Conjuntos Cinépolis</span>
+                  <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                  <span>Tipo de Evaluación & Voz del Colaborador</span>
                 </h3>
                 <p className="text-xs text-white/60 mt-1 leading-relaxed">
-                  Déjalo vacío para que cada colaborador escriba libremente su cine, o escribe una lista separada por comas para mostrar un menú desplegable.
+                  Configuración optimizada para este conjunto Cinépolis. Las evaluaciones regulares registran ranking por áreas de trabajo (Taquilla, Dulcería, Staff, Alimentos, etc.), mientras que las encuestas de Clima Laboral son 100% anónimas y no generan ranking competitivo.
                 </p>
               </div>
 
-              <input
-                type="text"
-                value={branchesInput}
-                onChange={e => setBranchesInput(e.target.value)}
-                placeholder="Campo libre activo (Ej. opcional: Cinépolis Diana, Cinépolis Perisur...)"
-                className="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/20 text-white text-xs font-semibold focus:outline-none focus:border-kahoot-yellow"
-              />
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="px-3 py-1 rounded-full bg-white/10 text-white font-bold border border-white/10">
+                  Conjunto Único Cinépolis
+                </span>
+                <span className="px-3 py-1 rounded-full bg-amber-400/20 text-amber-300 font-bold border border-amber-400/30">
+                  Áreas Activas: {DEFAULT_DEPARTMENTS.length}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -2731,7 +2643,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                   u.email.toLowerCase().includes(q) ||
                   u.nickname.toLowerCase().includes(q) ||
                   (u.employeeNumber && u.employeeNumber.toLowerCase().includes(q)) ||
-                  (u.branch && u.branch.toLowerCase().includes(q)) ||
                   (u.department && u.department.toLowerCase().includes(q))
                 );
               });
@@ -2781,7 +2692,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-white/60 mt-1.5 font-medium">
                         <span>📧 {u.email}</span>
                         {u.employeeNumber && <span>🎫 #{u.employeeNumber}</span>}
-                        {u.branch && <span>🏢 {u.branch}</span>}
                         {u.department && <span>🍿 {u.department}</span>}
                       </div>
                     </div>
@@ -3721,32 +3631,17 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs uppercase font-bold text-white/70 block mb-1">
-                      Sucursal / Conjunto
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Ej. Cinépolis Las Américas"
-                      value={editingUser.branch || ''}
-                      onChange={e => setEditingUser({ ...editingUser, branch: e.target.value })}
-                      className="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/20 text-white font-semibold text-sm focus:outline-none focus:border-amber-400"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-xs uppercase font-bold text-white/70 block mb-1">
-                      Área / Puesto
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Ej. Dulcería, Taquilla..."
-                      value={editingUser.department || ''}
-                      onChange={e => setEditingUser({ ...editingUser, department: e.target.value })}
-                      className="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/20 text-white font-semibold text-sm focus:outline-none focus:border-amber-400"
-                    />
-                  </div>
+                <div>
+                  <label className="text-xs uppercase font-bold text-white/70 block mb-1">
+                    Área / Puesto en el Cine
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ej. Dulcería, Taquilla, Staff, Alimentos..."
+                    value={editingUser.department || ''}
+                    onChange={e => setEditingUser({ ...editingUser, department: e.target.value })}
+                    className="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/20 text-white font-semibold text-sm focus:outline-none focus:border-amber-400"
+                  />
                 </div>
 
                 <div>

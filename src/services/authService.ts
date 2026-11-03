@@ -25,7 +25,7 @@ export interface RegisterDTO {
   name: string;
   nickname: string;
   employeeNumber?: string;
-  branch: string;
+  branch?: string;
   department: string;
   password: string;
   securityQuestion?: string;
@@ -188,11 +188,10 @@ class AuthService {
       name: data.name.trim() || data.nickname.trim(),
       employeeNumber: data.employeeNumber ? data.employeeNumber.trim() : undefined,
       role: 'user',
-      branch: data.branch || 'Cinépolis Tradicional',
       department: data.department || 'Operaciones',
       passwordHash,
       salt,
-      securityQuestion: data.securityQuestion || '¿Cuál es tu sucursal de Cinépolis?',
+      securityQuestion: data.securityQuestion || '¿Cuál es tu película favorita?',
       securityAnswerHash,
       createdAt: new Date().toISOString(),
       lastLogin: new Date().toISOString(),

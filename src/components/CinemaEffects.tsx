@@ -16,6 +16,9 @@ import {
   Building2,
   Briefcase,
   ShieldCheck,
+  Mail,
+  MessageCircle,
+  Send,
 } from 'lucide-react';
 import type { Participant, ParticipantAnswer, Question, Quiz } from '../types/quiz';
 import { DEFAULT_EXPLANATIONS } from '../services/quizService';
@@ -269,12 +272,56 @@ export const CinemaTicketResult: React.FC<CinemaTicketResultProps> = ({
   allowReplay = true,
 }) => {
   const [showReview, setShowReview] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [recipientEmail, setRecipientEmail] = useState('');
+  const [emailStatus, setEmailStatus] = useState('');
+
   const isApproved = participant.accuracyPercentage >= 80;
   const folio = participant.id.slice(0, 8).toUpperCase();
   const verifyUrl =
     typeof window !== 'undefined'
       ? `${window.location.origin}/?verify=${participant.id}`
       : `https://examen-smoky-mu.vercel.app/?verify=${participant.id}`;
+
+  const handleShareWhatsApp = () => {
+    const text = encodeURIComponent(
+      `🎬 *¡Certificación Oficial Cinépolis!*\n\n` +
+      `¡Hola! He completado exitosamente la evaluación oficial *"${quiz.title}"* con un puntaje de *${participant.totalScore.toLocaleString()} pts* (${participant.accuracyPercentage}% de precisión).\n\n` +
+      `🎖️ Folio Oficial: #${folio}\n` +
+      `Avalado formalmente por la Dirección y Gerencia de Conjunto Cinépolis.\n` +
+      `Verifica mi resultado aquí: ${verifyUrl}`
+    );
+    window.open(`https://wa.me/?text=${text}`, '_blank');
+  };
+
+  const handleSendEmail = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!recipientEmail.trim()) return;
+
+    exportDiplomaPDF(participant, 0, quiz.title, folio);
+
+    const subject = encodeURIComponent(`¡Felicidades! Acreditación Oficial en Cinépolis: ${quiz.title}`);
+    const body = encodeURIComponent(
+      `Estimado/a ${participant.nickname},\n\n` +
+      `Por medio de la presente, la Dirección y Gerencia de Conjunto Cinépolis te extienden una sincera y calurosa felicitación por haber acreditado satisfactoriamente la evaluación oficial:\n\n` +
+      `🎬 EVALUACIÓN: ${quiz.title}\n` +
+      `🏆 PUNTAJE OBTENIDO: ${participant.totalScore.toLocaleString()} puntos\n` +
+      `🎯 PRECISIÓN: ${participant.accuracyPercentage}%\n` +
+      `🎫 FOLIO OFICIAL: #${folio}\n` +
+      `📅 FECHA: ${new Date(participant.completedAt).toLocaleDateString()}\n\n` +
+      `Tu esfuerzo y compromiso reflejan los más altos estándares de hospitalidad y excelencia operativa que distinguen a Cinépolis.\n\n` +
+      `Atentamente,\n` +
+      `Dirección y Gerencia de Conjunto Cinépolis\n` +
+      `"La Capital del Cine"`
+    );
+
+    window.open(`mailto:${recipientEmail.trim()}?subject=${subject}&body=${body}`, '_blank');
+    setEmailStatus('¡Plantilla oficial preparada y diploma descargado exitosamente!');
+    setTimeout(() => {
+      setEmailStatus('');
+      setShowEmailModal(false);
+    }, 3500);
+  };
 
   return (
     <motion.div
@@ -309,20 +356,12 @@ export const CinemaTicketResult: React.FC<CinemaTicketResultProps> = ({
                 <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight break-words">
                   {participant.nickname}
                 </h2>
-                {(participant.branch || participant.department) && (
+                {participant.department && (
                   <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-1.5 text-xs text-white/75">
-                    {participant.branch && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-blue-500/20 border border-blue-400/30 text-blue-200 font-bold">
-                        <Building2 className="w-3.5 h-3.5" />
-                        {participant.branch}
-                      </span>
-                    )}
-                    {participant.department && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-purple-500/20 border border-purple-400/30 text-purple-200 font-bold">
-                        <Briefcase className="w-3.5 h-3.5" />
-                        {participant.department}
-                      </span>
-                    )}
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-amber-500/20 border border-amber-400/30 text-amber-200 font-bold">
+                      <Briefcase className="w-3.5 h-3.5" />
+                      Área: {participant.department}
+                    </span>
                   </div>
                 )}
                 <p className="text-xs text-white/50 mt-1">{quiz.title}</p>
@@ -408,17 +447,44 @@ export const CinemaTicketResult: React.FC<CinemaTicketResultProps> = ({
             </div>
 
             {isApproved && (
-              <button
-                type="button"
-                onClick={() => {
-                  haptic([30, 40, 30]);
-                  exportDiplomaPDF(participant, 0, quiz.title, folio);
-                }}
-                className="mt-4 w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-yellow-300 text-black font-black text-xs uppercase tracking-wider shadow-xl flex items-center justify-center gap-2 transition active:scale-95"
-              >
-                <Award className="w-4 h-4" />
-                <span>Descargar Mi Diploma PDF</span>
-              </button>
+              <div className="mt-4 w-full space-y-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    haptic([30, 40, 30]);
+                    exportDiplomaPDF(participant, 0, quiz.title, folio);
+                  }}
+                  className="w-full py-3 px-4 rounded-2xl btn-cinepolis-gold text-black font-black text-xs uppercase tracking-wider shadow-xl flex items-center justify-center gap-2 transition active:scale-95"
+                >
+                  <Award className="w-4 h-4" />
+                  <span>Descargar Mi Diploma PDF</span>
+                </button>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={handleShareWhatsApp}
+                    className="py-2.5 px-3 rounded-xl bg-emerald-600/30 hover:bg-emerald-600/50 border border-emerald-500/40 text-emerald-200 font-bold text-[11px] flex items-center justify-center gap-1.5 transition active:scale-95"
+                    title="Compartir felicitación y certificado por WhatsApp"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>WhatsApp</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRecipientEmail('');
+                      setShowEmailModal(true);
+                    }}
+                    className="py-2.5 px-3 rounded-xl bg-blue-600/30 hover:bg-blue-600/50 border border-blue-500/40 text-blue-200 font-bold text-[11px] flex items-center justify-center gap-1.5 transition active:scale-95"
+                    title="Enviar felicitación formal por correo electrónico"
+                  >
+                    <Mail className="w-3.5 h-3.5 text-blue-400" />
+                    <span>Enviar a Correo</span>
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         </div>
@@ -512,6 +578,91 @@ export const CinemaTicketResult: React.FC<CinemaTicketResultProps> = ({
           )}
         </AnimatePresence>
       </div>
+
+      {/* Modal Enviar Diploma por Correo */}
+      <AnimatePresence>
+        {showEmailModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+          >
+            <motion.div
+              initial={{ scale: 0.95 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.95 }}
+              className="bg-kahoot-purple-dark border-2 border-white/20 rounded-3xl p-6 max-w-md w-full shadow-2xl text-white space-y-4"
+            >
+              <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                <div className="flex items-center gap-2">
+                  <span className="p-2 bg-blue-500/20 text-blue-300 rounded-xl">
+                    <Mail className="w-5 h-5" />
+                  </span>
+                  <h3 className="text-lg font-black uppercase tracking-tight">
+                    Envío Formal por Correo
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowEmailModal(false)}
+                  className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/70 hover:text-white"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-black/40 border border-white/10 text-xs space-y-1.5 text-white/80">
+                <p className="font-bold text-amber-300">
+                  📜 Felicitación Institucional de Dirección y Gerencia Cinépolis:
+                </p>
+                <p className="text-[11px] text-white/60">
+                  Se abrirá tu gestor de correo con el mensaje formal de acreditación avalado por la gerencia y se descargará automáticamente tu Diploma PDF oficial para adjuntarlo.
+                </p>
+              </div>
+
+              <form onSubmit={handleSendEmail} className="space-y-4">
+                <div>
+                  <label className="text-xs uppercase font-bold text-white/70 block mb-1">
+                    Correo del Colaborador o Destinatario *
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="tu-correo@cinepolis.com"
+                    value={recipientEmail}
+                    onChange={e => setRecipientEmail(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/20 text-white text-xs font-semibold focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+
+                {emailStatus && (
+                  <p className="text-xs font-bold text-emerald-300 bg-emerald-500/20 p-2.5 rounded-xl border border-emerald-500/30 text-center animate-pulse">
+                    ✓ {emailStatus}
+                  </p>
+                )}
+
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowEmailModal(false)}
+                    className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn-cinepolis-gold px-5 py-2 text-black font-black text-xs rounded-xl flex items-center gap-1.5"
+                  >
+                    <Send className="w-3.5 h-3.5 text-black" />
+                    <span>Preparar y Enviar</span>
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 };

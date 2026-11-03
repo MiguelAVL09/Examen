@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { Volume2, VolumeX, Shield, Gamepad2, User, KeyRound } from 'lucide-react';
+import { Volume2, VolumeX, Shield, Gamepad2, User, KeyRound, Smartphone } from 'lucide-react';
 import { soundEffects } from '../utils/soundEffects';
 import type { UserAccount } from '../types/quiz';
 
 interface NavbarProps {
-  currentView: 'home' | 'game' | 'admin' | 'host';
-  onNavigate: (view: 'home' | 'admin' | 'host') => void;
+  currentView: 'home' | 'game' | 'admin' | 'host' | 'kiosk';
+  onNavigate: (view: 'home' | 'admin' | 'host' | 'kiosk') => void;
   currentUser: UserAccount | null;
   onOpenAuth: () => void;
   onOpenProfile: () => void;
@@ -97,18 +97,29 @@ export const Navbar: React.FC<NavbarProps> = ({
               ESTRICTAMENTE OCULTO para usuarios regulares o no identificados.
               Solo se muestra si la sesión activa es de nivel 'admin'. */}
           {isAdminUser && (
-            <button
-              onClick={() => onNavigate('admin')}
-              className={`flex items-center gap-1.5 px-3.5 md:px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition ${
-                currentView === 'admin'
-                  ? 'bg-amber-400 text-black shadow-lg ring-2 ring-white'
-                  : 'btn-cinepolis-gold'
-              }`}
-              title="Panel de Control y Métricas de Administrador"
-            >
-              <Shield className="w-4 h-4" />
-              <span>Panel de Control</span>
-            </button>
+            <>
+              <button
+                onClick={() => onNavigate('kiosk')}
+                className="flex items-center gap-1.5 px-3 md:px-3.5 py-2 rounded-xl bg-gradient-to-r from-cyan-600/90 to-blue-600/90 hover:from-cyan-500 hover:to-blue-500 text-white font-black text-xs uppercase tracking-wider transition border border-cyan-400/40 shadow active:scale-95"
+                title="Terminal Kiosco para Pantalla de Descanso del Cine"
+              >
+                <Smartphone className="w-4 h-4 text-cyan-200" />
+                <span className="hidden sm:inline">Kiosco</span>
+              </button>
+
+              <button
+                onClick={() => onNavigate('admin')}
+                className={`flex items-center gap-1.5 px-3.5 md:px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition ${
+                  currentView === 'admin'
+                    ? 'bg-amber-400 text-black shadow-lg ring-2 ring-white'
+                    : 'btn-cinepolis-gold'
+                }`}
+                title="Panel de Control y Métricas de Administrador"
+              >
+                <Shield className="w-4 h-4" />
+                <span>Panel de Control</span>
+              </button>
+            </>
           )}
 
           {/* Identificación de Usuario / Colaborador */}
@@ -124,7 +135,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   {currentUser.name || currentUser.nickname}
                 </span>
                 <span className="text-[10px] text-amber-300 block leading-tight">
-                  {currentUser.role === 'admin' ? 'Administrador' : (currentUser.branch || 'Colaborador')}
+                  {currentUser.role === 'admin' ? 'Administrador' : (currentUser.department || 'Colaborador')}
                 </span>
               </div>
             </button>

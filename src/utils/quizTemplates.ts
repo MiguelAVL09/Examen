@@ -1,4 +1,4 @@
-import type { Quiz, Question } from '../types/quiz';
+import type { Quiz, Question, QuizKind } from '../types/quiz';
 import { generateUUID } from '../services/quizService';
 
 export interface QuizTemplateDefinition {
@@ -7,6 +7,8 @@ export interface QuizTemplateDefinition {
   category: string;
   description: string;
   coverImage: string;
+  quizKind?: QuizKind;
+  isAnonymousSurvey?: boolean;
   questions: Omit<Question, 'id' | 'quizId'>[];
 }
 
@@ -186,6 +188,141 @@ export const CINEPOLIS_QUIZ_TEMPLATES: QuizTemplateDefinition[] = [
       },
     ],
   },
+  {
+    id: 'template-simulador-hospitalidad',
+    name: 'Simulador de Casos: Atención al Cliente y Resolución de Conflictos',
+    category: 'Simulador de Casos',
+    description: 'Entrenamiento interactivo con toma de decisiones en situaciones críticas de dulcería, taquilla y salas.',
+    coverImage: 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=800&auto=format&fit=crop&q=80',
+    quizKind: 'simulator',
+    questions: [
+      {
+        questionText: 'SITUACIÓN EN DULCERÍA: Es viernes a las 8:00 PM, fila de 10 personas. Un cliente reclama muy molesto que su refresco no tiene gas y su función empieza en 2 minutos. ¿Qué decisión tomas?',
+        questionType: 'scenario',
+        timeLimit: 30,
+        pointsMultiplier: 1,
+        scenarioContext: 'Horario estelar de dulcería. Fila concurrida y cliente con prisa y visible molestia.',
+        options: [
+          {
+            id: '1',
+            text: 'Ofrecer una disculpa sincera con empatía, cambiarle el vaso de inmediato por uno de otra máquina en menos de 20 segundos y desearle una excelente función.',
+            isCorrect: true,
+            color: 'blue',
+            shape: 'diamond',
+            scenarioFeedback: '🎬 CONSECUENCIA EXITOSA: El cliente se tranquilizó al ver tu rapidez y amabilidad, entró feliz a su sala y felicitó al equipo al salir. Resolviste el problema en 20 segundos sin crear cuellos de botella.',
+          },
+          {
+            id: '2',
+            text: 'Explicarle que el gas de la máquina fue calibrado por la mañana y que probablemente es su percepción.',
+            isCorrect: false,
+            color: 'red',
+            shape: 'triangle',
+            scenarioFeedback: '❌ CONSECUENCIA DE CONFLICTO: El cliente se molestó aún más, alzó la voz frente a los demás clientes y exigió ver al gerente de turno, retrasando la fila 6 minutos.',
+          },
+          {
+            id: '3',
+            text: 'Pedirle que espere mientras vas a bodega a verificar si hay jarabe disponible.',
+            isCorrect: false,
+            color: 'yellow',
+            shape: 'circle',
+            scenarioFeedback: '⚠️ CONSECUENCIA DE FRICCIÓN: El cliente perdió el inicio de su película por la demora y se marchó inconforme.',
+          },
+        ],
+      },
+      {
+        questionText: 'SITUACIÓN EN ACCESO: Un cliente con boleto Tradicional insiste en ingresar a la sala MacroXE asegurando que el cajero le prometió esa sala. La sala MacroXE está al 95% de aforo. ¿Qué decisión tomas?',
+        questionType: 'scenario',
+        timeLimit: 30,
+        pointsMultiplier: 1,
+        scenarioContext: 'Punto de control de boletos. El cliente asegura un error en taquilla.',
+        options: [
+          {
+            id: '1',
+            text: 'Explicarle con cortesía la diferencia de sala y llamar de inmediato al supervisor por radio para verificar el cobro en taquilla sin obstruir el paso de los demás invitados.',
+            isCorrect: true,
+            color: 'green',
+            shape: 'square',
+            scenarioFeedback: '🎬 CONSECUENCIA EXITOSA: El supervisor atendió el caso en 1 minuto, el flujo de acceso continuó fluido y el cliente recibió una solución clara y transparente.',
+          },
+          {
+            id: '2',
+            text: 'Negarle el paso de forma tajante y decirle que debe volver a formarse en taquilla.',
+            isCorrect: false,
+            color: 'red',
+            shape: 'triangle',
+            scenarioFeedback: '❌ CONSECUENCIA DE CONFLICTO: El cliente se sintió maltratado, comenzó a grabar con su celular y generó un conato de reclamo en el lobby.',
+          },
+          {
+            id: '3',
+            text: 'Dejarlo pasar a MacroXE sin boleto válido para evitar discutir.',
+            isCorrect: false,
+            color: 'yellow',
+            shape: 'circle',
+            scenarioFeedback: '❌ CONSECUENCIA OPERATIVA: Se generó una duplicidad de butaca dentro de la sala a oscuras, interrumpiendo la experiencia de otros clientes.',
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'template-clima-laboral',
+    name: 'Encuesta de Clima Laboral y Voz del Colaborador (100% Anónima)',
+    category: 'Voz del Colaborador',
+    description: 'Diagnóstico anónimo y confidencial sobre ambiente de trabajo, liderazgo de supervisores y herramientas del cine.',
+    coverImage: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=800&auto=format&fit=crop&q=80',
+    quizKind: 'survey',
+    isAnonymousSurvey: true,
+    questions: [
+      {
+        questionText: '¿Qué tan respaldado, escuchado y motivado te sientes por tus supervisores y gerencia de este cine en tu día a día?',
+        questionType: 'survey_rating',
+        timeLimit: 0,
+        pointsMultiplier: 0,
+        explanation: 'Tu respuesta es 100% anónima. Nos ayuda a fortalecer el liderazgo del equipo directivo.',
+        options: [
+          { id: '1', text: '1 - Muy insatisfecho / Sin apoyo', isCorrect: true, color: 'red', shape: 'triangle' },
+          { id: '2', text: '2 - Poco apoyado', isCorrect: true, color: 'blue', shape: 'diamond' },
+          { id: '3', text: '3 - Regular / Neutro', isCorrect: true, color: 'yellow', shape: 'circle' },
+          { id: '4', text: '4 - Bien respaldado', isCorrect: true, color: 'green', shape: 'square' },
+        ],
+      },
+      {
+        questionText: '¿Consideras que el ambiente de trabajo y compañerismo en tu área (Taquilla, Dulcería, Staff, Alimentos) es positivo y colaborativo?',
+        questionType: 'survey_rating',
+        timeLimit: 0,
+        pointsMultiplier: 0,
+        explanation: 'Tu retroalimentación impulsa la armonía y el trabajo en equipo en nuestros turnos.',
+        options: [
+          { id: '1', text: '1 - Hay mucha tensión o conflicto', isCorrect: true, color: 'red', shape: 'triangle' },
+          { id: '2', text: '2 - Falta más unión', isCorrect: true, color: 'blue', shape: 'diamond' },
+          { id: '3', text: '3 - Ambiente normal', isCorrect: true, color: 'yellow', shape: 'circle' },
+          { id: '4', text: '4 - Muy buen compañerismo y respeto', isCorrect: true, color: 'green', shape: 'square' },
+        ],
+      },
+      {
+        questionText: '¿Cuentas con los insumos, herramientas, uniformes e instalaciones de descanso adecuadas para realizar tu turno?',
+        questionType: 'survey_rating',
+        timeLimit: 0,
+        pointsMultiplier: 0,
+        explanation: 'Identificamos necesidades de insumos y mantenimiento para tus áreas de trabajo.',
+        options: [
+          { id: '1', text: '1 - Faltan insumos esenciales frecuentemente', isCorrect: true, color: 'red', shape: 'triangle' },
+          { id: '2', text: '2 - Rara vez completos', isCorrect: true, color: 'blue', shape: 'diamond' },
+          { id: '3', text: '3 - Casi siempre disponible', isCorrect: true, color: 'yellow', shape: 'circle' },
+          { id: '4', text: '4 - Excelentes condiciones e insumos completos', isCorrect: true, color: 'green', shape: 'square' },
+        ],
+      },
+      {
+        questionText: '¿Qué sugerencia o propuesta constructiva te gustaría compartir para mejorar el ambiente y la operación de nuestro cine?',
+        questionType: 'type_answer',
+        timeLimit: 0,
+        pointsMultiplier: 0,
+        explanation: 'Comentario anónimo abierto. Escribe libremente tus ideas para mejorar nuestro cine.',
+        options: [],
+        acceptedAnswers: ['*'],
+      },
+    ],
+  },
 ];
 
 export function instantiateQuizFromTemplate(template: QuizTemplateDefinition): Quiz {
@@ -196,13 +333,15 @@ export function instantiateQuizFromTemplate(template: QuizTemplateDefinition): Q
     description: template.description,
     category: template.category,
     coverImage: template.coverImage,
-    timePerQuestion: 20,
+    timePerQuestion: template.quizKind === 'survey' ? 0 : 20,
     createdAt: new Date().toISOString(),
     isPublished: true,
     isExamOpen: true,
     preventRetries: false,
-    maxAttemptsPerUser: 1,
-    shuffleQuestions: true,
+    maxAttemptsPerUser: template.isAnonymousSurvey ? 0 : 1,
+    shuffleQuestions: template.quizKind !== 'survey',
+    quizKind: template.quizKind || 'exam',
+    isAnonymousSurvey: template.isAnonymousSurvey ?? false,
     questions: template.questions.map((q, idx) => ({
       ...q,
       id: generateUUID(),

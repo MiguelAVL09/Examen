@@ -57,7 +57,6 @@ export const exportRankingsToExcel = async ({
   const headers = [
     'Posición',
     'Colaborador',
-    'Sucursal / Cine',
     'Área / Departamento',
     'Puntaje',
     'Aciertos',
@@ -96,7 +95,6 @@ export const exportRankingsToExcel = async ({
     const row = sheet.addRow([
       idx + 1,
       p.nickname,
-      p.branch || 'Sin especificar',
       p.department || 'Sin especificar',
       p.totalScore || 0,
       p.correctAnswersCount || 0,
@@ -117,12 +115,12 @@ export const exportRankingsToExcel = async ({
       cell.font = { name: 'Calibri', size: 10 };
       cell.alignment = {
         vertical: 'middle',
-        horizontal: colNumber === 2 || colNumber === 3 || colNumber === 4 ? 'left' : 'center',
+        horizontal: colNumber === 2 || colNumber === 3 ? 'left' : 'center',
       };
       if (idx % 2 === 1) {
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
       }
-      if (colNumber === 9) {
+      if (colNumber === 8) {
         cell.font = {
           name: 'Calibri',
           size: 10,
@@ -130,29 +128,29 @@ export const exportRankingsToExcel = async ({
           color: { argb: approved ? 'FF15803D' : 'FFB91C1C' },
         };
       }
-      if ((colNumber === 11 && attempts > 1) || (colNumber === 12 && (p.tabSwitches || 0) > 0) || (colNumber === 13 && sharedCount > 1)) {
+      if ((colNumber === 10 && attempts > 1) || (colNumber === 11 && (p.tabSwitches || 0) > 0) || (colNumber === 12 && sharedCount > 1)) {
         cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FFB91C1C' } };
       }
     });
   });
 
-  const widths = [10, 28, 22, 24, 14, 12, 15, 14, 16, 12, 18, 20, 26, 22];
+  const widths = [10, 28, 24, 14, 12, 15, 14, 16, 12, 18, 20, 26, 22];
   widths.forEach((w, i) => {
     sheet.getColumn(i + 1).width = w;
   });
 
-  // Hoja 2: Resumen por Sucursal y Área
-  const branchSheet = workbook.addWorksheet('Por Sucursal y Área');
-  branchSheet.mergeCells('A1:F1');
+  // Hoja 2: Resumen por Área de Trabajo
+  const branchSheet = workbook.addWorksheet('Por Área de Trabajo');
+  branchSheet.mergeCells('A1:E1');
   const bTitle = branchSheet.getCell('A1');
-  bTitle.value = 'PROMEDIO POR SUCURSAL Y DEPARTAMENTO — CINÉPOLIS';
+  bTitle.value = 'PROMEDIO POR ÁREA DE TRABAJO — CINÉPOLIS';
   bTitle.font = { name: 'Calibri', size: 13, bold: true, color: { argb: 'FFFFFFFF' } };
   bTitle.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0B132B' } };
   bTitle.alignment = { vertical: 'middle', horizontal: 'center' };
   branchSheet.getRow(1).height = 26;
 
   const bHeader = branchSheet.getRow(2);
-  bHeader.values = ['Tipo', 'Nombre', 'Participantes', 'Puntaje Promedio', 'Precisión Promedio (%)', 'Aprobados (>=80%)'];
+  bHeader.values = ['Área / Puesto', 'Participantes', 'Puntaje Promedio', 'Precisión Promedio (%)', 'Aprobados (>=80%)'];
   bHeader.height = 22;
   bHeader.eachCell(cell => {
     cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
@@ -160,7 +158,7 @@ export const exportRankingsToExcel = async ({
     cell.alignment = { vertical: 'middle', horizontal: 'center' };
   });
 
-  const groupStats = (keyFn: (p: Participant) => string, label: string) => {
+  const groupStats = (keyFn: (p: Participant) => string) => {
     const map = new Map<string, Participant[]>();
     rankings.forEach(p => {
       const k = keyFn(p) || 'Sin especificar';
@@ -173,13 +171,12 @@ export const exportRankingsToExcel = async ({
         const avgScore = Math.round(list.reduce((s, x) => s + (x.totalScore || 0), 0) / list.length);
         const avgAcc = Math.round(list.reduce((s, x) => s + (x.accuracyPercentage || 0), 0) / list.length);
         const approvedCount = list.filter(x => (x.accuracyPercentage || 0) >= 80).length;
-        branchSheet.addRow([label, name, list.length, avgScore, avgAcc, `${approvedCount} / ${list.length}`]);
+        branchSheet.addRow([name, list.length, avgScore, avgAcc, `${approvedCount} / ${list.length}`]);
       });
   };
 
-  groupStats(p => p.branch || 'Sin especificar', 'Sucursal');
-  groupStats(p => p.department || 'Sin especificar', 'Área / Depto.');
-  [16, 28, 16, 20, 22, 18].forEach((w, i) => (branchSheet.getColumn(i + 1).width = w));
+  groupStats(p => p.department || 'Sin especificar');
+  [28, 16, 20, 22, 18].forEach((w, i) => (branchSheet.getColumn(i + 1).width = w));
 
   // Hoja 3: Analítica de Preguntas
   if (questionAnalytics.length > 0) {

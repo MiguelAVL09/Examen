@@ -45,7 +45,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
   // Edit profile state
   const [name, setName] = useState(user.name || user.nickname);
-  const [branch, setBranch] = useState(user.branch || '');
   const [department, setDepartment] = useState(user.department || '');
   const [newPassword, setNewPassword] = useState('');
   const [saveMsg, setSaveMsg] = useState('');
@@ -76,7 +75,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     setSaveMsg('');
     const updates: Partial<UserAccount> = {
       name: name.trim(),
-      branch: branch.trim(),
       department: department.trim(),
     };
 
@@ -124,9 +122,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 {user.email} {user.employeeNumber ? `• No. ${user.employeeNumber}` : ''}
               </p>
               <div className="flex items-center gap-2 mt-1 text-[11px] text-amber-300 font-bold">
-                <span>🏢 {user.branch || 'Sin sucursal'}</span>
-                <span>•</span>
-                <span>🍿 {user.department || 'Operaciones'}</span>
+                <span>🍿 Área: {user.department || 'Operaciones'}</span>
               </div>
             </div>
           </div>
@@ -349,30 +345,17 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-[10px] font-black uppercase text-white/70 block mb-1">
-                  Sucursal / Cine
-                </label>
-                <input
-                  type="text"
-                  value={branch}
-                  onChange={e => setBranch(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-black/40 border border-white/15 text-white text-xs font-semibold focus:outline-none focus:border-amber-400"
-                />
-              </div>
-
-              <div>
-                <label className="text-[10px] font-black uppercase text-white/70 block mb-1">
-                  Área / Departamento
-                </label>
-                <input
-                  type="text"
-                  value={department}
-                  onChange={e => setDepartment(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-black/40 border border-white/15 text-white text-xs font-semibold focus:outline-none focus:border-amber-400"
-                />
-              </div>
+            <div>
+              <label className="text-[10px] font-black uppercase text-white/70 block mb-1">
+                Área / Puesto en el Cine
+              </label>
+              <input
+                type="text"
+                placeholder="Ej. Taquilla, Dulcería, Staff, Alimentos..."
+                value={department}
+                onChange={e => setDepartment(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-black/40 border border-white/15 text-white text-xs font-semibold focus:outline-none focus:border-amber-400"
+              />
             </div>
 
             <div className="pt-2 border-t border-white/10">

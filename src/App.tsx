@@ -7,12 +7,13 @@ import { HomeView } from './components/HomeView';
 import { GamePlayView } from './components/GamePlayView';
 import { AdminView } from './components/AdminView';
 import { HostGameView } from './components/HostGameView';
+import { KioskView } from './components/KioskView';
 import { AuthModal } from './components/AuthModal';
 import { UserProfileModal } from './components/UserProfileModal';
 import { PinModal } from './components/PinModal';
 
 export function App() {
-  const [currentView, setCurrentView] = useState<'home' | 'game' | 'admin' | 'host'>('home');
+  const [currentView, setCurrentView] = useState<'home' | 'game' | 'admin' | 'host' | 'kiosk'>('home');
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [activeQuiz, setActiveQuiz] = useState<Quiz | null>(null);
   const [invitedQuiz, setInvitedQuiz] = useState<Quiz | null>(null);
@@ -23,9 +24,6 @@ export function App() {
     return user?.name || user?.nickname || 'Colaborador';
   });
   const [playerAvatar, setPlayerAvatar] = useState<string>('🦊');
-  const [playerBranch, setPlayerBranch] = useState<string | undefined>(() => {
-    return authService.getCurrentUser()?.branch || undefined;
-  });
   const [playerDepartment, setPlayerDepartment] = useState<string | undefined>(() => {
     return authService.getCurrentUser()?.department || undefined;
   });
@@ -81,13 +79,12 @@ export function App() {
     quiz: Quiz,
     nickname: string,
     avatar: string,
-    branch?: string,
+    _branch?: string,
     department?: string
   ) => {
     setActiveQuiz(quiz);
     setPlayerNickname(nickname);
     setPlayerAvatar(avatar);
-    setPlayerBranch(branch || currentUser?.branch);
     setPlayerDepartment(department || currentUser?.department);
     setInvitedQuiz(null);
     if (typeof window !== 'undefined' && window.history) {
@@ -106,14 +103,14 @@ export function App() {
   const handleJoinWithPin = (_pin: string, nickname: string, avatar: string) => {
     if (quizzes.length > 0) {
       const targetQuiz = quizzes[0];
-      handleStartQuiz(targetQuiz, nickname, avatar, currentUser?.branch, currentUser?.department);
+      handleStartQuiz(targetQuiz, nickname, avatar, undefined, currentUser?.department);
     }
   };
 
-  const handleNavigate = (view: 'home' | 'admin' | 'host') => {
-    if (view === 'admin') {
-      // Regla estricta: Solo los administradores autenticados pueden ver el panel
-      if (!authService.isAdmin()) {
+  const handleNavigate = (view: 'home' | 'admin' | 'host' | 'kiosk') => {
+    if (view === 'admin' || view === 'kiosk') {
+      // Regla estricta: Solo los administradores autenticados pueden ver el panel de control o cambiar a modo Kiosco
+      if (!authService.isAdmin() && sessionStorage.getItem('kahoot_admin_auth') !== 'true') {
         setIsAuthModalOpen(true);
         return;
       }
@@ -127,20 +124,22 @@ export function App() {
   return (
     <div className="min-h-screen bg-kahoot-pattern flex flex-col justify-between selection:bg-amber-400 selection:text-black">
       {/* Sticky Navbar con botón de admin oculto para público */}
-      <Navbar
-        currentView={currentView}
-        currentUser={currentUser}
-        onNavigate={handleNavigate}
-        onOpenAuth={() => setIsAuthModalOpen(true)}
-        onOpenProfile={() => {
-          if (currentUser) {
-            setIsProfileModalOpen(true);
-          } else {
-            setIsAuthModalOpen(true);
-          }
-        }}
-        onOpenPinModal={() => setIsPinModalOpen(true)}
-      />
+      {currentView !== 'kiosk' && (
+        <Navbar
+          currentView={currentView}
+          currentUser={currentUser}
+          onNavigate={handleNavigate}
+          onOpenAuth={() => setIsAuthModalOpen(true)}
+          onOpenProfile={() => {
+            if (currentUser) {
+              setIsProfileModalOpen(true);
+            } else {
+              setIsAuthModalOpen(true);
+            }
+          }}
+          onOpenPinModal={() => setIsPinModalOpen(true)}
+        />
+      )}
 
       {/* Main Content Area */}
       <main className="flex-1">
@@ -170,7 +169,6 @@ export function App() {
                 quiz={activeQuiz}
                 nickname={playerNickname}
                 avatar={playerAvatar}
-                branch={playerBranch}
                 department={playerDepartment}
                 onExit={() => {
                   setInvitedQuiz(null);
@@ -215,6 +213,20 @@ export function App() {
                   refreshQuizzes();
                   setCurrentView('home');
                 }}
+                onOpenKiosk={() => setCurrentView('kiosk')}
+              />
+            )}
+
+            {currentView === 'kiosk' && (
+              <KioskView
+                quizzes={quizzes}
+                onStartQuiz={(quiz, nickname, avatar, _branch, department) => {
+                  handleStartQuiz(quiz, nickname, avatar, undefined, department);
+                }}
+                onExitKiosk={() => {
+                  refreshQuizzes();
+                  setCurrentView('home');
+                }}
               />
             )}
           </>
@@ -228,7 +240,6 @@ export function App() {
         onAuthSuccess={user => {
           setCurrentUser(user);
           setPlayerNickname(user.name || user.nickname);
-          if (user.branch) setPlayerBranch(user.branch);
           if (user.department) setPlayerDepartment(user.department);
           // Si el usuario recién autenticado es admin, darle acceso directo al panel
           if (user.role === 'admin') {
@@ -255,7 +266,6 @@ export function App() {
           onUpdateUser={updated => {
             setCurrentUser(updated);
             setPlayerNickname(updated.name || updated.nickname);
-            if (updated.branch) setPlayerBranch(updated.branch);
             if (updated.department) setPlayerDepartment(updated.department);
           }}
         />
@@ -271,18 +281,20 @@ export function App() {
       />
 
       {/* Footer Profesional Sin Exposición de Tecnologías */}
-      <footer className="bg-black/50 border-t border-white/10 py-5 text-center text-xs text-white/50 font-semibold backdrop-blur-md">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <span className="font-black text-amber-400">Cinépolis PRO</span>
-            <span>•</span>
-            <span>Plataforma Oficial de Capacitación y Evaluación</span>
+      {currentView !== 'kiosk' && (
+        <footer className="bg-black/50 border-t border-white/10 py-5 text-center text-xs text-white/50 font-semibold backdrop-blur-md">
+          <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="font-black text-amber-400">Cinépolis PRO</span>
+              <span>•</span>
+              <span>Plataforma Oficial de Capacitación y Evaluación</span>
+            </div>
+            <div className="text-white/60">
+              © 2026 Cinépolis • Todos los derechos reservados. Acceso exclusivo para personal autorizado.
+            </div>
           </div>
-          <div className="text-white/60">
-            © 2026 Cinépolis • Todos los derechos reservados. Acceso exclusivo para personal autorizado.
-          </div>
-        </div>
-      </footer>
+        </footer>
+      )}
     </div>
   );
 }

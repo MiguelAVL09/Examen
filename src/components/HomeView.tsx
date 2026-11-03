@@ -511,9 +511,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
                       }
                     }
 
-                    handleSaveProfile(nickname.trim(), selectedAvatar, branch.trim(), department);
+                    handleSaveProfile(nickname.trim(), selectedAvatar, undefined, department);
                     setIsJoinModalOpen(false);
-                    onStartQuiz(selectedQuiz, nickname.trim(), selectedAvatar, branch.trim() || undefined, department || undefined);
+                    onStartQuiz(selectedQuiz, nickname.trim(), selectedAvatar, undefined, department || undefined);
                   }}
                   className="space-y-4"
                 >
@@ -575,57 +575,26 @@ export const HomeView: React.FC<HomeViewProps> = ({
                     )}
                   </div>
 
-                  {/* Sucursal / Cine y Área / Departamento */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
-                    <div className="space-y-1">
-                      <label className="text-[11px] uppercase font-black text-white/70 flex items-center gap-1.5">
-                        <Building2 className="w-3.5 h-3.5 text-amber-300" />
-                        <span>Sucursal / Cine</span>
-                      </label>
-                      {selectedQuiz.branches && selectedQuiz.branches.length > 0 ? (
-                        <select
-                          value={branch}
-                          onChange={e => setBranch(e.target.value)}
-                          className="w-full py-3 px-3.5 rounded-2xl bg-black/50 border-2 border-white/20 focus:border-amber-400 focus:outline-none text-sm font-bold text-white"
-                        >
-                          <option value="">Selecciona tu cine...</option>
-                          {selectedQuiz.branches.map(b => (
-                            <option key={b} value={b}>
-                              {b}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <input
-                          type="text"
-                          placeholder="Ej. Cinépolis Diana..."
-                          value={branch}
-                          onChange={e => setBranch(e.target.value)}
-                          className="w-full py-3 px-3.5 rounded-2xl bg-black/50 border-2 border-white/20 focus:border-amber-400 focus:outline-none text-sm font-bold text-white placeholder-white/30"
-                        />
-                      )}
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[11px] uppercase font-black text-white/70 flex items-center gap-1.5">
-                        <Briefcase className="w-3.5 h-3.5 text-amber-300" />
-                        <span>Área / Departamento</span>
-                      </label>
-                      <select
-                        value={department}
-                        onChange={e => setDepartment(e.target.value)}
-                        className="w-full py-3 px-3.5 rounded-2xl bg-black/50 border-2 border-white/20 focus:border-amber-400 focus:outline-none text-sm font-bold text-white"
-                      >
-                        {(selectedQuiz.departments && selectedQuiz.departments.length > 0
-                          ? selectedQuiz.departments
-                          : DEFAULT_DEPARTMENTS
-                        ).map(dept => (
-                          <option key={dept} value={dept} className="bg-slate-900 text-white">
-                            {dept}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                  {/* Área / Puesto en el Cine */}
+                  <div className="space-y-1 text-left">
+                    <label className="text-[11px] uppercase font-black text-white/70 flex items-center gap-1.5">
+                      <Briefcase className="w-3.5 h-3.5 text-amber-300" />
+                      <span>Área / Puesto en el Cine</span>
+                    </label>
+                    <select
+                      value={department}
+                      onChange={e => setDepartment(e.target.value)}
+                      className="w-full py-3 px-3.5 rounded-2xl bg-black/50 border-2 border-white/20 focus:border-amber-400 focus:outline-none text-sm font-bold text-white"
+                    >
+                      {(selectedQuiz.departments && selectedQuiz.departments.length > 0
+                        ? selectedQuiz.departments
+                        : DEFAULT_DEPARTMENTS
+                      ).map(dept => (
+                        <option key={dept} value={dept} className="bg-slate-900 text-white">
+                          {dept}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   {/* Botón de Modo Práctica (Cine-Flashcards) antes del examen */}
@@ -704,9 +673,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
             <h3 className="text-2xl font-black text-white">
               {verifiedParticipant.avatar} {verifiedParticipant.nickname}
             </h3>
-            {(verifiedParticipant.branch || verifiedParticipant.department) && (
+            {verifiedParticipant.department && (
               <p className="text-xs text-amber-300 font-bold">
-                {[verifiedParticipant.branch, verifiedParticipant.department].filter(Boolean).join(' • ')}
+                🍿 Área: {verifiedParticipant.department}
               </p>
             )}
             <div className="grid grid-cols-3 gap-2 bg-black/40 p-3.5 rounded-2xl border border-white/10 text-xs">

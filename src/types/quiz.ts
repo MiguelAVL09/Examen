@@ -5,7 +5,9 @@ export type QuestionType =
   | 'multiple_choice' // 4 opciones clásicas de Kahoot
   | 'true_false'       // Verdadero o Falso (2 opciones)
   | 'puzzle'           // Ordenar elementos en la secuencia correcta
-  | 'type_answer';     // Escribir la respuesta exacta o numérica
+  | 'type_answer'      // Escribir la respuesta exacta o numérica
+  | 'scenario'         // Simulador de Casos y Rutas de Decisión
+  | 'survey_rating';   // Encuesta de Clima Laboral / Satisfacción (Escala 1 a 5)
 
 export interface QuestionOption {
   id: string;
@@ -14,6 +16,8 @@ export interface QuestionOption {
   color: OptionColor;
   shape: OptionShape;
   orderIndex?: number; // Para preguntas tipo Puzzle (orden correcto)
+  scenarioFeedback?: string; // Consecuencia narrativa en el Simulador de Casos
+  scenarioPoints?: number;   // Puntos específicos otorgados por esta decisión
 }
 
 export interface Question {
@@ -30,7 +34,10 @@ export interface Question {
   correctOrder?: string[];      // Para 'puzzle': lista de IDs de opciones en orden correcto (1°, 2°, 3°, 4°)
   acceptedAnswers?: string[];   // Para 'type_answer': lista de respuestas válidas en texto
   explanation?: string;         // Ficha formativa: "¿Por qué es la correcta?"
+  scenarioContext?: string;     // Contexto situacional detallado del caso
 }
+
+export type QuizKind = 'exam' | 'survey' | 'simulator';
 
 export interface Quiz {
   id: string;
@@ -49,8 +56,10 @@ export interface Quiz {
   maxAttemptsPerUser?: number;  // 1 = Intento único estricto, 0 o undefined = Múltiples intentos
   closeMessage?: string;
   shuffleQuestions?: boolean;   // Anti-copia: desordenar preguntas y opciones
-  branches?: string[];          // Lista de sucursales/cines disponibles
-  departments?: string[];       // Lista de áreas/departamentos disponibles
+  departments?: string[];       // Lista de áreas/departamentos del cine (Taquilla, Dulcería, Staff, etc.)
+  quizKind?: QuizKind;          // 'exam' (evaluación), 'survey' (clima laboral), 'simulator' (casos de servicio)
+  isAnonymousSurvey?: boolean;  // Encuesta de Clima Laboral 100% Anónima y Confidencial
+  branches?: string[];          // Opcional para retrocompatibilidad histórica
 }
 
 export interface ParticipantAnswer {
@@ -62,6 +71,8 @@ export interface ParticipantAnswer {
   isCorrect: boolean;
   timeTakenMs: number;
   pointsAwarded: number;
+  scenarioFeedback?: string;    // Retroalimentación recibida en caso de simulación
+  surveyRating?: number;        // Calificación 1 a 5 en encuesta de satisfacción
 }
 
 export interface Participant {
@@ -78,11 +89,12 @@ export interface Participant {
   accuracyPercentage: number;
   completedAt: string;
   answers?: ParticipantAnswer[];
-  branch?: string;              // Sucursal / cine
-  department?: string;          // Área / departamento
+  branch?: string;              // Obsoleto (un solo cine)
+  department?: string;          // Área / departamento dentro del cine
   tabSwitches?: number;         // Veces que salió de la pestaña durante el examen
   timeAwayMs?: number;          // Tiempo total fuera de la pestaña
   deviceId?: string;            // Huella digital del dispositivo
+  isAnonymous?: boolean;        // Marcador de encuesta anónima
 }
 
 export interface QuizSession {

@@ -50,10 +50,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     name: '',
     nickname: '',
     employeeNumber: '',
-    branch: 'Cinépolis Diana',
     department: DEFAULT_DEPARTMENTS[0],
     password: '',
-    securityQuestion: '¿Cuál es tu sucursal o cine favorito?',
+    securityQuestion: '¿Cuál es tu película o botana favorita?',
     securityAnswer: '',
   });
 
@@ -401,36 +400,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[10px] font-black uppercase text-white/70 block mb-0.5">
-                  Sucursal / Cine
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ej. Cinépolis Diana"
-                  value={registerForm.branch}
-                  onChange={e => setRegisterForm({ ...registerForm, branch: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-black/40 border border-white/15 text-white placeholder-white/30 text-xs font-semibold focus:outline-none focus:border-amber-400"
-                />
-              </div>
-
-              <div>
-                <label className="text-[10px] font-black uppercase text-white/70 block mb-0.5">
-                  Área / Departamento
-                </label>
-                <select
-                  value={registerForm.department}
-                  onChange={e => setRegisterForm({ ...registerForm, department: e.target.value })}
-                  className="w-full px-3 py-2.5 rounded-xl bg-black/40 border border-white/15 text-white text-xs font-semibold focus:outline-none focus:border-amber-400"
-                >
-                  {DEFAULT_DEPARTMENTS.map(d => (
-                    <option key={d} value={d} className="bg-gray-900 text-white">
-                      {d}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            <div>
+              <label className="text-[10px] font-black uppercase text-white/70 block mb-0.5">
+                Área / Puesto en el Cine
+              </label>
+              <select
+                value={registerForm.department}
+                onChange={e => setRegisterForm({ ...registerForm, department: e.target.value })}
+                className="w-full px-3 py-2.5 rounded-xl bg-black/40 border border-white/15 text-white text-xs font-semibold focus:outline-none focus:border-amber-400"
+              >
+                {DEFAULT_DEPARTMENTS.map(d => (
+                  <option key={d} value={d} className="bg-gray-900 text-white">
+                    {d}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>
@@ -455,8 +439,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 onChange={e => setRegisterForm({ ...registerForm, securityQuestion: e.target.value })}
                 className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/15 text-white text-[11px] font-semibold mb-2"
               >
-                <option value="¿Cuál es tu sucursal o cine favorito?" className="bg-gray-900">
-                  ¿Cuál es tu sucursal o cine favorito?
+                <option value="¿Cuál es tu película o botana favorita?" className="bg-gray-900">
+                  ¿Cuál es tu película o botana favorita?
                 </option>
                 <option value="¿Cuál fue tu primera película vista en Cinépolis?" className="bg-gray-900">
                   ¿Cuál fue tu primera película vista en Cinépolis?

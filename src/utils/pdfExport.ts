@@ -115,7 +115,7 @@ export const exportRankingsToPDF = ({
       (p.totalScore || 0).toLocaleString(),
       `${p.correctAnswersCount || 0} / ${p.totalQuestionsCount || 8}`,
       `${p.accuracyPercentage || 0}%`,
-      p.maxStreak ? `${p.maxStreak}` : '0',
+      p.maxStreak ? `x${p.maxStreak}` : 'x0',
       trampaText,
       dateFormatted,
     ];
@@ -123,7 +123,7 @@ export const exportRankingsToPDF = ({
 
   autoTable(doc, {
     startY: startY + 28,
-    head: [['Pos.', 'Participante', 'Puntaje', 'Aciertos', 'Precisión', 'Racha', '¿Trampa?', 'Fecha']],
+    head: [['Pos.', 'Participante', 'Puntaje', 'Aciertos', 'Precision', 'Racha Max.', 'Trampa / Reintentos', 'Fecha']],
     body: tableRows,
     theme: 'striped',
     headStyles: {
