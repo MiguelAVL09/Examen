@@ -55,11 +55,12 @@ const isMissingColumnError = (err: any): boolean => {
 
 const buildSettingsMeta = (s: Partial<ExamSettings>): string =>
   `<!--SETTINGS:${JSON.stringify({
+    isExamOpen: s.isExamOpen,
     closeDate: s.closeDate,
     preventRetries: s.preventRetries,
+    maxAttemptsPerUser: s.maxAttemptsPerUser,
     closeMessage: s.closeMessage,
     shuffleQuestions: s.shuffleQuestions,
-    branches: s.branches,
     departments: s.departments,
   })}-->`;
 
@@ -584,9 +585,11 @@ export const quizService = {
                 isExamOpen: q.is_published ?? true,
                 closeDate: settings.closeDate || localSettings.closeDate,
                 preventRetries: settings.preventRetries ?? localSettings.preventRetries ?? false,
+                maxAttemptsPerUser: settings.maxAttemptsPerUser !== undefined
+                  ? settings.maxAttemptsPerUser
+                  : (localSettings.maxAttemptsPerUser !== undefined ? localSettings.maxAttemptsPerUser : (settings.preventRetries ? 1 : undefined)),
                 closeMessage: settings.closeMessage || localSettings.closeMessage,
                 shuffleQuestions: settings.shuffleQuestions ?? localSettings.shuffleQuestions ?? true,
-                branches: settings.branches ?? localSettings.branches ?? [],
                 departments: settings.departments ?? localSettings.departments ?? DEFAULT_DEPARTMENTS,
                 questions: (questionsData || []).map(ques => ({
                   id: ques.id,
@@ -673,11 +676,12 @@ export const quizService = {
           title: quizToSave.title,
           // Conservar los ajustes del examen (candado, sucursales, etc.) embebidos en la descripción
           description: (quizToSave.description || '').split('<!--SETTINGS:')[0] + buildSettingsMeta({
+            isExamOpen: quizToSave.isExamOpen ?? quizToSave.isPublished ?? true,
             closeDate: quizToSave.closeDate,
             preventRetries: quizToSave.preventRetries ?? false,
+            maxAttemptsPerUser: quizToSave.maxAttemptsPerUser,
             closeMessage: quizToSave.closeMessage,
             shuffleQuestions: quizToSave.shuffleQuestions,
-            branches: quizToSave.branches,
             departments: quizToSave.departments,
           }),
           cover_image: quizToSave.coverImage || '',
@@ -1055,6 +1059,25 @@ export const quizService = {
       localStorage.setItem(`kahoot_exam_settings_${quizId}`, JSON.stringify(settings));
     } catch {}
 
+    // Sincronizar en la lista local de cuestionarios
+    try {
+      const stored = localStorage.getItem(LOCAL_STORAGE_QUIZZES_KEY);
+      if (stored) {
+        const list: Quiz[] = JSON.parse(stored);
+        const idx = list.findIndex(q => q.id === quizId);
+        if (idx >= 0) {
+          list[idx].isExamOpen = settings.isExamOpen;
+          list[idx].isPublished = settings.isExamOpen;
+          list[idx].closeDate = settings.closeDate;
+          list[idx].preventRetries = settings.preventRetries;
+          list[idx].maxAttemptsPerUser = settings.maxAttemptsPerUser;
+          list[idx].closeMessage = settings.closeMessage;
+          list[idx].shuffleQuestions = settings.shuffleQuestions;
+          localStorage.setItem(LOCAL_STORAGE_QUIZZES_KEY, JSON.stringify(list));
+        }
+      }
+    } catch {}
+
     if (isSupabaseConfigured() && supabase) {
       try {
         const { data: qData } = await supabase.from('quizzes').select('description').eq('id', quizId).maybeSingle();
@@ -1103,11 +1126,11 @@ export const quizService = {
     return { accessible: true };
   },
 
-  async hasParticipantAttempt(quizId: string, nickname: string): Promise<boolean> {
+  async getParticipantAttemptsCount(quizId: string, nickname: string): Promise<number> {
     const normalize = (name: string) =>
       (name || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
     const targetNorm = normalize(nickname);
-    if (!targetNorm) return false;
+    if (!targetNorm) return 0;
 
     if (isSupabaseConfigured() && supabase) {
       try {
@@ -1117,13 +1140,54 @@ export const quizService = {
           .eq('quiz_id', quizId)
           .neq('nickname', '__deleted__');
         if (!error && data) {
-          return data.some((p: any) => normalize(p.nickname) === targetNorm);
+          return data.filter((p: any) => normalize(p.nickname) === targetNorm).length;
         }
       } catch {}
     }
 
     const rankings = await this.getRankings(quizId);
-    return rankings.some(p => normalize(p.nickname) === targetNorm);
+    return rankings.filter(p => normalize(p.nickname) === targetNorm).length;
+  },
+
+  async checkParticipantCanAttempt(
+    quiz: Quiz,
+    nickname: string
+  ): Promise<{ canAttempt: boolean; currentAttempts: number; maxAllowed: number; reason?: string }> {
+    if (quiz.isAnonymousSurvey) {
+      return { canAttempt: true, currentAttempts: 0, maxAllowed: 0 };
+    }
+
+    // Regla de intentos individuales por cuestionario:
+    // Si maxAttemptsPerUser está definido, ese es el límite (0 = ilimitados)
+    // Si no está definido pero preventRetries es true, límite = 1
+    // De lo contrario, 0 (ilimitados)
+    const maxAllowed = quiz.maxAttemptsPerUser !== undefined
+      ? quiz.maxAttemptsPerUser
+      : (quiz.preventRetries ? 1 : 0);
+
+    if (maxAllowed <= 0) {
+      return { canAttempt: true, currentAttempts: 0, maxAllowed: 0 };
+    }
+
+    const currentAttempts = await this.getParticipantAttemptsCount(quiz.id, nickname);
+    if (currentAttempts >= maxAllowed) {
+      return {
+        canAttempt: false,
+        currentAttempts,
+        maxAllowed,
+        reason:
+          maxAllowed === 1
+            ? `Esta evaluación ("${quiz.title}") está configurada para 1 solo intento por colaborador. Tu nombre ("${nickname}") ya cuenta con su intento registrado.`
+            : `Esta evaluación ("${quiz.title}") permite un máximo de ${maxAllowed} intentos por colaborador. Ya has utilizado tus ${currentAttempts} oportunidades permitidas.`,
+      };
+    }
+
+    return { canAttempt: true, currentAttempts, maxAllowed };
+  },
+
+  async hasParticipantAttempt(quizId: string, nickname: string): Promise<boolean> {
+    const count = await this.getParticipantAttemptsCount(quizId, nickname);
+    return count > 0;
   },
 
   async clearParticipantAttempts(quizId: string, nickname: string): Promise<void> {

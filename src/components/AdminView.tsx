@@ -53,7 +53,8 @@ import {
   Key,
   KeyRound,
   Sparkles,
-  UserPlus
+  UserPlus,
+  RotateCcw
 } from 'lucide-react';
 import type { Participant, Quiz, Question, QuestionType, UserAccount } from '../types/quiz';
 import { quizService, generateUUID, DEFAULT_DEPARTMENTS, DEFAULT_EXPLANATIONS, type ExamSettings, type QuestionAnalytics, type DetailedParticipantAnswer } from '../services/quizService';
@@ -209,7 +210,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
           closeMessage: targetQuiz.closeMessage || settings.closeMessage,
           shuffleQuestions: targetQuiz.shuffleQuestions ?? settings.shuffleQuestions ?? true,
           departments: targetQuiz.departments || settings.departments || DEFAULT_DEPARTMENTS,
-          maxAttemptsPerUser: targetQuiz.maxAttemptsPerUser ?? settings.maxAttemptsPerUser ?? 1,
+          maxAttemptsPerUser: targetQuiz.maxAttemptsPerUser !== undefined
+            ? targetQuiz.maxAttemptsPerUser
+            : (settings.maxAttemptsPerUser !== undefined ? settings.maxAttemptsPerUser : (targetQuiz.preventRetries ? 1 : 0)),
         });
       }
 
@@ -362,6 +365,25 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Modificación rápida individual de oportunidades/intentos por cuestionario
+  const handleQuickUpdateQuizAttempts = async (quizId: string, maxAttempts: number) => {
+    const currentSettings = quizService.getExamSettings(quizId);
+    const updatedSettings: ExamSettings = {
+      ...currentSettings,
+      maxAttemptsPerUser: maxAttempts,
+      preventRetries: maxAttempts === 1,
+    };
+    await quizService.saveExamSettings(quizId, updatedSettings);
+    await loadData();
+    const qTitle = quizzes.find(q => q.id === quizId)?.title || 'Cuestionario';
+    setUserActionMessage(
+      `Oportunidades de "${qTitle}" actualizadas a: ${
+        maxAttempts === 0 ? 'Intentos Ilimitados' : maxAttempts === 1 ? '1 Intento Único' : `${maxAttempts} Intentos`
+      }`
+    );
+    setTimeout(() => setUserActionMessage(''), 4000);
   };
 
   // Acciones Administrativas de Usuarios Cinépolis
@@ -2087,6 +2109,36 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
             </div>
           </div>
 
+          {/* Selector de Cuestionario a Configurar */}
+          <div className="bg-black/40 p-4 sm:p-5 rounded-2xl border border-amber-400/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xl">
+            <div>
+              <span className="text-xs font-black uppercase tracking-wider text-amber-300 block">
+                🎯 Cuestionario a Configurar de Forma Individual:
+              </span>
+              <p className="text-xs text-white/60 mt-0.5">
+                Las reglas de candado, horario de cierre y límite de oportunidades se aplican de forma independiente a cada cuestionario.
+              </p>
+            </div>
+            <div className="relative min-w-[280px]">
+              <select
+                value={selectedQuizId === 'all' ? (quizzes[0]?.id || 'all') : selectedQuizId}
+                onChange={e => setSelectedQuizId(e.target.value)}
+                className="w-full px-4 py-3 pr-9 rounded-xl bg-slate-900 border border-white/20 text-white font-bold text-xs sm:text-sm appearance-none focus:outline-none focus:border-amber-400"
+              >
+                {quizzes.map(q => {
+                  const maxAtt = q.maxAttemptsPerUser !== undefined ? q.maxAttemptsPerUser : (q.preventRetries ? 1 : 0);
+                  const attTag = maxAtt === 1 ? '1 intento único' : maxAtt > 1 ? `${maxAtt} intentos` : 'ilimitado';
+                  return (
+                    <option key={q.id} value={q.id} className="bg-slate-900 text-white">
+                      {q.title} — [{attTag}]
+                    </option>
+                  );
+                })}
+              </select>
+              <ChevronDown className="w-4 h-4 text-white/60 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Control 1: Candado Inmediato Abrir / Cerrar */}
             <div className="bg-kahoot-purple-dark/80 p-6 rounded-3xl border border-white/10 shadow-lg space-y-5">
@@ -2216,20 +2268,20 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
               </div>
             </div>
 
-            {/* Control 3: Límite de Intentos por Colaborador */}
+            {/* Control 3: Límite de Oportunidades por Colaborador */}
             <div className="bg-kahoot-purple-dark/80 p-6 rounded-3xl border border-white/10 shadow-lg space-y-4 md:col-span-2">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                 <div>
                   <h3 className="text-lg font-black text-white flex items-center gap-2">
                     <Shield className="w-5 h-5 text-amber-400" />
-                    <span>Límite de Intentos por Colaborador</span>
+                    <span>Límite de Oportunidades (Intentos por Colaborador)</span>
                   </h3>
                   <p className="text-xs text-white/60 mt-1 max-w-2xl leading-relaxed">
-                    Determina si los usuarios pueden realizar la evaluación únicamente <strong>1 sola vez</strong> o si tienen permitido contestar múltiples veces con registro y auditoría.
+                    Configuración individual para este cuestionario. Puedes fijar <strong>1 solo intento</strong> para exámenes oficiales, <strong>2 o 3 intentos</strong> para permitir recuperación, o <strong>ilimitados</strong> para dinámicas libres y encuestas.
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
                     onClick={() =>
@@ -2239,13 +2291,49 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
                         preventRetries: true,
                       }))
                     }
-                    className={`px-4 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition border ${
+                    className={`px-3.5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition border ${
                       (examSettings.maxAttemptsPerUser ?? 1) === 1
-                        ? 'bg-amber-400 text-black border-amber-300 shadow-md'
+                        ? 'bg-amber-400 text-black border-amber-300 shadow-md ring-2 ring-amber-300/40'
                         : 'bg-white/10 text-white/70 border-white/10 hover:bg-white/20'
                     }`}
                   >
-                    1 Intento Único (Recomendado)
+                    🔒 1 Intento Único
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setExamSettings(prev => ({
+                        ...prev,
+                        maxAttemptsPerUser: 2,
+                        preventRetries: false,
+                      }))
+                    }
+                    className={`px-3.5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition border ${
+                      examSettings.maxAttemptsPerUser === 2
+                        ? 'bg-blue-500 text-white border-blue-400 shadow-md ring-2 ring-blue-300/40'
+                        : 'bg-white/10 text-white/70 border-white/10 hover:bg-white/20'
+                    }`}
+                  >
+                    🔄 2 Intentos
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setExamSettings(prev => ({
+                        ...prev,
+                        maxAttemptsPerUser: 3,
+                        preventRetries: false,
+                      }))
+                    }
+                    className={`px-3.5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition border ${
+                      examSettings.maxAttemptsPerUser === 3
+                        ? 'bg-purple-500 text-white border-purple-400 shadow-md ring-2 ring-purple-300/40'
+                        : 'bg-white/10 text-white/70 border-white/10 hover:bg-white/20'
+                    }`}
+                  >
+                    🔄 3 Intentos
                   </button>
 
                   <button
@@ -2257,13 +2345,13 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
                         preventRetries: false,
                       }))
                     }
-                    className={`px-4 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition border ${
-                      (examSettings.maxAttemptsPerUser ?? 1) === 0
-                        ? 'bg-amber-400 text-black border-amber-300 shadow-md'
+                    className={`px-3.5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition border ${
+                      examSettings.maxAttemptsPerUser === 0
+                        ? 'bg-emerald-500 text-white border-emerald-400 shadow-md ring-2 ring-emerald-300/40'
                         : 'bg-white/10 text-white/70 border-white/10 hover:bg-white/20'
                     }`}
                   >
-                    Intentos Ilimitados
+                    ✨ Ilimitados
                   </button>
                 </div>
               </div>
@@ -2272,16 +2360,22 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
                 className={`p-4 rounded-2xl border text-xs font-semibold ${
                   (examSettings.maxAttemptsPerUser ?? 1) === 1
                     ? 'bg-amber-500/10 border-amber-500/30 text-amber-200'
-                    : 'bg-blue-500/10 border-blue-500/30 text-blue-200'
+                    : (examSettings.maxAttemptsPerUser ?? 1) > 1
+                    ? 'bg-blue-500/10 border-blue-500/30 text-blue-200'
+                    : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200'
                 }`}
               >
                 {(examSettings.maxAttemptsPerUser ?? 1) === 1 ? (
                   <span>
-                    🔒 <strong>Intento Único Estricto:</strong> Cada colaborador solo podrá responder el examen una vez. Si intenta ingresar de nuevo, se le notificará que su intento ya fue enviado. Podrás habilitarle un nuevo intento individual desde la pestaña "Usuarios & Accesos" o en la inspección de participantes.
+                    🔒 <strong>Intento Único Estricto para este cuestionario:</strong> Cada colaborador solo podrá responder este examen una vez. Si intenta ingresar de nuevo, el sistema no le permitirá abrirlo. Podrás habilitarle un nuevo intento individual cuando lo consideres necesario desde la pestaña "Usuarios & Accesos" o en la inspección de participantes.
+                  </span>
+                ) : (examSettings.maxAttemptsPerUser ?? 1) > 1 ? (
+                  <span>
+                    🔄 <strong>Límite de {examSettings.maxAttemptsPerUser} Intentos:</strong> Los colaboradores podrán contestar este cuestionario hasta {examSettings.maxAttemptsPerUser} veces (por ejemplo, para tener una oportunidad de recuperación o mejora de calificación). Tras agotar sus {examSettings.maxAttemptsPerUser} oportunidades, el sistema les bloqueará nuevos reintentos.
                   </span>
                 ) : (
                   <span>
-                    🔄 <strong>Múltiples Intentos Permitidos:</strong> Los colaboradores pueden practicar y repetir el examen libremente. En los rankings oficiales se conserva la auditoría de cada intento.
+                    ✨ <strong>Intentos Ilimitados:</strong> Los colaboradores pueden presentar este cuestionario las veces que deseen para práctica, aprendizaje continuo o encuestas de clima laboral.
                   </span>
                 )}
               </div>
@@ -2485,6 +2579,17 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
             </motion.div>
           )}
 
+          {userActionMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-3.5 bg-emerald-500/20 border border-emerald-500/40 rounded-2xl text-xs font-bold text-emerald-300 flex items-center gap-2 shadow-lg"
+            >
+              <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>{userActionMessage}</span>
+            </motion.div>
+          )}
+
           {/* Quizzes Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {quizzes.map(quiz => (
@@ -2509,6 +2614,22 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
                   </div>
 
                   <div className="p-6">
+                    <div className="flex items-center gap-2 mb-2">
+                      {quiz.maxAttemptsPerUser === 1 || (quiz.maxAttemptsPerUser === undefined && quiz.preventRetries) ? (
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-400/20 text-amber-300 border border-amber-400/40 flex items-center gap-1">
+                          <Lock className="w-3 h-3" /> 1 Intento Único
+                        </span>
+                      ) : quiz.maxAttemptsPerUser && quiz.maxAttemptsPerUser > 1 ? (
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-500/20 text-blue-300 border border-blue-500/40 flex items-center gap-1">
+                          <RotateCcw className="w-3 h-3" /> Máx. {quiz.maxAttemptsPerUser} Intentos
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
+                          <Sparkles className="w-3 h-3" /> Ilimitado
+                        </span>
+                      )}
+                    </div>
+
                     <h3 className="text-xl font-black text-white mb-2 leading-snug">
                       {quiz.title}
                     </h3>
@@ -2518,12 +2639,28 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
                   </div>
                 </div>
 
-                <div className="p-6 pt-0 flex items-center justify-between gap-2 border-t border-white/5 mt-4">
-                  <span className="text-xs text-white/50 font-bold">
-                    ⏱ {quiz.timePerQuestion || 20}s promedio
-                  </span>
+                <div className="p-6 pt-0 space-y-3 border-t border-white/5 mt-4">
+                  <div className="flex items-center justify-between gap-2 pt-3">
+                    <div className="flex items-center gap-1.5 bg-black/40 px-2.5 py-1.5 rounded-xl border border-white/10" title="Cambiar oportunidades permitidas para este cuestionario">
+                      <span className="text-[10px] font-black uppercase text-white/50">Límite:</span>
+                      <select
+                        value={quiz.maxAttemptsPerUser !== undefined ? quiz.maxAttemptsPerUser : (quiz.preventRetries ? 1 : 0)}
+                        onChange={e => handleQuickUpdateQuizAttempts(quiz.id, Number(e.target.value))}
+                        className="bg-transparent text-amber-300 text-xs font-black focus:outline-none cursor-pointer"
+                      >
+                        <option value={1} className="bg-slate-900 text-white">1 Intento Único</option>
+                        <option value={2} className="bg-slate-900 text-white">2 Intentos</option>
+                        <option value={3} className="bg-slate-900 text-white">3 Intentos</option>
+                        <option value={0} className="bg-slate-900 text-white">Ilimitados</option>
+                      </select>
+                    </div>
 
-                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-white/50 font-bold">
+                      ⏱ {quiz.timePerQuestion || 20}s prom.
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-1.5">
                     {/* Compartir */}
                     <button
                       onClick={() => setSharingQuiz(quiz)}
@@ -2902,7 +3039,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
               </div>
 
               {/* Quiz General Info Form */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
                 <div>
                   <label className="text-xs uppercase font-bold text-white/70 block mb-1">
                     Título del Cuestionario *
@@ -2929,7 +3066,36 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
                   />
                 </div>
 
-                <div className="md:col-span-2">
+                <div>
+                  <label className="text-xs uppercase font-bold text-white/70 block mb-1">
+                    Oportunidades (Intentos)
+                  </label>
+                  <select
+                    value={
+                      editingQuiz.maxAttemptsPerUser !== undefined
+                        ? editingQuiz.maxAttemptsPerUser
+                        : editingQuiz.preventRetries
+                        ? 1
+                        : 0
+                    }
+                    onChange={e => {
+                      const val = Number(e.target.value);
+                      setEditingQuiz({
+                        ...editingQuiz,
+                        maxAttemptsPerUser: val,
+                        preventRetries: val === 1,
+                      });
+                    }}
+                    className="w-full px-4 py-3 rounded-xl bg-black/40 border border-white/20 text-white font-bold text-sm focus:outline-none focus:border-amber-400"
+                  >
+                    <option value={1} className="bg-slate-900 text-white">🔒 1 Intento Único (Estricto)</option>
+                    <option value={2} className="bg-slate-900 text-white">🔄 2 Intentos (1 + Recuperación)</option>
+                    <option value={3} className="bg-slate-900 text-white">🔄 3 Intentos</option>
+                    <option value={0} className="bg-slate-900 text-white">✨ Intentos Ilimitados</option>
+                  </select>
+                </div>
+
+                <div className="md:col-span-3">
                   <label className="text-xs uppercase font-bold text-white/70 block mb-1">
                     Descripción
                   </label>

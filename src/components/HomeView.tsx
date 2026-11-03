@@ -16,7 +16,8 @@ import {
   ShieldCheck,
   Award,
   CheckCircle2,
-  FileCheck2
+  FileCheck2,
+  RotateCcw
 } from 'lucide-react';
 import type { Quiz, Participant, UserAccount } from '../types/quiz';
 import { quizService, DEFAULT_DEPARTMENTS } from '../services/quizService';
@@ -321,6 +322,22 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 </div>
 
                 <div className="p-6">
+                  <div className="flex items-center gap-2 mb-2">
+                    {quiz.maxAttemptsPerUser === 1 || (quiz.maxAttemptsPerUser === undefined && quiz.preventRetries) ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-400/20 text-amber-300 border border-amber-400/40">
+                        <Lock className="w-3 h-3" /> 1 Intento Único
+                      </span>
+                    ) : quiz.maxAttemptsPerUser && quiz.maxAttemptsPerUser > 1 ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-500/20 text-blue-300 border border-blue-500/40">
+                        <RotateCcw className="w-3 h-3" /> Máx. {quiz.maxAttemptsPerUser} Intentos
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                        <Sparkles className="w-3 h-3" /> Intentos Ilimitados
+                      </span>
+                    )}
+                  </div>
+
                   <h3 className="text-xl font-black text-white mb-2 leading-snug group-hover:text-amber-300 transition-colors">
                     {quiz.title}
                   </h3>
@@ -497,18 +514,13 @@ export const HomeView: React.FC<HomeViewProps> = ({
                       return;
                     }
 
-                    // 2. Validar límite de intentos configurados en el cuestionario
-                    const maxAllowed = selectedQuiz.maxAttemptsPerUser ?? (selectedQuiz.preventRetries ? 1 : 0);
-                    if (maxAllowed > 0) {
-                      const hasAttempt = await quizService.hasParticipantAttempt(selectedQuiz.id, nickname.trim());
-                      if (hasAttempt) {
-                        setErrorMessage(
-                          `Esta evaluación está configurada para ${
-                            maxAllowed === 1 ? '1 solo intento' : `${maxAllowed} intentos`
-                          } por colaborador. Tu nombre ya cuenta con un intento registrado en el sistema.`
-                        );
-                        return;
-                      }
+                    // 2. Validar límite individual de intentos para este cuestionario
+                    const attemptCheck = await quizService.checkParticipantCanAttempt(selectedQuiz, nickname.trim());
+                    if (!attemptCheck.canAttempt) {
+                      setErrorMessage(
+                        attemptCheck.reason || 'Has alcanzado el límite de intentos permitidos para esta evaluación.'
+                      );
+                      return;
                     }
 
                     handleSaveProfile(nickname.trim(), selectedAvatar, undefined, department);

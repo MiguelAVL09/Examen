@@ -96,16 +96,11 @@ export const KioskView: React.FC<KioskViewProps> = ({
 
     const finalName = nickname.trim() || `Colaborador #${employeeNumber.trim() || 'Cinépolis'}`;
 
-    // Validar candado de intento si aplica
-    const maxAllowed = targetQuiz.maxAttemptsPerUser ?? (targetQuiz.preventRetries ? 1 : 0);
-    if (maxAllowed > 0 && !targetQuiz.isAnonymousSurvey) {
-      const hasAttempt = await quizService.hasParticipantAttempt(targetQuiz.id, finalName);
-      if (hasAttempt) {
-        setErrorMessage(
-          `¡Hola ${finalName}! Ya registraste tu evaluación de "${targetQuiz.title}". El sistema tiene candado de intento único.`
-        );
-        return;
-      }
+    // Validar candado individual de intentos para este cuestionario
+    const attemptCheck = await quizService.checkParticipantCanAttempt(targetQuiz, finalName);
+    if (!attemptCheck.canAttempt) {
+      setErrorMessage(attemptCheck.reason || 'Has agotado tus intentos permitidos para esta evaluación.');
+      return;
     }
 
     onStartQuiz(targetQuiz, finalName, selectedAvatar, undefined, department);
@@ -251,12 +246,16 @@ export const KioskView: React.FC<KioskViewProps> = ({
                 onChange={e => setSelectedQuizId(e.target.value)}
                 className="w-full px-4 py-3.5 rounded-2xl bg-black/60 border border-amber-400/40 text-amber-200 text-sm font-bold focus:outline-none focus:border-amber-400"
               >
-                {quizzes.map(q => (
-                  <option key={q.id} value={q.id} className="bg-slate-950 text-white">
-                    {q.isAnonymousSurvey ? '🛡️ (Anónima) ' : q.quizKind === 'simulator' ? '🎭 (Simulador) ' : '⭐ '}
-                    {q.title} ({q.questions.length} preguntas)
-                  </option>
-                ))}
+                {quizzes.map(q => {
+                  const maxAtt = q.maxAttemptsPerUser !== undefined ? q.maxAttemptsPerUser : (q.preventRetries ? 1 : 0);
+                  const attLabel = maxAtt === 1 ? '🔒 1 intento' : maxAtt > 1 ? `🔄 ${maxAtt} intentos` : '✨ ilimitado';
+                  return (
+                    <option key={q.id} value={q.id} className="bg-slate-950 text-white">
+                      {q.isAnonymousSurvey ? '🛡️ (Anónima) ' : q.quizKind === 'simulator' ? '🎭 (Simulador) ' : '⭐ '}
+                      {q.title} — [{attLabel}]
+                    </option>
+                  );
+                })}
               </select>
             </div>
 

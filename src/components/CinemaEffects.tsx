@@ -501,7 +501,7 @@ export const CinemaTicketResult: React.FC<CinemaTicketResultProps> = ({
           </button>
 
           <div className="flex items-center gap-3 w-full sm:w-auto">
-            {allowReplay && !quiz.preventRetries && (
+            {allowReplay && !quiz.preventRetries && quiz.maxAttemptsPerUser !== 1 && (
               <button
                 type="button"
                 onClick={onPlayAgain}
