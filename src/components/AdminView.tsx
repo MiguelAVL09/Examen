@@ -47,11 +47,19 @@ import {
   Building2,
   Briefcase,
   Smartphone,
-  FileSpreadsheet
+  FileSpreadsheet,
+  UserCheck,
+  UserX,
+  Key,
+  KeyRound,
+  Sparkles,
+  UserPlus
 } from 'lucide-react';
-import type { Participant, Quiz, Question, QuestionType } from '../types/quiz';
+import type { Participant, Quiz, Question, QuestionType, UserAccount } from '../types/quiz';
 import { quizService, generateUUID, DEFAULT_DEPARTMENTS, DEFAULT_EXPLANATIONS, type ExamSettings, type QuestionAnalytics, type DetailedParticipantAnswer } from '../services/quizService';
 import { isSupabaseConfigured } from '../services/supabaseClient';
+import { authService } from '../services/authService';
+import { CINEPOLIS_QUIZ_TEMPLATES, instantiateQuizFromTemplate, type QuizTemplateDefinition } from '../utils/quizTemplates';
 import { processImageUpload, PRESET_IMAGES } from '../utils/imageUtils';
 import { exportRankingsToPDF, exportDiplomaPDF, exportTop3Diplomas, exportQuestionAnalyticsPDF } from '../utils/pdfExport';
 import { exportRankingsToExcel } from '../utils/excelExport';
@@ -65,14 +73,14 @@ interface AdminViewProps {
 }
 
 export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
-  // Authentication State
+  // Authentication State: Si el usuario ya inició sesión con rol admin, se autentica directamente
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return sessionStorage.getItem('kahoot_admin_auth') === 'true';
+    return authService.isAdmin() || sessionStorage.getItem('kahoot_admin_auth') === 'true';
   });
   const [passcode, setPasscode] = useState<string>('');
   const [authError, setAuthError] = useState<string>('');
 
-  const [activeTab, setActiveTab] = useState<'rankings' | 'analytics' | 'controls' | 'quizzes' | 'supabase'>('rankings');
+  const [activeTab, setActiveTab] = useState<'rankings' | 'analytics' | 'controls' | 'quizzes' | 'users' | 'server'>('rankings');
 
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [rankings, setRankings] = useState<Participant[]>([]);
@@ -97,8 +105,19 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
     shuffleQuestions: true,
     branches: [],
     departments: DEFAULT_DEPARTMENTS,
+    maxAttemptsPerUser: 1,
   });
   const [branchesInput, setBranchesInput] = useState<string>('');
+
+  // Estados para Gestión de Usuarios & Accesos Cinépolis
+  const [usersList, setUsersList] = useState<UserAccount[]>([]);
+  const [userSearchQuery, setUserSearchQuery] = useState<string>('');
+  const [userRoleFilter, setUserRoleFilter] = useState<'all' | 'admin' | 'user'>('all');
+  const [editingUser, setEditingUser] = useState<UserAccount | null>(null);
+  const [resettingUserPassword, setResettingUserPassword] = useState<{ id: string; name: string } | null>(null);
+  const [newTempPassword, setNewTempPassword] = useState<string>('');
+  const [userActionMessage, setUserActionMessage] = useState<string>('');
+  const [showTemplatesModal, setShowTemplatesModal] = useState<boolean>(false);
 
   const [isEditorOpen, setIsEditorOpen] = useState<boolean>(false);
   const [editingQuiz, setEditingQuiz] = useState<Quiz | null>(null);
@@ -194,9 +213,14 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
           shuffleQuestions: targetQuiz.shuffleQuestions ?? settings.shuffleQuestions ?? true,
           branches: loadedBranches,
           departments: targetQuiz.departments || settings.departments || DEFAULT_DEPARTMENTS,
+          maxAttemptsPerUser: targetQuiz.maxAttemptsPerUser ?? settings.maxAttemptsPerUser ?? 1,
         });
         setBranchesInput(loadedBranches.join(', '));
       }
+
+      // Cargar lista de usuarios registrados
+      const allUsers = await authService.getUsers();
+      setUsersList(allUsers);
     } catch (err) {
       console.error('Error cargando datos de admin:', err);
     } finally {
@@ -351,7 +375,110 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
     }
   };
 
-  // Export to CSV (Secundario / Opcional)
+  // Acciones Administrativas de Usuarios Cinépolis
+  const handleUpdateUserData = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+    const res = await authService.updateUser(editingUser.id, {
+      name: editingUser.name,
+      fullName: editingUser.name,
+      email: editingUser.email,
+      employeeNumber: editingUser.employeeNumber,
+      branch: editingUser.branch,
+      department: editingUser.department,
+      role: editingUser.role,
+    });
+    if (res.success) {
+      setUserActionMessage('¡Datos de usuario actualizados exitosamente!');
+      setEditingUser(null);
+      const updated = await authService.getUsers();
+      setUsersList(updated);
+      setTimeout(() => setUserActionMessage(''), 4000);
+    } else {
+      alert(res.error || 'Error al actualizar usuario');
+    }
+  };
+
+  const handleToggleUserRole = async (user: UserAccount) => {
+    const newRole = user.role === 'admin' ? 'user' : 'admin';
+    if (!window.confirm(`¿Deseas cambiar el rol de ${user.name || user.nickname} a "${newRole === 'admin' ? 'Administrador' : 'Colaborador'}"?`)) {
+      return;
+    }
+    const res = await authService.updateUser(user.id, { role: newRole });
+    if (res.success) {
+      setUserActionMessage(`Rol de ${user.nickname} actualizado a ${newRole === 'admin' ? 'Administrador' : 'Colaborador'}.`);
+      const updated = await authService.getUsers();
+      setUsersList(updated);
+      setTimeout(() => setUserActionMessage(''), 4000);
+    } else {
+      alert(res.error || 'Error al cambiar rol');
+    }
+  };
+
+  const handleToggleUserStatus = async (user: UserAccount) => {
+    const action = user.isActive ? 'suspender' : 'activar';
+    if (!window.confirm(`¿Deseas ${action} la cuenta de ${user.name || user.nickname}?`)) return;
+    const res = await authService.toggleUserStatus(user.id);
+    if (res.success) {
+      setUserActionMessage(`Cuenta de ${user.nickname} ${res.isActive ? 'activada' : 'suspendida'}.`);
+      const updated = await authService.getUsers();
+      setUsersList(updated);
+      setTimeout(() => setUserActionMessage(''), 4000);
+    }
+  };
+
+  const handleResetUserPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resettingUserPassword || !newTempPassword.trim()) return;
+    if (newTempPassword.length < 6) {
+      alert('La contraseña temporal debe tener al menos 6 caracteres.');
+      return;
+    }
+    const res = await authService.resetUserPassword(resettingUserPassword.id, newTempPassword.trim());
+    if (res.success) {
+      setUserActionMessage(`¡Contraseña de ${resettingUserPassword.name} restablecida exitosamente!`);
+      setResettingUserPassword(null);
+      setNewTempPassword('');
+      setTimeout(() => setUserActionMessage(''), 4000);
+    } else {
+      alert(res.error || 'Error al restablecer contraseña');
+    }
+  };
+
+  const handleDeleteUserAccount = async (user: UserAccount) => {
+    if (!window.confirm(`¿Estás seguro de ELIMINAR permanentemente la cuenta de ${user.name || user.nickname} (${user.nickname})? Esta acción no se puede deshacer.`)) {
+      return;
+    }
+    const res = await authService.deleteUser(user.id);
+    if (res.success) {
+      setUserActionMessage(`Cuenta de ${user.nickname} eliminada.`);
+      const updated = await authService.getUsers();
+      setUsersList(updated);
+      setTimeout(() => setUserActionMessage(''), 4000);
+    } else {
+      alert(res.error || 'Error al eliminar usuario');
+    }
+  };
+
+  const handleClearUserQuizAttempts = async (nickname: string) => {
+    const targetQuizId = selectedQuizId === 'all'
+      ? (quizzes.find(q => q.id === 'f3f7aa07-4389-4769-a162-3fb8b989bfc0')?.id || quizzes[0]?.id || '')
+      : selectedQuizId;
+    if (!targetQuizId) return;
+
+    if (window.confirm(`¿Habilitar un nuevo intento para "${nickname}"? Se reiniciarán sus registros de este examen para que pueda presentarlo nuevamente.`)) {
+      await quizService.clearParticipantAttempts(targetQuizId, nickname);
+      await loadData();
+      setUserActionMessage(`Nuevo intento habilitado para ${nickname}.`);
+      setTimeout(() => setUserActionMessage(''), 4000);
+    }
+  };
+
+  const handleSyncToServer = async () => {
+    setSyncStatus('Sincronizando con el servidor central...');
+    const res = await quizService.syncSeedToSupabase();
+    setSyncStatus(res.message);
+  };
   const handleExportCSV = () => {
     if (filteredRankings.length === 0) return;
 
@@ -390,11 +517,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
     }
   };
 
-  const handleSyncToSupabase = async () => {
-    setSyncStatus('Sincronizando...');
-    const res = await quizService.syncSeedToSupabase();
-    setSyncStatus(res.message);
-  };
 
   const handleDeleteQuiz = async (quizId: string) => {
     if (window.confirm('¿Deseas eliminar este cuestionario? Se eliminarán también sus preguntas asociadas.')) {
@@ -727,11 +849,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
           <div className="flex items-center gap-2 mt-2.5">
             {isSupabaseConfigured() ? (
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm">
-                <Database className="w-3.5 h-3.5" /> Supabase Conectado y Listo
+                <Database className="w-3.5 h-3.5" /> Servidor en la Nube Conectado y Listo
               </span>
             ) : (
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm">
-                <Database className="w-3.5 h-3.5" /> Modo Local / Demo
+                <Database className="w-3.5 h-3.5" /> Modo Local Protegido
               </span>
             )}
           </div>
@@ -755,13 +877,13 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
       </div>
 
       {/* Tabs Navigation */}
-      <div className="flex flex-wrap gap-2 p-1.5 bg-black/30 rounded-2xl border border-white/10 mb-8 max-w-4xl">
+      <div className="flex flex-wrap gap-2 p-1.5 bg-black/40 rounded-2xl border border-white/10 mb-8 max-w-5xl">
         <button
           onClick={() => setActiveTab('rankings')}
-          className={`flex-1 min-w-[150px] py-3 px-4 rounded-xl font-black text-xs md:text-sm uppercase tracking-wider transition flex items-center justify-center gap-2 ${
+          className={`flex-1 min-w-[130px] py-3 px-3 rounded-xl font-black text-xs md:text-sm uppercase tracking-wider transition flex items-center justify-center gap-2 ${
             activeTab === 'rankings'
-              ? 'bg-kahoot-yellow text-black shadow-lg'
-              : 'text-white/70 hover:text-white'
+              ? 'bg-amber-400 text-black shadow-lg shadow-amber-400/20'
+              : 'text-white/70 hover:text-white hover:bg-white/5'
           }`}
         >
           <Trophy className="w-4 h-4" />
@@ -770,10 +892,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
 
         <button
           onClick={() => setActiveTab('analytics')}
-          className={`flex-1 min-w-[150px] py-3 px-4 rounded-xl font-black text-xs md:text-sm uppercase tracking-wider transition flex items-center justify-center gap-2 ${
+          className={`flex-1 min-w-[130px] py-3 px-3 rounded-xl font-black text-xs md:text-sm uppercase tracking-wider transition flex items-center justify-center gap-2 ${
             activeTab === 'analytics'
-              ? 'bg-kahoot-yellow text-black shadow-lg'
-              : 'text-white/70 hover:text-white'
+              ? 'bg-amber-400 text-black shadow-lg shadow-amber-400/20'
+              : 'text-white/70 hover:text-white hover:bg-white/5'
           }`}
         >
           <BarChart3 className="w-4 h-4" />
@@ -782,10 +904,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
 
         <button
           onClick={() => setActiveTab('controls')}
-          className={`flex-1 min-w-[150px] py-3 px-4 rounded-xl font-black text-xs md:text-sm uppercase tracking-wider transition flex items-center justify-center gap-2 ${
+          className={`flex-1 min-w-[130px] py-3 px-3 rounded-xl font-black text-xs md:text-sm uppercase tracking-wider transition flex items-center justify-center gap-2 ${
             activeTab === 'controls'
-              ? 'bg-kahoot-yellow text-black shadow-lg'
-              : 'text-white/70 hover:text-white'
+              ? 'bg-amber-400 text-black shadow-lg shadow-amber-400/20'
+              : 'text-white/70 hover:text-white hover:bg-white/5'
           }`}
         >
           <Sliders className="w-4 h-4" />
@@ -794,10 +916,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
 
         <button
           onClick={() => setActiveTab('quizzes')}
-          className={`flex-1 min-w-[150px] py-3 px-4 rounded-xl font-black text-xs md:text-sm uppercase tracking-wider transition flex items-center justify-center gap-2 ${
+          className={`flex-1 min-w-[130px] py-3 px-3 rounded-xl font-black text-xs md:text-sm uppercase tracking-wider transition flex items-center justify-center gap-2 ${
             activeTab === 'quizzes'
-              ? 'bg-kahoot-yellow text-black shadow-lg'
-              : 'text-white/70 hover:text-white'
+              ? 'bg-amber-400 text-black shadow-lg shadow-amber-400/20'
+              : 'text-white/70 hover:text-white hover:bg-white/5'
           }`}
         >
           <BookOpen className="w-4 h-4" />
@@ -805,15 +927,27 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
         </button>
 
         <button
-          onClick={() => setActiveTab('supabase')}
-          className={`flex-1 min-w-[130px] py-3 px-4 rounded-xl font-black text-xs md:text-sm uppercase tracking-wider transition flex items-center justify-center gap-2 ${
-            activeTab === 'supabase'
-              ? 'bg-kahoot-yellow text-black shadow-lg'
-              : 'text-white/70 hover:text-white'
+          onClick={() => setActiveTab('users')}
+          className={`flex-1 min-w-[130px] py-3 px-3 rounded-xl font-black text-xs md:text-sm uppercase tracking-wider transition flex items-center justify-center gap-2 ${
+            activeTab === 'users'
+              ? 'bg-amber-400 text-black shadow-lg shadow-amber-400/20'
+              : 'text-white/70 hover:text-white hover:bg-white/5'
+          }`}
+        >
+          <Users className="w-4 h-4" />
+          <span>Usuarios & Accesos</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('server')}
+          className={`flex-1 min-w-[130px] py-3 px-3 rounded-xl font-black text-xs md:text-sm uppercase tracking-wider transition flex items-center justify-center gap-2 ${
+            activeTab === 'server'
+              ? 'bg-amber-400 text-black shadow-lg shadow-amber-400/20'
+              : 'text-white/70 hover:text-white hover:bg-white/5'
           }`}
         >
           <Database className="w-4 h-4" />
-          <span>Base de Datos</span>
+          <span>Sincronización</span>
         </button>
       </div>
 
@@ -1338,6 +1472,46 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                 >
                   ✕
                 </button>
+              </div>
+            </div>
+
+            {/* Acciones Rápidas del Colaborador */}
+            <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-black/40 rounded-2xl border border-white/10">
+              <span className="text-xs text-white/70 font-semibold">
+                Acciones de gestión para <strong className="text-amber-300">{inspectingPlayerName}</strong>:
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!inspectingPlayerName) return;
+                    if (window.confirm(`¿Habilitar un nuevo intento para "${inspectingPlayerName}"? Se reiniciarán sus registros de este examen para permitirle volver a contestar.`)) {
+                      await handleClearUserQuizAttempts(inspectingPlayerName);
+                      setInspectingPlayerName(null);
+                    }
+                  }}
+                  className="btn-cinepolis-gold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 font-black shadow-md"
+                  title="Permite que este colaborador vuelva a presentar el examen aunque el candado de reintentos esté activo"
+                >
+                  <Unlock className="w-3.5 h-3.5 text-black" />
+                  <span>Habilitar Nuevo Intento</span>
+                </button>
+
+                {inspectingAttempts[0] && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const pRank = filteredRankings.findIndex(
+                        p => normalizePlayerName(p.nickname) === normalizePlayerName(inspectingPlayerName)
+                      ) + 1;
+                      handleExportSingleDiploma(inspectingAttempts[0], pRank > 0 ? pRank : 1);
+                    }}
+                    className="btn-cinepolis-glass text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 font-bold"
+                  >
+                    <Award className="w-3.5 h-3.5 text-amber-300" />
+                    <span>Descargar Diploma</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -2131,48 +2305,72 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
               </div>
             </div>
 
-            {/* Control 3: Bloqueo Preventivo de Reintentos */}
+            {/* Control 3: Límite de Intentos por Colaborador */}
             <div className="bg-kahoot-purple-dark/80 p-6 rounded-3xl border border-white/10 shadow-lg space-y-4 md:col-span-2">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <h3 className="text-lg font-black text-white flex items-center gap-2">
-                    <Shield className="w-5 h-5 text-kahoot-yellow" />
-                    <span>Bloqueo Preventivo de Reintentos (Anti-trampas Preventivo)</span>
+                    <Shield className="w-5 h-5 text-amber-400" />
+                    <span>Límite de Intentos por Colaborador</span>
                   </h3>
                   <p className="text-xs text-white/60 mt-1 max-w-2xl leading-relaxed">
-                    Al activar esta opción, el sistema <strong>impedirá físicamente</strong> que cualquier usuario vuelva a iniciar el examen si su teléfono ya lo completó o si ingresa un nombre que ya cuenta con un intento registrado.
+                    Determina si los usuarios pueden realizar la evaluación únicamente <strong>1 sola vez</strong> o si tienen permitido contestar múltiples veces con registro y auditoría.
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    setExamSettings(prev => ({ ...prev, preventRetries: !prev.preventRetries }))
-                  }
-                  className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition border shadow-sm shrink-0 ${
-                    examSettings.preventRetries
-                      ? 'bg-red-500/20 text-red-300 border-red-500/40 hover:bg-red-500/30'
-                      : 'bg-white/10 text-white/70 border-white/10 hover:bg-white/20 hover:text-white'
-                  }`}
-                >
-                  {examSettings.preventRetries ? 'Bloqueo ACTIVADO' : 'Permitir Reintentos'}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setExamSettings(prev => ({
+                        ...prev,
+                        maxAttemptsPerUser: 1,
+                        preventRetries: true,
+                      }))
+                    }
+                    className={`px-4 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition border ${
+                      (examSettings.maxAttemptsPerUser ?? 1) === 1
+                        ? 'bg-amber-400 text-black border-amber-300 shadow-md'
+                        : 'bg-white/10 text-white/70 border-white/10 hover:bg-white/20'
+                    }`}
+                  >
+                    1 Intento Único (Recomendado)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setExamSettings(prev => ({
+                        ...prev,
+                        maxAttemptsPerUser: 0,
+                        preventRetries: false,
+                      }))
+                    }
+                    className={`px-4 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition border ${
+                      (examSettings.maxAttemptsPerUser ?? 1) === 0
+                        ? 'bg-amber-400 text-black border-amber-300 shadow-md'
+                        : 'bg-white/10 text-white/70 border-white/10 hover:bg-white/20'
+                    }`}
+                  >
+                    Intentos Ilimitados
+                  </button>
+                </div>
               </div>
 
               <div
                 className={`p-4 rounded-2xl border text-xs font-semibold ${
-                  examSettings.preventRetries
-                    ? 'bg-red-950/20 border-red-500/30 text-red-300'
-                    : 'bg-black/30 border-white/10 text-white/60'
+                  (examSettings.maxAttemptsPerUser ?? 1) === 1
+                    ? 'bg-amber-500/10 border-amber-500/30 text-amber-200'
+                    : 'bg-blue-500/10 border-blue-500/30 text-blue-200'
                 }`}
               >
-                {examSettings.preventRetries ? (
+                {(examSettings.maxAttemptsPerUser ?? 1) === 1 ? (
                   <span>
-                    🛡️ <strong>Modo Estricto Activo:</strong> Solo se permite 1 intento por persona/dispositivo. Si alguien ya completó la prueba, la plataforma no le permitirá empezar de nuevo.
+                    🔒 <strong>Intento Único Estricto:</strong> Cada colaborador solo podrá responder el examen una vez. Si intenta ingresar de nuevo, se le notificará que su intento ya fue enviado. Podrás habilitarle un nuevo intento individual desde la pestaña "Usuarios & Accesos" o en la inspección de participantes.
                   </span>
                 ) : (
                   <span>
-                    💡 <strong>Modo Flexible con Auditoría:</strong> Los participantes pueden volver a jugar si lo desean, pero en tu tabla de rankings su calificación oficial se toma únicamente de su 1er intento y los demás se marcan como trampa.
+                    🔄 <strong>Múltiples Intentos Permitidos:</strong> Los colaboradores pueden practicar y repetir el examen libremente. En los rankings oficiales se conserva la auditoría de cada intento.
                   </span>
                 )}
               </div>
@@ -2275,6 +2473,17 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                 />
               </label>
 
+              {/* Plantillas Cinépolis */}
+              <button
+                type="button"
+                onClick={() => setShowTemplatesModal(true)}
+                className="btn-cinepolis-gold flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-black shadow-lg"
+                title="Crear evaluación al instante usando plantillas oficiales prediseñadas"
+              >
+                <Sparkles className="w-4 h-4 text-black" />
+                <span>⚡ Plantillas Cinépolis</span>
+              </button>
+
               {/* Crear Cuestionario */}
               <button
                 onClick={() => {
@@ -2308,7 +2517,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                   });
                   setIsEditorOpen(true);
                 }}
-                className="flex items-center gap-2 px-5 py-2.5 bg-kahoot-yellow hover:bg-amber-400 text-black font-black uppercase tracking-wider text-xs md:text-sm rounded-xl shadow-xl active:scale-95 transition"
+                className="btn-cinepolis-primary flex items-center gap-2 px-5 py-2.5 text-white font-black uppercase tracking-wider text-xs md:text-sm rounded-xl shadow-xl active:scale-95 transition"
               >
                 <Plus className="w-4 h-4 stroke-[3]" />
                 <span>Crear Cuestionario</span>
@@ -2446,33 +2655,236 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
         </div>
       )}
 
-      {/* TAB 3: SUPABASE */}
-      {activeTab === 'supabase' && (
+      {/* TAB: GESTIÓN DE USUARIOS & ACCESOS */}
+      {activeTab === 'users' && (
+        <div className="space-y-6">
+          <div className="bg-kahoot-purple-dark/80 p-6 rounded-3xl border border-white/10 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="p-2 bg-amber-500/20 text-amber-300 rounded-xl">
+                  <Users className="w-5 h-5" />
+                </span>
+                <h2 className="text-2xl font-black uppercase text-white tracking-tight">
+                  Control de Usuarios & Accesos ({usersList.length})
+                </h2>
+              </div>
+              <p className="text-xs text-white/70 mt-1">
+                Administra cuentas registradas, cambia permisos entre Administrador y Colaborador, restablece contraseñas y habilita nuevos intentos.
+              </p>
+            </div>
+
+            {userActionMessage && (
+              <span className="text-xs font-bold text-emerald-400 bg-emerald-500/20 px-3.5 py-2 rounded-xl border border-emerald-500/30 animate-pulse">
+                ✓ {userActionMessage}
+              </span>
+            )}
+          </div>
+
+          {/* Filtros de Búsqueda de Usuarios */}
+          <div className="bg-kahoot-purple-dark/80 p-4 rounded-2xl border border-white/10 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="relative flex-1 w-full">
+              <Search className="w-4 h-4 text-white/40 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Buscar por nombre, correo, # de empleado, cine o área..."
+                value={userSearchQuery}
+                onChange={e => setUserSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-black/40 border border-white/20 text-white placeholder-white/40 text-xs sm:text-sm font-semibold focus:outline-none focus:border-amber-400"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <select
+                value={userRoleFilter}
+                onChange={e => setUserRoleFilter(e.target.value as any)}
+                className="px-3.5 py-2.5 rounded-xl bg-black/40 border border-white/20 text-white font-bold text-xs sm:text-sm appearance-none focus:outline-none focus:border-amber-400"
+              >
+                <option value="all">Todos los Roles</option>
+                <option value="admin">Solo Administradores</option>
+                <option value="user">Solo Colaboradores</option>
+              </select>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  const u = await authService.getUsers();
+                  setUsersList(u);
+                }}
+                className="p-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl border border-white/10 transition active:scale-95"
+                title="Actualizar lista de usuarios"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Lista / Tarjetas de Usuarios */}
+          <div className="grid grid-cols-1 gap-3">
+            {(() => {
+              const q = userSearchQuery.trim().toLowerCase();
+              const filtered = usersList.filter(u => {
+                if (userRoleFilter !== 'all' && u.role !== userRoleFilter) return false;
+                if (!q) return true;
+                const displayName = (u.name || u.fullName || '').toLowerCase();
+                return (
+                  displayName.includes(q) ||
+                  u.email.toLowerCase().includes(q) ||
+                  u.nickname.toLowerCase().includes(q) ||
+                  (u.employeeNumber && u.employeeNumber.toLowerCase().includes(q)) ||
+                  (u.branch && u.branch.toLowerCase().includes(q)) ||
+                  (u.department && u.department.toLowerCase().includes(q))
+                );
+              });
+
+              if (filtered.length === 0) {
+                return (
+                  <div className="py-12 text-center text-white/50 bg-black/20 rounded-2xl border border-white/5">
+                    <Users className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                    <p className="text-sm font-bold">No se encontraron usuarios con esos filtros.</p>
+                  </div>
+                );
+              }
+
+              return filtered.map(u => (
+                <div
+                  key={u.id}
+                  className="bg-kahoot-purple-dark/80 p-4 sm:p-5 rounded-2xl border border-white/10 shadow-lg flex flex-col lg:flex-row lg:items-center justify-between gap-4 hover:border-white/20 transition"
+                >
+                  <div className="flex items-start sm:items-center gap-3.5">
+                    <div className="w-11 h-11 rounded-2xl bg-amber-400/20 text-amber-300 border border-amber-400/30 flex items-center justify-center font-black text-lg shrink-0">
+                      {(u.name || u.fullName || u.nickname).charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-base font-black text-white">{u.name || u.fullName || u.nickname}</span>
+                        <span className="text-xs text-white/50 font-semibold">(@{u.nickname})</span>
+                        {u.role === 'admin' ? (
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-400 text-black shadow-sm">
+                            👑 Administrador
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                            🍿 Colaborador
+                          </span>
+                        )}
+                        {u.isActive ? (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                            Activo
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500/20 text-red-300 border border-red-500/30">
+                            Suspendido
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-white/60 mt-1.5 font-medium">
+                        <span>📧 {u.email}</span>
+                        {u.employeeNumber && <span>🎫 #{u.employeeNumber}</span>}
+                        {u.branch && <span>🏢 {u.branch}</span>}
+                        {u.department && <span>🍿 {u.department}</span>}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 pt-3 lg:pt-0 border-t lg:border-t-0 border-white/10">
+                    <button
+                      type="button"
+                      onClick={() => setEditingUser({ ...u })}
+                      className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center gap-1.5 transition active:scale-95"
+                      title="Editar datos de usuario"
+                    >
+                      <Edit className="w-3.5 h-3.5 text-amber-300" />
+                      <span>Editar</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleToggleUserRole(u)}
+                      disabled={u.id === 'admin-cinepolis-master'}
+                      className="px-3 py-1.5 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 text-blue-200 border border-blue-500/30 font-bold text-xs flex items-center gap-1.5 transition active:scale-95 disabled:opacity-30"
+                      title="Cambiar rol (Admin / Colaborador)"
+                    >
+                      <Shield className="w-3.5 h-3.5" />
+                      <span>{u.role === 'admin' ? 'Hacer Colaborador' : 'Hacer Admin'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setResettingUserPassword({ id: u.id, name: u.fullName })}
+                      className="px-3 py-1.5 rounded-xl bg-amber-400/20 hover:bg-amber-400/30 text-amber-300 border border-amber-400/30 font-bold text-xs flex items-center gap-1.5 transition active:scale-95"
+                      title="Restablecer contraseña de esta cuenta"
+                    >
+                      <Key className="w-3.5 h-3.5" />
+                      <span>Contraseña</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleClearUserQuizAttempts(u.nickname)}
+                      className="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 font-bold text-xs flex items-center gap-1.5 transition active:scale-95"
+                      title="Permite que este usuario vuelva a contestar el cuestionario seleccionado"
+                    >
+                      <Unlock className="w-3.5 h-3.5" />
+                      <span>Nuevo Intento</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleToggleUserStatus(u)}
+                      disabled={u.id === 'admin-cinepolis-master'}
+                      className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 font-bold text-xs flex items-center gap-1.5 transition active:scale-95 disabled:opacity-30"
+                      title="Activar o suspender acceso a la cuenta"
+                    >
+                      {u.isActive ? <UserX className="w-3.5 h-3.5 text-red-400" /> : <UserCheck className="w-3.5 h-3.5 text-emerald-400" />}
+                      <span>{u.isActive ? 'Suspender' : 'Activar'}</span>
+                    </button>
+
+                    {u.id !== 'admin-cinepolis-master' && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteUserAccount(u)}
+                        className="p-1.5 rounded-xl bg-red-600/20 hover:bg-red-600/40 text-red-300 border border-red-500/30 transition active:scale-95"
+                        title="Eliminar usuario definitivamente"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ));
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* TAB: SINCRONIZACIÓN Y RESPALDO EN LA NUBE */}
+      {activeTab === 'server' && (
         <div className="space-y-6 max-w-4xl">
           <div className="bg-kahoot-purple-dark/80 rounded-3xl p-6 md:p-8 border border-white/10 shadow-2xl backdrop-blur-md">
             <div className="flex items-center gap-3 mb-4">
-              <Database className="w-8 h-8 text-emerald-400" />
+              <Database className="w-8 h-8 text-amber-400" />
               <div>
                 <h3 className="text-2xl font-black text-white uppercase tracking-tight">
-                  Estado de Base de Datos Supabase
+                  Sincronización en la Nube y Respaldo Central
                 </h3>
                 <p className="text-white/70 text-sm font-semibold">
-                  Almacena usuarios, rankings históricos y nuevos cuestionarios en la nube.
+                  Almacena y respalda usuarios, evaluaciones y rankings corporativos de forma segura.
                 </p>
               </div>
             </div>
 
-            <div className="p-4 rounded-2xl bg-black/40 border border-white/10 mb-6 flex items-center justify-between">
+            <div className="p-4 rounded-2xl bg-black/40 border border-white/10 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <span className="text-xs uppercase font-bold text-white/60 block">Conexión</span>
+                <span className="text-xs uppercase font-bold text-white/60 block">Estado del Servidor</span>
                 <span className="font-extrabold text-base text-white">
                   {isSupabaseConfigured() ? (
                     <span className="text-emerald-400 flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4" /> Supabase Conectado y Listo
+                      <CheckCircle2 className="w-4 h-4" /> Servidor en la Nube Conectado y Listo
                     </span>
                   ) : (
                     <span className="text-amber-400 flex items-center gap-2">
-                      ⚠️ Modo Local Activo (Sin credenciales en .env)
+                      🛡️ Modo Local Protegido (Almacenamiento interno en navegador)
                     </span>
                   )}
                 </span>
@@ -2480,10 +2892,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
 
               {isSupabaseConfigured() && (
                 <button
-                  onClick={handleSyncToSupabase}
-                  className="px-4 py-2 bg-kahoot-yellow hover:bg-amber-400 text-black font-black text-xs uppercase tracking-wider rounded-xl transition active:scale-95"
+                  onClick={handleSyncToServer}
+                  className="btn-cinepolis-gold px-4 py-2 text-black font-black text-xs uppercase tracking-wider rounded-xl transition active:scale-95"
                 >
-                  Sincronizar Cuestionarios
+                  Sincronizar con el Servidor
                 </button>
               )}
             </div>
@@ -2496,57 +2908,51 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
 
             <div className="space-y-4 text-xs text-white/80">
               <h4 className="text-sm font-black text-white uppercase tracking-wider">
-                Pasos para vincular tu proyecto a Supabase:
+                Copias de Seguridad Fuera de Línea:
               </h4>
-              <ol className="list-decimal list-inside space-y-2 font-semibold">
-                <li>
-                  Crea una cuenta en <a href="https://supabase.com" target="_blank" rel="noreferrer" className="text-kahoot-yellow underline">Supabase.com</a>.
-                </li>
-                <li>
-                  Abre la pestaña <strong className="text-white">SQL Editor</strong> en Supabase y ejecuta el archivo <code className="text-amber-300 bg-black/40 px-1 py-0.5 rounded">supabase/schema.sql</code>.
-                </li>
-                <li>
-                  Agrega las variables en tu archivo <code className="text-amber-300 bg-black/40 px-1 py-0.5 rounded">.env</code>:
-                </li>
-              </ol>
+              <p className="font-medium text-white/70">
+                Puedes descargar una copia completa de tus cuestionarios y preguntas a tu equipo para tener respaldo en cualquier momento, o restaurarla en otra computadora.
+              </p>
 
-              <div className="bg-black/60 p-4 rounded-xl font-mono text-xs text-emerald-300 border border-white/10 select-all overflow-x-auto">
-                VITE_SUPABASE_URL=https://tu-proyecto.supabase.co
-                <br />
-                VITE_SUPABASE_ANON_KEY=tu_clave_anonima_publica_aqui
+              <div className="flex flex-wrap gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={handleDownloadQuizzesBackup}
+                  className="btn-cinepolis-gold flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs"
+                >
+                  <FileDown className="w-4 h-4 text-black" />
+                  <span>Descargar Respaldo Total (.json)</span>
+                </button>
+
+                <label className="btn-cinepolis-glass cursor-pointer flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs">
+                  <FileUp className="w-4 h-4 text-blue-300" />
+                  <span>Restaurar Copia desde Archivo</span>
+                  <input
+                    ref={importFileInputRef}
+                    type="file"
+                    accept=".json,application/json"
+                    className="hidden"
+                    onChange={handleImportQuizzesFile}
+                  />
+                </label>
               </div>
 
-              {/* Script SQL Aditivo V3 */}
-              <div className="pt-4 border-t border-white/10 space-y-2">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-black text-amber-300 uppercase tracking-wider">
-                    Script SQL Opcional (Nuevas Columnas V3: Sucursal, Área y Anti-Cheat)
-                  </h4>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const sql = `ALTER TABLE participants ADD COLUMN IF NOT EXISTS branch TEXT;\nALTER TABLE participants ADD COLUMN IF NOT EXISTS department TEXT;\nALTER TABLE participants ADD COLUMN IF NOT EXISTS tab_switches INTEGER DEFAULT 0;\nALTER TABLE participants ADD COLUMN IF NOT EXISTS time_away_ms INTEGER DEFAULT 0;\nALTER TABLE participants ADD COLUMN IF NOT EXISTS device_id TEXT;\nALTER TABLE questions ADD COLUMN IF NOT EXISTS explanation TEXT;`;
-                      navigator.clipboard.writeText(sql);
-                      setSyncStatus('¡Código SQL copiado al portapapeles! Pégalo en el SQL Editor de Supabase.');
-                      setTimeout(() => setSyncStatus(''), 4000);
-                    }}
-                    className="px-3 py-1.5 rounded-xl bg-amber-400/20 hover:bg-amber-400/30 text-amber-300 border border-amber-400/40 font-black text-xs flex items-center gap-1.5 transition"
-                  >
-                    <Copy className="w-3.5 h-3.5" />
-                    <span>Copiar SQL</span>
-                  </button>
+              {/* Blindaje y Privacidad */}
+              <div className="pt-6 border-t border-white/10 space-y-3">
+                <h4 className="text-sm font-black text-amber-300 uppercase tracking-wider flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>Estándares de Seguridad y Privacidad Cinépolis</span>
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div className="p-3.5 rounded-xl bg-black/40 border border-white/10">
+                    <strong className="text-white block mb-1">🔐 Contraseñas Cifradas con Sal (Salted SHA-256)</strong>
+                    <span className="text-white/60">Las contraseñas y respuestas de seguridad se transforman en hashes unidireccionales con sales criptográficas únicas; nunca se guardan en texto claro.</span>
+                  </div>
+                  <div className="p-3.5 rounded-xl bg-black/40 border border-white/10">
+                    <strong className="text-white block mb-1">🛡️ Huella Digital Anti-Fraude</strong>
+                    <span className="text-white/60">Cada dispositivo genera un hash criptográfico de hardware para alertar si un mismo celular contesta con nombres diferentes.</span>
+                  </div>
                 </div>
-                <p className="text-white/60 text-xs">
-                  Este script es 100% aditivo (<code className="text-amber-300">ADD COLUMN IF NOT EXISTS</code>) y conserva intactos todos tus registros existentes:
-                </p>
-                <pre className="bg-black/60 p-3.5 rounded-xl font-mono text-[11px] text-amber-200 border border-white/10 overflow-x-auto">
-{`ALTER TABLE participants ADD COLUMN IF NOT EXISTS branch TEXT;
-ALTER TABLE participants ADD COLUMN IF NOT EXISTS department TEXT;
-ALTER TABLE participants ADD COLUMN IF NOT EXISTS tab_switches INTEGER DEFAULT 0;
-ALTER TABLE participants ADD COLUMN IF NOT EXISTS time_away_ms INTEGER DEFAULT 0;
-ALTER TABLE participants ADD COLUMN IF NOT EXISTS device_id TEXT;
-ALTER TABLE questions ADD COLUMN IF NOT EXISTS explanation TEXT;`}
-                </pre>
               </div>
             </div>
           </div>
@@ -3240,6 +3646,316 @@ ALTER TABLE questions ADD COLUMN IF NOT EXISTS explanation TEXT;`}
           onClose={() => setSharingQuiz(null)}
         />
       )}
+
+      {/* MODAL: EDITAR DATOS DE USUARIO */}
+      <AnimatePresence>
+        {editingUser && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              className="bg-kahoot-purple-dark border-2 border-white/20 rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl text-white space-y-5"
+            >
+              <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <span className="p-2 bg-amber-400/20 text-amber-300 rounded-xl">
+                    <Edit className="w-5 h-5" />
+                  </span>
+                  <h3 className="text-xl font-black uppercase tracking-tight">
+                    Editar Datos de Usuario
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setEditingUser(null)}
+                  className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/70 hover:text-white"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleUpdateUserData} className="space-y-4">
+                <div>
+                  <label className="text-xs uppercase font-bold text-white/70 block mb-1">
+                    Nombre Completo *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editingUser.name || editingUser.fullName || ''}
+                    onChange={e => setEditingUser({ ...editingUser, name: e.target.value, fullName: e.target.value })}
+                    className="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/20 text-white font-semibold text-sm focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs uppercase font-bold text-white/70 block mb-1">
+                      Correo Electrónico *
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      value={editingUser.email}
+                      onChange={e => setEditingUser({ ...editingUser, email: e.target.value })}
+                      className="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/20 text-white font-semibold text-sm focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs uppercase font-bold text-white/70 block mb-1">
+                      # de Empleado / Nómina
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ej. EMP-0482"
+                      value={editingUser.employeeNumber || ''}
+                      onChange={e => setEditingUser({ ...editingUser, employeeNumber: e.target.value })}
+                      className="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/20 text-white font-semibold text-sm focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs uppercase font-bold text-white/70 block mb-1">
+                      Sucursal / Conjunto
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ej. Cinépolis Las Américas"
+                      value={editingUser.branch || ''}
+                      onChange={e => setEditingUser({ ...editingUser, branch: e.target.value })}
+                      className="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/20 text-white font-semibold text-sm focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs uppercase font-bold text-white/70 block mb-1">
+                      Área / Puesto
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ej. Dulcería, Taquilla..."
+                      value={editingUser.department || ''}
+                      onChange={e => setEditingUser({ ...editingUser, department: e.target.value })}
+                      className="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/20 text-white font-semibold text-sm focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs uppercase font-bold text-white/70 block mb-1">
+                    Rol en la Plataforma
+                  </label>
+                  <select
+                    value={editingUser.role}
+                    disabled={editingUser.id === 'admin-cinepolis-master'}
+                    onChange={e => setEditingUser({ ...editingUser, role: e.target.value as any })}
+                    className="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/20 text-white font-semibold text-sm focus:outline-none focus:border-amber-400 disabled:opacity-50"
+                  >
+                    <option value="user">Colaborador (Evaluaciones y Diplomas)</option>
+                    <option value="admin">Administrador (Acceso al Panel de Control)</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-white/10">
+                  <button
+                    type="button"
+                    onClick={() => setEditingUser(null)}
+                    className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn-cinepolis-gold px-5 py-2 text-black font-black text-xs rounded-xl"
+                  >
+                    Guardar Cambios
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL: RESTABLECER CONTRASEÑA DE USUARIO */}
+      <AnimatePresence>
+        {resettingUserPassword && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              className="bg-kahoot-purple-dark border-2 border-white/20 rounded-3xl p-6 max-w-md w-full shadow-2xl text-white space-y-4"
+            >
+              <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                <div className="flex items-center gap-2">
+                  <span className="p-2 bg-amber-400/20 text-amber-300 rounded-xl">
+                    <Key className="w-5 h-5" />
+                  </span>
+                  <h3 className="text-lg font-black uppercase tracking-tight">
+                    Restablecer Contraseña
+                  </h3>
+                </div>
+                <button
+                  onClick={() => {
+                    setResettingUserPassword(null);
+                    setNewTempPassword('');
+                  }}
+                  className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/70 hover:text-white"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <p className="text-xs text-white/70">
+                Asigna una contraseña temporal para <strong>{resettingUserPassword.name}</strong>. El colaborador podrá usarla inmediatamente para acceder y luego cambiarla en su perfil.
+              </p>
+
+              <form onSubmit={handleResetUserPassword} className="space-y-4">
+                <div>
+                  <label className="text-xs uppercase font-bold text-white/70 block mb-1">
+                    Nueva Contraseña Temporal (mínimo 6 caracteres) *
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    placeholder="••••••••"
+                    value={newTempPassword}
+                    onChange={e => setNewTempPassword(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/20 text-white font-mono text-sm focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2.5 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setResettingUserPassword(null);
+                      setNewTempPassword('');
+                    }}
+                    className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn-cinepolis-gold px-5 py-2 text-black font-black text-xs rounded-xl"
+                  >
+                    Aplicar Nueva Contraseña
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL: PLANTILLAS OFICIALES CINÉPOLIS */}
+      <AnimatePresence>
+        {showTemplatesModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              className="bg-kahoot-purple-dark border-2 border-white/20 rounded-3xl p-6 sm:p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl text-white space-y-6"
+            >
+              <div className="flex items-start justify-between border-b border-white/10 pb-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="p-2 bg-amber-400 text-black rounded-xl shadow-md">
+                      <Sparkles className="w-5 h-5" />
+                    </span>
+                    <h3 className="text-2xl font-black uppercase tracking-tight">
+                      Plantillas Oficiales Cinépolis
+                    </h3>
+                  </div>
+                  <p className="text-xs text-white/70 mt-1">
+                    Crea una evaluación lista para operar en 1 clic. Podrás ajustar y editar cualquier pregunta, imagen o tiempo.
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => setShowTemplatesModal(false)}
+                  className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/70 hover:text-white text-lg font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {CINEPOLIS_QUIZ_TEMPLATES.map(tmpl => (
+                  <div
+                    key={tmpl.id}
+                    className="bg-black/40 rounded-2xl border border-white/10 overflow-hidden hover:border-amber-400/40 transition flex flex-col justify-between group"
+                  >
+                    <div className="h-32 w-full relative overflow-hidden bg-black/60">
+                      <img
+                        src={tmpl.coverImage}
+                        alt={tmpl.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition duration-500 opacity-80"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent" />
+                      <span className="absolute top-2.5 left-2.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-400 text-black shadow-sm">
+                        {tmpl.category}
+                      </span>
+                      <span className="absolute bottom-2.5 right-2.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-white/20 text-white backdrop-blur-sm">
+                        {tmpl.questions.length} Preguntas
+                      </span>
+                    </div>
+
+                    <div className="p-4 space-y-3 flex-1 flex flex-col justify-between">
+                      <div>
+                        <h4 className="text-base font-black text-white leading-snug">
+                          {tmpl.name}
+                        </h4>
+                        <p className="text-xs text-white/60 mt-1 leading-relaxed">
+                          {tmpl.description}
+                        </p>
+                      </div>
+
+                      <div className="pt-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newQuiz = instantiateQuizFromTemplate(tmpl);
+                            setEditingQuiz(newQuiz);
+                            setIsEditorOpen(true);
+                            setShowTemplatesModal(false);
+                          }}
+                          className="btn-cinepolis-gold w-full py-2.5 rounded-xl text-black font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-md"
+                        >
+                          <Sparkles className="w-3.5 h-3.5 text-black" />
+                          <span>Usar esta Plantilla</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

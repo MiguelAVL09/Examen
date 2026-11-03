@@ -46,6 +46,7 @@ export interface Quiz {
   isExamOpen?: boolean;
   closeDate?: string;
   preventRetries?: boolean;
+  maxAttemptsPerUser?: number;  // 1 = Intento único estricto, 0 o undefined = Múltiples intentos
   closeMessage?: string;
   shuffleQuestions?: boolean;   // Anti-copia: desordenar preguntas y opciones
   branches?: string[];          // Lista de sucursales/cines disponibles
@@ -94,3 +95,34 @@ export interface QuizSession {
   participants: Participant[];
   createdAt: string;
 }
+
+// ============================================================================
+// USUARIOS, AUTENTICACIÓN Y SEGURIDAD
+// ============================================================================
+export type UserRole = 'admin' | 'user';
+
+export interface UserAccount {
+  id: string;
+  email: string;
+  nickname: string;
+  name: string;
+  fullName?: string;
+  employeeNumber?: string;
+  role: UserRole;
+  branch?: string;
+  department?: string;
+  passwordHash: string;
+  salt: string;
+  securityQuestion?: string;
+  securityAnswerHash?: string;
+  createdAt: string;
+  lastLogin?: string;
+  isActive: boolean;
+}
+
+export interface UserSession {
+  user: UserAccount;
+  token: string;
+  expiresAt: number;
+}
+

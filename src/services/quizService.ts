@@ -5,6 +5,7 @@ export interface ExamSettings {
   isExamOpen: boolean;
   closeDate?: string;
   preventRetries: boolean;
+  maxAttemptsPerUser?: number;
   closeMessage?: string;
   shuffleQuestions?: boolean;
   branches?: string[];
@@ -1123,6 +1124,37 @@ export const quizService = {
 
     const rankings = await this.getRankings(quizId);
     return rankings.some(p => normalize(p.nickname) === targetNorm);
+  },
+
+  async clearParticipantAttempts(quizId: string, nickname: string): Promise<void> {
+    const normalize = (name: string) =>
+      (name || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
+    const targetNorm = normalize(nickname);
+    if (!targetNorm) return;
+
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        const { data } = await supabase.from('participants').select('id, nickname').eq('quiz_id', quizId);
+        if (data && data.length > 0) {
+          const idsToDelete = data.filter((p: any) => normalize(p.nickname) === targetNorm).map((p: any) => p.id);
+          if (idsToDelete.length > 0) {
+            await supabase.from('participants').delete().in('id', idsToDelete);
+          }
+        }
+      } catch (err) {
+        console.warn('Error borrando intentos en servidor:', err);
+      }
+    }
+
+    try {
+      const stored = localStorage.getItem(LOCAL_STORAGE_PARTICIPANTS_KEY);
+      if (stored) {
+        const list: Participant[] = JSON.parse(stored);
+        const filtered = list.filter(p => !(p.quizId === quizId && normalize(p.nickname) === targetNorm));
+        localStorage.setItem(LOCAL_STORAGE_PARTICIPANTS_KEY, JSON.stringify(filtered));
+      }
+      localStorage.removeItem(`cinepolis_completed_${quizId}`);
+    } catch {}
   },
 
   async getParticipantById(participantId: string): Promise<Participant | null> {

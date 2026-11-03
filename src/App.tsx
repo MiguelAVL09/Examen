@@ -1,22 +1,41 @@
 import { useState, useEffect } from 'react';
-import type { Quiz } from './types/quiz';
+import type { Quiz, UserAccount } from './types/quiz';
 import { quizService } from './services/quizService';
+import { authService } from './services/authService';
 import { Navbar } from './components/Navbar';
 import { HomeView } from './components/HomeView';
 import { GamePlayView } from './components/GamePlayView';
 import { AdminView } from './components/AdminView';
 import { HostGameView } from './components/HostGameView';
+import { AuthModal } from './components/AuthModal';
+import { UserProfileModal } from './components/UserProfileModal';
+import { PinModal } from './components/PinModal';
 
 export function App() {
   const [currentView, setCurrentView] = useState<'home' | 'game' | 'admin' | 'host'>('home');
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [activeQuiz, setActiveQuiz] = useState<Quiz | null>(null);
   const [invitedQuiz, setInvitedQuiz] = useState<Quiz | null>(null);
-  const [playerNickname, setPlayerNickname] = useState<string>('Jugador');
+  const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => authService.getCurrentUser());
+
+  const [playerNickname, setPlayerNickname] = useState<string>(() => {
+    const user = authService.getCurrentUser();
+    return user?.name || user?.nickname || 'Colaborador';
+  });
   const [playerAvatar, setPlayerAvatar] = useState<string>('🦊');
-  const [playerBranch, setPlayerBranch] = useState<string | undefined>(undefined);
-  const [playerDepartment, setPlayerDepartment] = useState<string | undefined>(undefined);
+  const [playerBranch, setPlayerBranch] = useState<string | undefined>(() => {
+    return authService.getCurrentUser()?.branch || undefined;
+  });
+  const [playerDepartment, setPlayerDepartment] = useState<string | undefined>(() => {
+    return authService.getCurrentUser()?.department || undefined;
+  });
+
   const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  // Modales globales de Autenticación, Perfil y PIN
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
+  const [isPinModalOpen, setIsPinModalOpen] = useState<boolean>(false);
 
   // Load quizzes on launch
   const refreshQuizzes = async () => {
@@ -40,7 +59,6 @@ export function App() {
     if (quizzes.length > 0) {
       const params = new URLSearchParams(window.location.search);
       const quizParam = params.get('quiz');
-      // Si el usuario ya contestó este cuestionario en esta sesión, no re-activar la invitación
       const alreadyCompleted = sessionStorage.getItem('kahoot_completed_quiz');
       if (quizParam && (!alreadyCompleted || alreadyCompleted !== quizParam)) {
         const found = quizzes.find(
@@ -49,8 +67,6 @@ export function App() {
         if (found) {
           setInvitedQuiz(found);
         } else {
-          // Si el enlace tiene un ID antiguo (ej. quiz-1793237314249) o cualquier otro parámetro,
-          // redirigir automáticamente al cuestionario oficial activo de Cinépolis
           const fallback = quizzes.find(q => q.id === 'f3f7aa07-4389-4769-a162-3fb8b989bfc0') || quizzes[0];
           if (fallback) {
             setInvitedQuiz(fallback);
@@ -71,10 +87,9 @@ export function App() {
     setActiveQuiz(quiz);
     setPlayerNickname(nickname);
     setPlayerAvatar(avatar);
-    setPlayerBranch(branch);
-    setPlayerDepartment(department);
+    setPlayerBranch(branch || currentUser?.branch);
+    setPlayerDepartment(department || currentUser?.department);
     setInvitedQuiz(null);
-    // Limpiar el parámetro de la URL inmediatamente al entrar para que el inicio quede limpio al regresar
     if (typeof window !== 'undefined' && window.history) {
       window.history.replaceState({}, '', window.location.pathname);
     }
@@ -89,33 +104,51 @@ export function App() {
 
   // Handle Join with PIN
   const handleJoinWithPin = (_pin: string, nickname: string, avatar: string) => {
-    // When a player joins via PIN, launch the quiz challenge assigned to that session
     if (quizzes.length > 0) {
       const targetQuiz = quizzes[0];
-      handleStartQuiz(targetQuiz, nickname, avatar);
+      handleStartQuiz(targetQuiz, nickname, avatar, currentUser?.branch, currentUser?.department);
     }
   };
 
+  const handleNavigate = (view: 'home' | 'admin' | 'host') => {
+    if (view === 'admin') {
+      // Regla estricta: Solo los administradores autenticados pueden ver el panel
+      if (!authService.isAdmin()) {
+        setIsAuthModalOpen(true);
+        return;
+      }
+    }
+    if (view === 'home') {
+      refreshQuizzes();
+    }
+    setCurrentView(view);
+  };
+
   return (
-    <div className="min-h-screen bg-kahoot-pattern flex flex-col justify-between selection:bg-kahoot-yellow selection:text-black">
-      {/* Sticky Navbar */}
+    <div className="min-h-screen bg-kahoot-pattern flex flex-col justify-between selection:bg-amber-400 selection:text-black">
+      {/* Sticky Navbar con botón de admin oculto para público */}
       <Navbar
         currentView={currentView}
-        onNavigate={view => {
-          if (view === 'home') {
-            refreshQuizzes();
+        currentUser={currentUser}
+        onNavigate={handleNavigate}
+        onOpenAuth={() => setIsAuthModalOpen(true)}
+        onOpenProfile={() => {
+          if (currentUser) {
+            setIsProfileModalOpen(true);
+          } else {
+            setIsAuthModalOpen(true);
           }
-          setCurrentView(view);
         }}
+        onOpenPinModal={() => setIsPinModalOpen(true)}
       />
 
       {/* Main Content Area */}
       <main className="flex-1">
         {isLoading ? (
           <div className="min-h-[60vh] flex flex-col items-center justify-center text-white">
-            <div className="w-16 h-16 border-4 border-kahoot-yellow border-t-transparent rounded-full animate-spin mb-4" />
-            <span className="text-lg font-black uppercase tracking-wider">
-              Cargando Cuestionarios...
+            <div className="w-16 h-16 border-4 border-amber-400 border-t-transparent rounded-full animate-spin mb-4" />
+            <span className="text-lg font-black uppercase tracking-wider text-amber-300">
+              Cargando Sistema Cinépolis...
             </span>
           </div>
         ) : (
@@ -123,12 +156,12 @@ export function App() {
             {currentView === 'home' && (
               <HomeView
                 quizzes={quizzes}
+                currentUser={currentUser}
                 invitedQuiz={invitedQuiz}
                 onClearInvitation={() => setInvitedQuiz(null)}
                 onStartQuiz={handleStartQuiz}
                 onHostGame={handleHostGame}
-                onJoinWithPin={handleJoinWithPin}
-                onOpenAdmin={() => setCurrentView('admin')}
+                onOpenPinModal={() => setIsPinModalOpen(true)}
               />
             )}
 
@@ -172,7 +205,7 @@ export function App() {
                   refreshQuizzes();
                   setCurrentView('home');
                 }}
-                onOpenAdmin={() => setCurrentView('admin')}
+                onOpenAdmin={() => handleNavigate('admin')}
               />
             )}
 
@@ -188,16 +221,65 @@ export function App() {
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="bg-black/40 border-t border-white/10 py-6 text-center text-xs text-white/50 font-semibold backdrop-blur-md">
+      {/* Modal de Autenticación (Login, Registro y Recuperación de Contraseña) */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onAuthSuccess={user => {
+          setCurrentUser(user);
+          setPlayerNickname(user.name || user.nickname);
+          if (user.branch) setPlayerBranch(user.branch);
+          if (user.department) setPlayerDepartment(user.department);
+          // Si el usuario recién autenticado es admin, darle acceso directo al panel
+          if (user.role === 'admin') {
+            setCurrentView('admin');
+          }
+        }}
+      />
+
+      {/* Modal de Portal / Perfil del Colaborador */}
+      {currentUser && (
+        <UserProfileModal
+          isOpen={isProfileModalOpen}
+          user={currentUser}
+          quizzes={quizzes}
+          onClose={() => setIsProfileModalOpen(false)}
+          onLogout={() => {
+            authService.logout();
+            setCurrentUser(null);
+            setIsProfileModalOpen(false);
+            if (currentView === 'admin') {
+              setCurrentView('home');
+            }
+          }}
+          onUpdateUser={updated => {
+            setCurrentUser(updated);
+            setPlayerNickname(updated.name || updated.nickname);
+            if (updated.branch) setPlayerBranch(updated.branch);
+            if (updated.department) setPlayerDepartment(updated.department);
+          }}
+        />
+      )}
+
+      {/* Modal de Ingreso con PIN */}
+      <PinModal
+        isOpen={isPinModalOpen}
+        onClose={() => setIsPinModalOpen(false)}
+        initialNickname={currentUser?.name || currentUser?.nickname || playerNickname}
+        initialAvatar={playerAvatar}
+        onJoin={handleJoinWithPin}
+      />
+
+      {/* Footer Profesional Sin Exposición de Tecnologías */}
+      <footer className="bg-black/50 border-t border-white/10 py-5 text-center text-xs text-white/50 font-semibold backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <span className="font-black text-white text-sm">Kahoot! Pro Quiz</span>
+            <span className="font-black text-amber-400">Cinépolis PRO</span>
             <span>•</span>
-            <span>Plataforma Interactiva para Exámenes y Dinámicas</span>
+            <span>Plataforma Oficial de Capacitación y Evaluación</span>
           </div>
-          <div>
-            Listo para subir a <strong className="text-white">GitHub</strong> & conectar con <strong className="text-emerald-400">Supabase</strong>
+          <div className="text-white/60">
+            © 2026 Cinépolis • Todos los derechos reservados. Acceso exclusivo para personal autorizado.
           </div>
         </div>
       </footer>
