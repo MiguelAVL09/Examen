@@ -42,13 +42,21 @@ import {
   Clock,
   Sliders,
   ChevronUp,
-  XCircle
+  XCircle,
+  EyeOff,
+  Building2,
+  Briefcase,
+  Smartphone,
+  FileSpreadsheet
 } from 'lucide-react';
 import type { Participant, Quiz, Question, QuestionType } from '../types/quiz';
-import { quizService, generateUUID, type ExamSettings, type QuestionAnalytics, type DetailedParticipantAnswer } from '../services/quizService';
+import { quizService, generateUUID, DEFAULT_DEPARTMENTS, DEFAULT_EXPLANATIONS, type ExamSettings, type QuestionAnalytics, type DetailedParticipantAnswer } from '../services/quizService';
 import { isSupabaseConfigured } from '../services/supabaseClient';
 import { processImageUpload, PRESET_IMAGES } from '../utils/imageUtils';
 import { exportRankingsToPDF, exportDiplomaPDF, exportTop3Diplomas, exportQuestionAnalyticsPDF } from '../utils/pdfExport';
+import { exportRankingsToExcel } from '../utils/excelExport';
+import { getHardwareHash, maskName } from '../utils/security';
+import { InteractiveMedal3D } from './CinemaEffects';
 import { KahootShapeIcon } from './KahootShapes';
 import { ShareQuizModal } from './ShareQuizModal';
 
@@ -70,6 +78,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
   const [rankings, setRankings] = useState<Participant[]>([]);
   const [selectedQuizId, setSelectedQuizId] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>('all');
+  const [selectedDeptFilter, setSelectedDeptFilter] = useState<string>('all');
+  const [privacyMode, setPrivacyMode] = useState<'normal' | 'surname' | 'avatar'>('normal');
+  const [showBranchBreakdown, setShowBranchBreakdown] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [syncStatus, setSyncStatus] = useState<string>('');
   const [jsonBackupStatus, setJsonBackupStatus] = useState<string>('');
@@ -82,7 +94,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
     closeDate: undefined,
     preventRetries: false,
     closeMessage: 'Esta evaluación se encuentra cerrada por el administrador.',
+    shuffleQuestions: true,
+    branches: [],
+    departments: DEFAULT_DEPARTMENTS,
   });
+  const [branchesInput, setBranchesInput] = useState<string>('');
 
   const [isEditorOpen, setIsEditorOpen] = useState<boolean>(false);
   const [editingQuiz, setEditingQuiz] = useState<Quiz | null>(null);
@@ -124,6 +140,31 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
     };
   }, []);
 
+  // Cierre de sesión automático tras 15 minutos de inactividad en el panel de Admin
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const INACTIVITY_LIMIT_MS = 15 * 60 * 1000; // 15 minutos
+    let inactivityTimer: ReturnType<typeof setTimeout>;
+
+    const resetTimer = () => {
+      clearTimeout(inactivityTimer);
+      inactivityTimer = setTimeout(() => {
+        setIsAuthenticated(false);
+        sessionStorage.removeItem('kahoot_admin_auth');
+        setAuthError('Sesión cerrada automáticamente tras 15 minutos de inactividad por seguridad.');
+      }, INACTIVITY_LIMIT_MS);
+    };
+
+    const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
+    events.forEach(ev => window.addEventListener(ev, resetTimer, { passive: true }));
+    resetTimer();
+
+    return () => {
+      clearTimeout(inactivityTimer);
+      events.forEach(ev => window.removeEventListener(ev, resetTimer));
+    };
+  }, [isAuthenticated]);
+
   const loadData = async () => {
     setIsLoading(true);
     try {
@@ -144,12 +185,17 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
         const analytics = await quizService.getQuestionAnalytics(targetQuiz);
         setQuestionAnalytics(analytics);
         const settings = quizService.getExamSettings(targetQuiz.id);
+        const loadedBranches = targetQuiz.branches || settings.branches || [];
         setExamSettings({
           isExamOpen: targetQuiz.isExamOpen ?? settings.isExamOpen ?? true,
           closeDate: targetQuiz.closeDate || settings.closeDate,
           preventRetries: targetQuiz.preventRetries ?? settings.preventRetries ?? false,
           closeMessage: targetQuiz.closeMessage || settings.closeMessage,
+          shuffleQuestions: targetQuiz.shuffleQuestions ?? settings.shuffleQuestions ?? true,
+          branches: loadedBranches,
+          departments: targetQuiz.departments || settings.departments || DEFAULT_DEPARTMENTS,
         });
+        setBranchesInput(loadedBranches.join(', '));
       }
     } catch (err) {
       console.error('Error cargando datos de admin:', err);
@@ -261,15 +307,40 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
     exportDiplomaPDF(participant, rank, quizTitle);
   };
 
-  // Guardar configuración y candados de examen (abrir/cerrar, fecha límite, reintentos)
+  // Exportar a Excel (.xlsx) con pestañas de Ranking, Sucursales/Áreas y Preguntas
+  const handleExportExcel = async () => {
+    if (filteredRankings.length === 0) return;
+    const currentQuiz = quizzes.find(item => item.id === selectedQuizId);
+    const quizTitle = currentQuiz ? currentQuiz.title : 'Cinepolis Master ¿Que tanto sabemos?';
+    await exportRankingsToExcel({
+      quizTitle,
+      rankings: filteredRankings,
+      questionAnalytics,
+      attemptsCountMap,
+      deviceUsersMap,
+    });
+  };
+
+  // Guardar configuración y candados de examen (abrir/cerrar, fecha límite, reintentos, orden aleatorio y sucursales)
   const handleSaveExamSettings = async () => {
     const targetQuizId = selectedQuizId === 'all'
       ? (quizzes.find(q => q.id === 'f3f7aa07-4389-4769-a162-3fb8b989bfc0')?.id || quizzes[0]?.id || 'f3f7aa07-4389-4769-a162-3fb8b989bfc0')
       : selectedQuizId;
 
+    const parsedBranches = branchesInput
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
+
+    const updatedSettings: ExamSettings = {
+      ...examSettings,
+      branches: parsedBranches,
+    };
+
     setIsLoading(true);
     try {
-      await quizService.saveExamSettings(targetQuizId, examSettings);
+      await quizService.saveExamSettings(targetQuizId, updatedSettings);
+      setExamSettings(updatedSettings);
       setSettingsSaveMessage('¡Ajustes de examen y candados guardados exitosamente!');
       await loadData();
       setTimeout(() => setSettingsSaveMessage(''), 4000);
@@ -422,6 +493,18 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
     return map;
   }, [rankings]);
 
+  // Mapear Huella Digital del Dispositivo (Device Fingerprint) -> Nombres distintos que contestaron desde el mismo equipo
+  const deviceUsersMap = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    rankings.forEach(p => {
+      const hw = getHardwareHash(p.deviceId);
+      if (!hw) return;
+      if (!map.has(hw)) map.set(hw, new Set());
+      map.get(hw)!.add(normalizePlayerName(p.nickname));
+    });
+    return map;
+  }, [rankings]);
+
   // Lista procesada según el modo Anti-trampas (primer intento cronológico)
   const displayRankings = useMemo(() => {
     if (!isFirstAttemptOnly) {
@@ -451,9 +534,80 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
     });
   }, [rankings, isFirstAttemptOnly]);
 
-  const filteredRankings = displayRankings.filter(p =>
-    p.nickname.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Sucursales y Áreas disponibles en los registros actuales
+  const availableBranches = useMemo(() => {
+    const set = new Set<string>();
+    displayRankings.forEach(p => {
+      if (p.branch && p.branch.trim()) set.add(p.branch.trim());
+    });
+    return Array.from(set).sort();
+  }, [displayRankings]);
+
+  const availableDepartments = useMemo(() => {
+    const set = new Set<string>(DEFAULT_DEPARTMENTS);
+    displayRankings.forEach(p => {
+      if (p.department && p.department.trim()) set.add(p.department.trim());
+    });
+    return Array.from(set);
+  }, [displayRankings]);
+
+  // Promedios por Sucursal y por Área / Departamento
+  const { branchSummaries, deptSummaries } = useMemo(() => {
+    const bMap = new Map<string, { count: number; scoreSum: number; accSum: number }>();
+    const dMap = new Map<string, { count: number; scoreSum: number; accSum: number }>();
+
+    displayRankings.forEach(p => {
+      const bKey = (p.branch || '').trim();
+      if (bKey) {
+        const cur = bMap.get(bKey) || { count: 0, scoreSum: 0, accSum: 0 };
+        cur.count += 1;
+        cur.scoreSum += p.totalScore || 0;
+        cur.accSum += p.accuracyPercentage || 0;
+        bMap.set(bKey, cur);
+      }
+
+      const dKey = (p.department || '').trim();
+      if (dKey) {
+        const cur = dMap.get(dKey) || { count: 0, scoreSum: 0, accSum: 0 };
+        cur.count += 1;
+        cur.scoreSum += p.totalScore || 0;
+        cur.accSum += p.accuracyPercentage || 0;
+        dMap.set(dKey, cur);
+      }
+    });
+
+    const branchList = Array.from(bMap.entries())
+      .map(([name, s]) => ({
+        name,
+        count: s.count,
+        avgScore: Math.round(s.scoreSum / s.count),
+        avgAccuracy: Math.round(s.accSum / s.count),
+      }))
+      .sort((a, b) => b.avgScore - a.avgScore);
+
+    const deptList = Array.from(dMap.entries())
+      .map(([name, s]) => ({
+        name,
+        count: s.count,
+        avgScore: Math.round(s.scoreSum / s.count),
+        avgAccuracy: Math.round(s.accSum / s.count),
+      }))
+      .sort((a, b) => b.avgScore - a.avgScore);
+
+    return { branchSummaries: branchList, deptSummaries: deptList };
+  }, [displayRankings]);
+
+  const filteredRankings = displayRankings.filter(p => {
+    const matchesSearch =
+      p.nickname.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (p.branch || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (p.department || '').toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesBranch =
+      selectedBranchFilter === 'all' || (p.branch || '').trim() === selectedBranchFilter;
+    const matchesDept =
+      selectedDeptFilter === 'all' || (p.department || '').trim() === selectedDeptFilter;
+    return matchesSearch && matchesBranch && matchesDept;
+  });
 
   // Estado para el modal de inspección de historial de intentos de un participante
   const [inspectingPlayerName, setInspectingPlayerName] = useState<string | null>(null);
@@ -723,92 +877,238 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
             </div>
           </div>
 
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-kahoot-purple-dark/80 p-4 rounded-2xl border border-white/10 shadow-lg">
-            <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-              <div className="relative">
-                <select
-                  value={selectedQuizId}
-                  onChange={e => setSelectedQuizId(e.target.value)}
-                  className="px-4 py-2.5 pr-10 rounded-xl bg-black/40 border border-white/20 text-white font-bold text-sm appearance-none focus:outline-none focus:border-kahoot-yellow"
+          <div className="flex flex-col gap-3 bg-kahoot-purple-dark/80 p-4 rounded-2xl border border-white/10 shadow-lg">
+            <div className="flex flex-col lg:flex-row items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+                <div className="relative">
+                  <select
+                    value={selectedQuizId}
+                    onChange={e => setSelectedQuizId(e.target.value)}
+                    className="px-3.5 py-2.5 pr-9 rounded-xl bg-black/40 border border-white/20 text-white font-bold text-xs sm:text-sm appearance-none focus:outline-none focus:border-kahoot-yellow"
+                  >
+                    <option value="all">Todos los Cuestionarios ({quizzes.length})</option>
+                    {quizzes.map(q => (
+                      <option key={q.id} value={q.id}>
+                        {q.title}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="w-4 h-4 text-white/60 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+
+                {/* Filtro por Sucursal / Conjunto */}
+                <div className="relative">
+                  <select
+                    value={selectedBranchFilter}
+                    onChange={e => setSelectedBranchFilter(e.target.value)}
+                    className="px-3.5 py-2.5 pr-8 rounded-xl bg-black/40 border border-white/20 text-white font-bold text-xs sm:text-sm appearance-none focus:outline-none focus:border-kahoot-yellow"
+                  >
+                    <option value="all">🏢 Todas las Sucursales ({availableBranches.length})</option>
+                    {availableBranches.map(b => (
+                      <option key={b} value={b}>
+                        {b}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="w-3.5 h-3.5 text-white/60 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+
+                {/* Filtro por Área / Departamento */}
+                <div className="relative">
+                  <select
+                    value={selectedDeptFilter}
+                    onChange={e => setSelectedDeptFilter(e.target.value)}
+                    className="px-3.5 py-2.5 pr-8 rounded-xl bg-black/40 border border-white/20 text-white font-bold text-xs sm:text-sm appearance-none focus:outline-none focus:border-kahoot-yellow"
+                  >
+                    <option value="all">🍿 Todas las Áreas</option>
+                    {availableDepartments.map(d => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="w-3.5 h-3.5 text-white/60 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+
+                <div className="relative flex-1 sm:w-52">
+                  <Search className="w-4 h-4 text-white/40 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="Buscar nombre, cine o área..."
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-black/40 border border-white/20 text-white placeholder-white/40 text-xs sm:text-sm font-semibold focus:outline-none focus:border-kahoot-yellow"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto justify-end">
+                {/* Botón Switch Modo Anti-trampas */}
+                <button
+                  type="button"
+                  onClick={() => setIsFirstAttemptOnly(!isFirstAttemptOnly)}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition border shadow-sm ${
+                    isFirstAttemptOnly
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30'
+                      : 'bg-white/5 text-white/50 border-white/10 hover:bg-white/10 hover:text-white'
+                  }`}
+                  title="Al estar activo, si un usuario jugó varias veces solo se toma en cuenta su primer intento realizado"
                 >
-                  <option value="all">Todos los Cuestionarios ({quizzes.length})</option>
-                  {quizzes.map(q => (
-                    <option key={q.id} value={q.id}>
-                      {q.title}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="w-4 h-4 text-white/60 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              </div>
+                  <ShieldCheck className={`w-4 h-4 ${isFirstAttemptOnly ? 'text-emerald-400' : 'text-white/40'}`} />
+                  <span>{isFirstAttemptOnly ? '1er Intento' : 'Todos'}</span>
+                </button>
 
-              <div className="relative flex-1 md:w-64">
-                <Search className="w-4 h-4 text-white/40 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  placeholder="Buscar jugador..."
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-black/40 border border-white/20 text-white placeholder-white/40 text-sm font-semibold focus:outline-none focus:border-kahoot-yellow"
-                />
-              </div>
+                {/* Modo Proyección Segura (Privacidad) */}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPrivacyMode(prev =>
+                      prev === 'normal' ? 'surname' : prev === 'surname' ? 'avatar' : 'normal'
+                    )
+                  }
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition border ${
+                    privacyMode !== 'normal'
+                      ? 'bg-blue-500/25 text-blue-200 border-blue-400/50'
+                      : 'bg-white/5 text-white/70 border-white/10 hover:bg-white/10'
+                  }`}
+                  title="Modo Proyección Segura: Oculta apellidos o anonimiza nombres para proyectar en sala sin exponer calificaciones bajas"
+                >
+                  {privacyMode === 'normal' ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4 text-blue-300" />}
+                  <span>
+                    {privacyMode === 'normal'
+                      ? 'Proyección: Normal'
+                      : privacyMode === 'surname'
+                      ? 'Sin Apellidos'
+                      : 'Modo Anónimo'}
+                  </span>
+                </button>
 
-              {/* Botón Switch Modo Anti-trampas */}
-              <button
-                type="button"
-                onClick={() => setIsFirstAttemptOnly(!isFirstAttemptOnly)}
-                className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition border shadow-sm ${
-                  isFirstAttemptOnly
-                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30'
-                    : 'bg-white/5 text-white/50 border-white/10 hover:bg-white/10 hover:text-white'
-                }`}
-                title="Al estar activo, si un usuario jugó varias veces solo se toma en cuenta su primer intento realizado"
-              >
-                <ShieldCheck className={`w-4 h-4 ${isFirstAttemptOnly ? 'text-emerald-400' : 'text-white/40'}`} />
-                <span>{isFirstAttemptOnly ? 'Anti-trampas: 1er Intento' : 'Ver Todos los Intentos'}</span>
-              </button>
+                {/* Botón Ver Ranking por Sucursal / Área */}
+                <button
+                  type="button"
+                  onClick={() => setShowBranchBreakdown(prev => !prev)}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition border ${
+                    showBranchBreakdown
+                      ? 'bg-amber-400/20 text-amber-300 border-amber-400/40'
+                      : 'bg-white/5 text-white/70 border-white/10 hover:bg-white/10'
+                  }`}
+                  title="Ver promedios comparativos por Sucursal y por Área de Cinépolis"
+                >
+                  <Building2 className="w-4 h-4 text-amber-300" />
+                  <span>Por Cine / Área</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={loadData}
+                  disabled={isLoading}
+                  className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-sm font-bold border border-white/10 transition active:scale-95"
+                  title="Recargar rankings en vivo"
+                >
+                  <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-amber-300' : ''}`} />
+                </button>
+
+                <button
+                  onClick={handleExportPDF}
+                  disabled={filteredRankings.length === 0}
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 disabled:opacity-40 text-white rounded-xl text-xs font-black border border-red-400/30 transition shadow-lg active:scale-95"
+                  title="Descargar reporte formal en PDF con podio y estadísticas"
+                >
+                  <FileText className="w-4 h-4" />
+                  <span>PDF</span>
+                </button>
+
+                <button
+                  onClick={handleExportExcel}
+                  disabled={filteredRankings.length === 0}
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 disabled:opacity-40 text-white rounded-xl text-xs font-black border border-emerald-400/30 transition shadow-lg active:scale-95"
+                  title="Exportar base de datos completa en Excel (.xlsx) con pestañas de Participantes, Sucursales y Preguntas"
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  <span>Excel (.xlsx)</span>
+                </button>
+
+                <button
+                  onClick={handleExportTop3Diplomas}
+                  disabled={filteredRankings.length === 0}
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 disabled:opacity-40 text-black rounded-xl text-xs font-black border border-amber-300/40 transition shadow-lg active:scale-95"
+                  title="Generar y descargar diplomas de reconocimiento formal para el Top 3 (1°, 2° y 3° lugar)"
+                >
+                  <Award className="w-4 h-4 text-black" />
+                  <span>Diplomas Top 3</span>
+                </button>
+
+                <button
+                  onClick={handleClearRankings}
+                  disabled={rankings.length === 0}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-red-600/30 hover:bg-red-600/50 disabled:opacity-40 text-red-200 rounded-xl text-xs font-bold border border-red-500/30 transition active:scale-95"
+                  title="Borrar ranking de participantes"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
-            <div className="flex items-center gap-2 w-full md:w-auto justify-end">
-              <button
-                type="button"
-                onClick={loadData}
-                disabled={isLoading}
-                className="p-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-sm font-bold border border-white/10 transition active:scale-95"
-                title="Recargar rankings en vivo"
-              >
-                <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-amber-300' : ''}`} />
-              </button>
+            {/* Desglose Comparativo por Sucursal y por Área */}
+            {showBranchBreakdown && (
+              <div className="pt-3 border-t border-white/10 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-black/30 rounded-2xl p-4 border border-white/10">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5 mb-2.5">
+                    <Building2 className="w-4 h-4" />
+                    <span>Promedio por Sucursal / Conjunto ({branchSummaries.length})</span>
+                  </h4>
+                  {branchSummaries.length > 0 ? (
+                    <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
+                      {branchSummaries.map((b, i) => (
+                        <div key={b.name} className="flex items-center justify-between text-xs bg-white/5 px-3 py-2 rounded-xl border border-white/5">
+                          <span className="font-bold text-white truncate">
+                            {i + 1}. {b.name} <span className="text-white/40 font-normal">({b.count} colab.)</span>
+                          </span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-kahoot-yellow font-black">{b.avgScore.toLocaleString()} pts</span>
+                            <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-black text-[10px]">
+                              {b.avgAccuracy}%
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-white/40 py-3">
+                      Los nuevos intentos que incluyan sucursal aparecerán comparados aquí.
+                    </p>
+                  )}
+                </div>
 
-              <button
-                onClick={handleExportPDF}
-                disabled={filteredRankings.length === 0}
-                className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 disabled:opacity-40 text-white rounded-xl text-sm font-black border border-red-400/30 transition shadow-lg active:scale-95"
-                title="Descargar reporte formal en PDF con podio y estadísticas"
-              >
-                <FileText className="w-4 h-4" />
-                <span>Reporte PDF</span>
-              </button>
-
-              <button
-                onClick={handleExportTop3Diplomas}
-                disabled={filteredRankings.length === 0}
-                className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 disabled:opacity-40 text-black rounded-xl text-sm font-black border border-amber-300/40 transition shadow-lg active:scale-95"
-                title="Generar y descargar diplomas de reconocimiento formal para el Top 3 (1°, 2° y 3° lugar)"
-              >
-                <Award className="w-4 h-4 text-black" />
-                <span>Diplomas Top 3</span>
-              </button>
-
-              <button
-                onClick={handleClearRankings}
-                disabled={rankings.length === 0}
-                className="flex items-center gap-2 px-3.5 py-2.5 bg-red-600/30 hover:bg-red-600/50 disabled:opacity-40 text-red-200 rounded-xl text-sm font-bold border border-red-500/30 transition active:scale-95"
-                title="Borrar ranking de participantes"
-              >
-                <Trash2 className="w-4 h-4" />
-                <span>Limpiar</span>
-              </button>
-            </div>
+                <div className="bg-black/30 rounded-2xl p-4 border border-white/10">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-blue-300 flex items-center gap-1.5 mb-2.5">
+                    <Briefcase className="w-4 h-4" />
+                    <span>Promedio por Área / Departamento ({deptSummaries.length})</span>
+                  </h4>
+                  {deptSummaries.length > 0 ? (
+                    <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
+                      {deptSummaries.map((d, i) => (
+                        <div key={d.name} className="flex items-center justify-between text-xs bg-white/5 px-3 py-2 rounded-xl border border-white/5">
+                          <span className="font-bold text-white truncate">
+                            {i + 1}. {d.name} <span className="text-white/40 font-normal">({d.count} colab.)</span>
+                          </span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-kahoot-yellow font-black">{d.avgScore.toLocaleString()} pts</span>
+                            <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-black text-[10px]">
+                              {d.avgAccuracy}%
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-white/40 py-3">
+                      Los nuevos intentos que incluyan departamento (Taquilla, Dulcería, Spyral, etc.) aparecerán aquí.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="bg-kahoot-purple-dark/80 rounded-3xl border border-white/10 shadow-2xl overflow-hidden backdrop-blur-md">
@@ -835,6 +1135,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                       const isTop3 = index < 3;
                       const badge = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`;
                       const totalAttempts = attemptsCountMap.get(normalizePlayerName(p.nickname)) || 1;
+                      const hwHash = getHardwareHash(p.deviceId);
+                      const sharedDeviceUsers = hwHash ? deviceUsersMap.get(hwHash)?.size || 1 : 1;
+                      const tabSwitches = p.tabSwitches || 0;
+                      const hasSuspiciousActivity = totalAttempts > 1 || tabSwitches > 0 || sharedDeviceUsers > 1;
 
                       return (
                         <tr
@@ -859,20 +1163,48 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                               <span className="text-2xl">{p.avatar || '🦊'}</span>
                               <div>
                                 <span className="font-extrabold text-white text-base block group-hover:text-kahoot-yellow transition-colors">
-                                  {p.nickname}
+                                  {maskName(p.nickname, privacyMode, index)}
                                 </span>
-                                <span className="text-[11px] text-white/40 block">
-                                  {totalAttempts > 1 ? `${totalAttempts} intentos registrados` : '1 solo intento'}
-                                </span>
+                                <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                                  <span className="text-[11px] text-white/40">
+                                    {totalAttempts > 1 ? `${totalAttempts} intentos` : '1 intento'}
+                                  </span>
+                                  {p.branch && (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30 font-bold">
+                                      🏢 {p.branch}
+                                    </span>
+                                  )}
+                                  {p.department && (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">
+                                      🍿 {p.department}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           </td>
                           <td className="py-4 px-4 text-center">
-                            {totalAttempts > 1 ? (
-                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-red-500/20 text-red-300 border border-red-500/40">
-                                <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
-                                <span>SÍ ({totalAttempts} int.)</span>
-                              </span>
+                            {hasSuspiciousActivity ? (
+                              <div className="flex flex-col items-center gap-1">
+                                {totalAttempts > 1 && (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-red-500/20 text-red-300 border border-red-500/40">
+                                    <AlertTriangle className="w-3 h-3 text-red-400" />
+                                    <span>Reintento ({totalAttempts} int.)</span>
+                                  </span>
+                                )}
+                                {tabSwitches > 0 && (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/40" title={`Salió de la pantalla ${tabSwitches} veces (${Math.round((p.timeAwayMs || 0) / 1000)}s fuera)`}>
+                                    <EyeOff className="w-3 h-3 text-amber-400" />
+                                    <span>{tabSwitches} cambio(s) pestaña</span>
+                                  </span>
+                                )}
+                                {sharedDeviceUsers > 1 && (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-500/25 text-rose-200 border border-rose-400/50" title="Este mismo teléfono o PC se usó para contestar con múltiples nombres diferentes">
+                                    <Smartphone className="w-3 h-3 text-rose-300" />
+                                    <span>Disp. compartido ({sharedDeviceUsers})</span>
+                                  </span>
+                                )}
+                              </div>
                             ) : (
                               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
                                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
@@ -966,43 +1298,113 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                   <h3 className="text-xl sm:text-2xl font-black text-white">
                     {inspectingPlayerName}
                   </h3>
-                  <p className="text-xs text-white/60">
-                    Historial de intentos y desglose exacto de preguntas correctas e incorrectas
-                  </p>
+                  <div className="flex flex-wrap items-center gap-2 mt-1">
+                    {inspectingAttempts[0]?.branch && (
+                      <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 font-bold">
+                        🏢 {inspectingAttempts[0].branch}
+                      </span>
+                    )}
+                    {inspectingAttempts[0]?.department && (
+                      <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">
+                        🍿 Área: {inspectingAttempts[0].department}
+                      </span>
+                    )}
+                    <span className="text-xs text-white/60">
+                      Historial y auditoría anti-fraude
+                    </span>
+                  </div>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setInspectingPlayerName(null)}
-                className="w-10 h-10 flex items-center justify-center text-white/60 hover:text-white rounded-xl bg-white/5 hover:bg-white/10 transition text-lg font-bold"
-              >
-                ✕
-              </button>
+              <div className="flex items-center gap-3">
+                {(() => {
+                  const pRank = filteredRankings.findIndex(
+                    p => normalizePlayerName(p.nickname) === normalizePlayerName(inspectingPlayerName)
+                  ) + 1;
+                  const acc = inspectingAttempts[0]?.accuracyPercentage || 0;
+                  return (
+                    <div className="hidden sm:block">
+                      <InteractiveMedal3D
+                        accuracy={acc}
+                        rank={pRank > 0 ? pRank : undefined}
+                        size="sm"
+                      />
+                    </div>
+                  );
+                })()}
+                <button
+                  type="button"
+                  onClick={() => setInspectingPlayerName(null)}
+                  className="w-10 h-10 flex items-center justify-center text-white/60 hover:text-white rounded-xl bg-white/5 hover:bg-white/10 transition text-lg font-bold"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
 
-            {/* Resumen de Trampas / Intentos */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="bg-black/30 p-4 rounded-2xl border border-white/10">
-                <span className="text-xs uppercase font-bold text-white/50 block">Total de Intentos</span>
-                <span className="text-2xl font-black text-white mt-1 block">
-                  {inspectingAttempts.length} intento{inspectingAttempts.length > 1 ? 's' : ''}
-                </span>
-              </div>
-              <div className="bg-black/30 p-4 rounded-2xl border border-white/10">
-                <span className="text-xs uppercase font-bold text-white/50 block">Diagnóstico de Trampa</span>
-                {inspectingAttempts.length > 1 ? (
-                  <span className="text-sm font-black text-red-400 mt-1 flex items-center gap-1.5">
-                    <AlertTriangle className="w-4 h-4" />
-                    <span>Reintentó {inspectingAttempts.length - 1} vez/veces adicionales</span>
-                  </span>
-                ) : (
-                  <span className="text-sm font-black text-emerald-400 mt-1 flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>Limpio (un solo intento realizado)</span>
-                  </span>
-                )}
-              </div>
-            </div>
+            {/* Resumen de Trampas / Intentos / Cambios de Pestaña / Dispositivo */}
+            {(() => {
+              const firstAtt = inspectingAttempts[0];
+              const hw = getHardwareHash(firstAtt?.deviceId);
+              const sharedNames = hw ? Array.from(deviceUsersMap.get(hw) || []) : [];
+              const totalTabs = inspectingAttempts.reduce((acc, a) => acc + (a.tabSwitches || 0), 0);
+              const totalAwaySec = Math.round(
+                inspectingAttempts.reduce((acc, a) => acc + (a.timeAwayMs || 0), 0) / 1000
+              );
+
+              return (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="bg-black/30 p-3.5 rounded-2xl border border-white/10">
+                    <span className="text-[11px] uppercase font-bold text-white/50 block">Reintentos de Nombre</span>
+                    {inspectingAttempts.length > 1 ? (
+                      <span className="text-sm font-black text-red-400 mt-1 flex items-center gap-1.5">
+                        <AlertTriangle className="w-4 h-4 shrink-0" />
+                        <span>{inspectingAttempts.length} intentos ({inspectingAttempts.length - 1} extra)</span>
+                      </span>
+                    ) : (
+                      <span className="text-sm font-black text-emerald-400 mt-1 flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4 shrink-0" />
+                        <span>1 solo intento (Limpio)</span>
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="bg-black/30 p-3.5 rounded-2xl border border-white/10">
+                    <span className="text-[11px] uppercase font-bold text-white/50 block">Cambios de Pestaña / App</span>
+                    {totalTabs > 0 ? (
+                      <span className="text-sm font-black text-amber-400 mt-1 flex items-center gap-1.5">
+                        <EyeOff className="w-4 h-4 shrink-0" />
+                        <span>{totalTabs} salida(s) ({totalAwaySec}s fuera)</span>
+                      </span>
+                    ) : (
+                      <span className="text-sm font-black text-emerald-400 mt-1 flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4 shrink-0" />
+                        <span>0 salidas de pantalla</span>
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="bg-black/30 p-3.5 rounded-2xl border border-white/10">
+                    <span className="text-[11px] uppercase font-bold text-white/50 block">Huella de Dispositivo</span>
+                    {sharedNames.length > 1 ? (
+                      <div className="mt-1">
+                        <span className="text-xs font-black text-rose-400 flex items-center gap-1">
+                          <Smartphone className="w-3.5 h-3.5 shrink-0" />
+                          <span>Usado por {sharedNames.length} nombres:</span>
+                        </span>
+                        <span className="text-[10px] text-rose-200/80 block truncate" title={sharedNames.join(', ')}>
+                          {sharedNames.join(', ')}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-sm font-black text-emerald-400 mt-1 flex items-center gap-1.5">
+                        <Smartphone className="w-4 h-4 shrink-0" />
+                        <span>Dispositivo único personal</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Lista cronológica de intentos con desglose de preguntas */}
             <div className="space-y-4">
@@ -1775,6 +2177,59 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                 )}
               </div>
             </div>
+
+            {/* Control 4: Aleatorización Anti-Copia Vecinal */}
+            <div className="bg-kahoot-purple-dark/80 p-6 rounded-3xl border border-white/10 shadow-lg space-y-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-black text-white flex items-center gap-2">
+                    <Shuffle className="w-5 h-5 text-amber-400" />
+                    <span>Aleatorización Anti-Copia Vecinal</span>
+                  </h3>
+                  <p className="text-xs text-white/60 mt-1 leading-relaxed">
+                    Desordena automáticamente el orden de las preguntas y la posición/color de las opciones (A, B, C, D) para que dos personas sentadas juntas no puedan copiarse.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setExamSettings(prev => ({
+                      ...prev,
+                      shuffleQuestions: !(prev.shuffleQuestions ?? true),
+                    }))
+                  }
+                  className={`px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition border shrink-0 ${
+                    examSettings.shuffleQuestions !== false
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                      : 'bg-white/10 text-white/60 border-white/10'
+                  }`}
+                >
+                  {examSettings.shuffleQuestions !== false ? 'Activo' : 'Orden Fijo'}
+                </button>
+              </div>
+            </div>
+
+            {/* Control 5: Catálogo de Sucursales / Conjuntos */}
+            <div className="bg-kahoot-purple-dark/80 p-6 rounded-3xl border border-white/10 shadow-lg space-y-3">
+              <div>
+                <h3 className="text-lg font-black text-white flex items-center gap-2">
+                  <Building2 className="w-5 h-5 text-blue-400" />
+                  <span>Sucursales / Conjuntos Cinépolis</span>
+                </h3>
+                <p className="text-xs text-white/60 mt-1 leading-relaxed">
+                  Déjalo vacío para que cada colaborador escriba libremente su cine, o escribe una lista separada por comas para mostrar un menú desplegable.
+                </p>
+              </div>
+
+              <input
+                type="text"
+                value={branchesInput}
+                onChange={e => setBranchesInput(e.target.value)}
+                placeholder="Campo libre activo (Ej. opcional: Cinépolis Diana, Cinépolis Perisur...)"
+                className="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/20 text-white text-xs font-semibold focus:outline-none focus:border-kahoot-yellow"
+              />
+            </div>
           </div>
         </div>
       )}
@@ -2059,6 +2514,39 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                 VITE_SUPABASE_URL=https://tu-proyecto.supabase.co
                 <br />
                 VITE_SUPABASE_ANON_KEY=tu_clave_anonima_publica_aqui
+              </div>
+
+              {/* Script SQL Aditivo V3 */}
+              <div className="pt-4 border-t border-white/10 space-y-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-black text-amber-300 uppercase tracking-wider">
+                    Script SQL Opcional (Nuevas Columnas V3: Sucursal, Área y Anti-Cheat)
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const sql = `ALTER TABLE participants ADD COLUMN IF NOT EXISTS branch TEXT;\nALTER TABLE participants ADD COLUMN IF NOT EXISTS department TEXT;\nALTER TABLE participants ADD COLUMN IF NOT EXISTS tab_switches INTEGER DEFAULT 0;\nALTER TABLE participants ADD COLUMN IF NOT EXISTS time_away_ms INTEGER DEFAULT 0;\nALTER TABLE participants ADD COLUMN IF NOT EXISTS device_id TEXT;\nALTER TABLE questions ADD COLUMN IF NOT EXISTS explanation TEXT;`;
+                      navigator.clipboard.writeText(sql);
+                      setSyncStatus('¡Código SQL copiado al portapapeles! Pégalo en el SQL Editor de Supabase.');
+                      setTimeout(() => setSyncStatus(''), 4000);
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-amber-400/20 hover:bg-amber-400/30 text-amber-300 border border-amber-400/40 font-black text-xs flex items-center gap-1.5 transition"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Copiar SQL</span>
+                  </button>
+                </div>
+                <p className="text-white/60 text-xs">
+                  Este script es 100% aditivo (<code className="text-amber-300">ADD COLUMN IF NOT EXISTS</code>) y conserva intactos todos tus registros existentes:
+                </p>
+                <pre className="bg-black/60 p-3.5 rounded-xl font-mono text-[11px] text-amber-200 border border-white/10 overflow-x-auto">
+{`ALTER TABLE participants ADD COLUMN IF NOT EXISTS branch TEXT;
+ALTER TABLE participants ADD COLUMN IF NOT EXISTS department TEXT;
+ALTER TABLE participants ADD COLUMN IF NOT EXISTS tab_switches INTEGER DEFAULT 0;
+ALTER TABLE participants ADD COLUMN IF NOT EXISTS time_away_ms INTEGER DEFAULT 0;
+ALTER TABLE participants ADD COLUMN IF NOT EXISTS device_id TEXT;
+ALTER TABLE questions ADD COLUMN IF NOT EXISTS explanation TEXT;`}
+                </pre>
               </div>
             </div>
           </div>
@@ -2659,6 +3147,28 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome }) => {
                         </div>
                       </div>
                     )}
+
+                    {/* Ficha Formativa ("¿Por qué es la correcta?") */}
+                    <div className="pt-3 border-t border-white/10">
+                      <label className="text-[11px] font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5 mb-1.5">
+                        <BookOpen className="w-3.5 h-3.5" />
+                        <span>Cápsula Formativa Cinépolis (¿Por qué es la correcta? - Opcional)</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder={
+                          DEFAULT_EXPLANATIONS[ques.id] ||
+                          'Ej. De acuerdo al estándar operativo Cinépolis, esta es la respuesta correcta porque...'
+                        }
+                        value={ques.explanation ?? DEFAULT_EXPLANATIONS[ques.id] ?? ''}
+                        onChange={e => {
+                          const updated = [...editingQuiz.questions];
+                          updated[qIdx].explanation = e.target.value;
+                          setEditingQuiz({ ...editingQuiz, questions: updated });
+                        }}
+                        className="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/15 text-white text-xs font-semibold focus:outline-none focus:border-kahoot-yellow"
+                      />
+                    </div>
                   </div>
                 ))}
               </div>

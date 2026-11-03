@@ -29,6 +29,7 @@ export interface Question {
   // Campos específicos según tipo de pregunta
   correctOrder?: string[];      // Para 'puzzle': lista de IDs de opciones en orden correcto (1°, 2°, 3°, 4°)
   acceptedAnswers?: string[];   // Para 'type_answer': lista de respuestas válidas en texto
+  explanation?: string;         // Ficha formativa: "¿Por qué es la correcta?"
 }
 
 export interface Quiz {
@@ -46,6 +47,9 @@ export interface Quiz {
   closeDate?: string;
   preventRetries?: boolean;
   closeMessage?: string;
+  shuffleQuestions?: boolean;   // Anti-copia: desordenar preguntas y opciones
+  branches?: string[];          // Lista de sucursales/cines disponibles
+  departments?: string[];       // Lista de áreas/departamentos disponibles
 }
 
 export interface ParticipantAnswer {
@@ -73,6 +77,11 @@ export interface Participant {
   accuracyPercentage: number;
   completedAt: string;
   answers?: ParticipantAnswer[];
+  branch?: string;              // Sucursal / cine
+  department?: string;          // Área / departamento
+  tabSwitches?: number;         // Veces que salió de la pestaña durante el examen
+  timeAwayMs?: number;          // Tiempo total fuera de la pestaña
+  deviceId?: string;            // Huella digital del dispositivo
 }
 
 export interface QuizSession {

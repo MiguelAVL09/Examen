@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Play, Users, Sparkles, Clock, ArrowRight, Gamepad2, Dices, Share2, Flame, User, Lock, AlertCircle } from 'lucide-react';
-import type { Quiz } from '../types/quiz';
-import { quizService } from '../services/quizService';
+import { Play, Users, Sparkles, Clock, ArrowRight, Gamepad2, Dices, Share2, User, Lock, BookOpen, Building2, Briefcase, ShieldCheck } from 'lucide-react';
+import type { Quiz, Participant } from '../types/quiz';
+import { quizService, DEFAULT_DEPARTMENTS } from '../services/quizService';
 import { KahootShapeIcon } from './KahootShapes';
 import { ShareQuizModal } from './ShareQuizModal';
+import { FlashcardsModal } from './CinemaEffects';
 
 interface HomeViewProps {
   quizzes: Quiz[];
   invitedQuiz?: Quiz | null;
   onClearInvitation?: () => void;
-  onStartQuiz: (quiz: Quiz, nickname: string, avatar: string) => void;
+  onStartQuiz: (quiz: Quiz, nickname: string, avatar: string, branch?: string, department?: string) => void;
   onHostGame: (quiz: Quiz) => void;
   onJoinWithPin: (pin: string, nickname: string, avatar: string) => void;
   onOpenAdmin: () => void;
@@ -39,17 +40,44 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const [selectedAvatar, setSelectedAvatar] = useState<string>(() => {
     return localStorage.getItem('kahoot_player_avatar') || '🦊';
   });
+  const [branch, setBranch] = useState<string>(() => {
+    return localStorage.getItem('kahoot_player_branch') || '';
+  });
+  const [department, setDepartment] = useState<string>(() => {
+    return localStorage.getItem('kahoot_player_department') || DEFAULT_DEPARTMENTS[0];
+  });
   const [gamePin, setGamePin] = useState<string>('');
   const [selectedQuiz, setSelectedQuiz] = useState<Quiz | null>(null);
   const [sharingQuiz, setSharingQuiz] = useState<Quiz | null>(null);
+  const [flashcardsQuiz, setFlashcardsQuiz] = useState<Quiz | null>(null);
+  const [verifiedParticipant, setVerifiedParticipant] = useState<Participant | null>(null);
   const [isJoinModalOpen, setIsJoinModalOpen] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
 
-  const handleSaveProfile = (nick: string, av: string) => {
+  // Si alguien escanea el QR de un boleto (?verify=<uuid>), mostrar su constancia oficial
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const verifyId = params.get('verify');
+    if (verifyId) {
+      quizService.getParticipantById(verifyId).then(p => {
+        if (p) setVerifiedParticipant(p);
+      });
+    }
+  }, []);
+
+  const handleSaveProfile = (nick: string, av: string, br?: string, dept?: string) => {
     setNickname(nick);
     setSelectedAvatar(av);
     localStorage.setItem('kahoot_player_nickname', nick);
     localStorage.setItem('kahoot_player_avatar', av);
+    if (br !== undefined) {
+      setBranch(br);
+      localStorage.setItem('kahoot_player_branch', br);
+    }
+    if (dept !== undefined) {
+      setDepartment(dept);
+      localStorage.setItem('kahoot_player_department', dept);
+    }
   };
 
   const handleGenerateRandomName = () => {
@@ -153,7 +181,15 @@ export const HomeView: React.FC<HomeViewProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-3 w-full md:w-auto">
+          <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+            <button
+              type="button"
+              onClick={() => setFlashcardsQuiz(invitedQuiz)}
+              className="flex-1 md:flex-none px-5 py-4 bg-black/15 hover:bg-black/25 text-black font-black uppercase text-xs sm:text-sm rounded-2xl transition flex items-center justify-center gap-2 border border-black/20"
+            >
+              <BookOpen className="w-4 h-4" />
+              <span>Modo Práctica (Flashcards)</span>
+            </button>
             <button
               onClick={() => handleLaunchSolo(invitedQuiz)}
               className="flex-1 md:flex-none px-8 py-4 bg-kahoot-purple hover:bg-kahoot-purple-light text-white font-black uppercase text-sm sm:text-base rounded-2xl shadow-2xl active:scale-95 transition flex items-center justify-center gap-2"
@@ -351,18 +387,27 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   <span>Jugar Ahora (Desafío)</span>
                 </button>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    onClick={() => setFlashcardsQuiz(quiz)}
+                    className="py-2.5 px-2.5 rounded-xl bg-blue-500/15 hover:bg-blue-500/25 text-blue-200 font-bold uppercase tracking-wider text-[11px] border border-blue-400/30 active:scale-95 transition flex items-center justify-center gap-1"
+                    title="Estudiar preguntas sin afectar el ranking"
+                  >
+                    <BookOpen className="w-3.5 h-3.5" />
+                    <span>Práctica</span>
+                  </button>
+
                   <button
                     onClick={() => onHostGame(quiz)}
-                    className="py-2.5 px-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold uppercase tracking-wider text-xs border border-white/10 active:scale-95 transition flex items-center justify-center gap-1.5"
+                    className="py-2.5 px-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold uppercase tracking-wider text-[11px] border border-white/10 active:scale-95 transition flex items-center justify-center gap-1"
                   >
                     <Users className="w-3.5 h-3.5" />
-                    <span>Crear Sala</span>
+                    <span>Sala</span>
                   </button>
 
                   <button
                     onClick={() => setSharingQuiz(quiz)}
-                    className="py-2.5 px-3 rounded-xl bg-white/10 hover:bg-kahoot-yellow/20 text-amber-300 font-bold uppercase tracking-wider text-xs border border-amber-300/30 active:scale-95 transition flex items-center justify-center gap-1.5 shadow"
+                    className="py-2.5 px-2.5 rounded-xl bg-white/10 hover:bg-kahoot-yellow/20 text-amber-300 font-bold uppercase tracking-wider text-[11px] border border-amber-300/30 active:scale-95 transition flex items-center justify-center gap-1 shadow"
                   >
                     <Share2 className="w-3.5 h-3.5" />
                     <span>Compartir</span>
@@ -513,11 +558,11 @@ export const HomeView: React.FC<HomeViewProps> = ({
                       }
                     }
 
-                    handleSaveProfile(nickname.trim(), selectedAvatar);
+                    handleSaveProfile(nickname.trim(), selectedAvatar, branch.trim(), department);
                     setIsJoinModalOpen(false);
-                    onStartQuiz(selectedQuiz, nickname.trim(), selectedAvatar);
+                    onStartQuiz(selectedQuiz, nickname.trim(), selectedAvatar, branch.trim() || undefined, department || undefined);
                   }}
-                  className="space-y-5"
+                  className="space-y-4"
                 >
               {/* Selector de Avatar */}
               <div>
@@ -578,6 +623,72 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 </p>
               </div>
 
+              {/* Sucursal / Cine y Área / Departamento */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
+                <div className="space-y-1">
+                  <label className="text-[11px] uppercase font-black text-white/70 flex items-center gap-1.5">
+                    <Building2 className="w-3.5 h-3.5 text-amber-300" />
+                    <span>Sucursal / Cine</span>
+                  </label>
+                  {selectedQuiz.branches && selectedQuiz.branches.length > 0 ? (
+                    <select
+                      value={branch}
+                      onChange={e => setBranch(e.target.value)}
+                      className="w-full py-3 px-3.5 rounded-2xl bg-black/50 border-2 border-white/20 focus:border-kahoot-yellow focus:outline-none text-sm font-bold text-white"
+                    >
+                      <option value="">Selecciona tu cine...</option>
+                      {selectedQuiz.branches.map(b => (
+                        <option key={b} value={b}>
+                          {b}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      placeholder="Ej. Cinépolis Las Américas..."
+                      value={branch}
+                      onChange={e => setBranch(e.target.value)}
+                      className="w-full py-3 px-3.5 rounded-2xl bg-black/50 border-2 border-white/20 focus:border-kahoot-yellow focus:outline-none text-sm font-bold text-white placeholder-white/30"
+                    />
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] uppercase font-black text-white/70 flex items-center gap-1.5">
+                    <Briefcase className="w-3.5 h-3.5 text-amber-300" />
+                    <span>Área / Departamento</span>
+                  </label>
+                  <select
+                    value={department}
+                    onChange={e => setDepartment(e.target.value)}
+                    className="w-full py-3 px-3.5 rounded-2xl bg-black/50 border-2 border-white/20 focus:border-kahoot-yellow focus:outline-none text-sm font-bold text-white"
+                  >
+                    {(selectedQuiz.departments && selectedQuiz.departments.length > 0
+                      ? selectedQuiz.departments
+                      : DEFAULT_DEPARTMENTS
+                    ).map(dept => (
+                      <option key={dept} value={dept} className="bg-slate-900 text-white">
+                        {dept}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Botón de Modo Práctica (Cine-Flashcards) antes del examen */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsJoinModalOpen(false);
+                  setFlashcardsQuiz(selectedQuiz);
+                }}
+                className="w-full py-2.5 px-4 rounded-2xl bg-blue-500/15 hover:bg-blue-500/25 border border-blue-400/35 text-blue-200 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition"
+              >
+                <BookOpen className="w-4 h-4 text-amber-300" />
+                <span>Repasar con Cine-Flashcards (No cuenta como intento)</span>
+              </button>
+
               {/* Botones de Acción */}
               <div className="flex gap-3 pt-2">
                 <button
@@ -609,6 +720,76 @@ export const HomeView: React.FC<HomeViewProps> = ({
           quiz={sharingQuiz}
           onClose={() => setSharingQuiz(null)}
         />
+      )}
+
+      {/* Cine-Flashcards Study Modal */}
+      {flashcardsQuiz && (
+        <FlashcardsModal
+          quiz={flashcardsQuiz}
+          onClose={() => setFlashcardsQuiz(null)}
+          onStartOfficial={() => {
+            const q = flashcardsQuiz;
+            setFlashcardsQuiz(null);
+            handleLaunchSolo(q);
+          }}
+        />
+      )}
+
+      {/* Modal de Verificación de Folio QR (?verify=...) */}
+      {verifiedParticipant && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.94 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="cinepolis-glass rounded-3xl p-6 sm:p-8 max-w-md w-full text-center space-y-4 border-2 border-emerald-400/50"
+          >
+            <div className="w-16 h-16 mx-auto rounded-2xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-300">
+              <ShieldCheck className="w-9 h-9" />
+            </div>
+            <span className="inline-block px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-[11px] font-black uppercase tracking-widest">
+              Folio Oficial Verificado #{verifiedParticipant.id.slice(0, 8).toUpperCase()}
+            </span>
+            <h3 className="text-2xl font-black text-white">
+              {verifiedParticipant.avatar} {verifiedParticipant.nickname}
+            </h3>
+            {(verifiedParticipant.branch || verifiedParticipant.department) && (
+              <p className="text-xs text-amber-300 font-bold">
+                {[verifiedParticipant.branch, verifiedParticipant.department].filter(Boolean).join(' • ')}
+              </p>
+            )}
+            <div className="grid grid-cols-3 gap-2 bg-black/40 p-3.5 rounded-2xl border border-white/10 text-xs">
+              <div>
+                <span className="text-white/50 block">Puntaje</span>
+                <strong className="text-amber-300 text-base">{verifiedParticipant.totalScore.toLocaleString()}</strong>
+              </div>
+              <div>
+                <span className="text-white/50 block">Aciertos</span>
+                <strong className="text-white text-base">
+                  {verifiedParticipant.correctAnswersCount}/{verifiedParticipant.totalQuestionsCount}
+                </strong>
+              </div>
+              <div>
+                <span className="text-white/50 block">Precisión</span>
+                <strong className="text-emerald-400 text-base">{verifiedParticipant.accuracyPercentage}%</strong>
+              </div>
+            </div>
+            <p className="text-[11px] text-white/50">
+              Evaluación registrada el {new Date(verifiedParticipant.completedAt).toLocaleString('es-MX')}
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setVerifiedParticipant(null);
+                if (typeof window !== 'undefined' && window.history) {
+                  window.history.replaceState({}, '', window.location.pathname);
+                }
+              }}
+              className="w-full py-3 rounded-2xl bg-kahoot-yellow text-black font-black text-xs uppercase tracking-wider"
+            >
+              Cerrar Verificación
+            </button>
+          </motion.div>
+        </div>
       )}
     </div>
   );

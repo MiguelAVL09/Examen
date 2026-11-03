@@ -6,7 +6,81 @@ export interface ExamSettings {
   closeDate?: string;
   preventRetries: boolean;
   closeMessage?: string;
+  shuffleQuestions?: boolean;
+  branches?: string[];
+  departments?: string[];
 }
+
+export const DEFAULT_DEPARTMENTS: string[] = [
+  'Taquilla',
+  'Dulcería',
+  'Coffee Tree',
+  'Cocina',
+  'Delivery',
+  'Spyral',
+  'Proyección',
+  'Baños',
+  'Limpieza entre funciones',
+  'Limpieza Profunda',
+];
+
+// Fichas formativas oficiales ("¿Por qué es la correcta?") para el cuestionario de Cinépolis
+export const DEFAULT_EXPLANATIONS: Record<string, string> = {
+  '6eceecf4-9d8b-4bf3-9e3d-c70d746158d5':
+    'En Club Cinépolis el nivel Fan acumula 5% en puntos, mientras que Fanático y Súper Fanático acumulan 10%. La diferencia entre estos dos últimos está en los beneficios adicionales, no en el porcentaje.',
+  '3ff1eebf-ce29-47c1-bb3d-e4909a3bf321':
+    'El beneficio de cumpleaños del nivel Fanático es 2x1 durante todo el mes de cumpleaños en entradas, palomitas y refresco. Recuérdaselo al cliente cuando veas que se acerca su fecha.',
+  'fbc0709d-cb9e-4e4b-9721-a39c99ec20b4':
+    'Para subir a Súper Fanático el cliente tiene tres caminos: 24 visitas, 12 compras en dulcería con monto mínimo de $108, o 280 puntos. Cumplir cualquiera de los tres es suficiente.',
+  'e44d03da-1662-4aa8-ab1f-1c4bcaad3e97':
+    'El nivel Fanático se alcanza con 12 visitas o 140 puntos. Es la mitad del camino hacia Súper Fanático (24 visitas o 280 puntos).',
+  'a3a1f948-c89b-4654-8e47-e5cf920a4ceb':
+    'Falso: el nivel Fanático no otorga cortesías de entrada. Sus beneficios son el 10% en puntos y el 2x1 de cumpleaños.',
+  '3e527fc6-f04b-4657-b0a7-862ad39ec1c1':
+    'Al registrarse por primera vez en Club Cinépolis, el cliente recibe un frappé mediano o palomitas de mantequilla gratis. Es un excelente argumento para invitar a afiliarse.',
+  '2738e13b-884f-4134-91f2-52fae0a0290d':
+    'Falso: en Cinépolis se valora la creatividad. Siguiendo los estándares de servicio, cada colaborador puede aportar ideas para mejorar la experiencia del cliente.',
+  'b43c79a7-efe6-4940-8738-f502ebc3ec9b':
+    'Verdadero: todos tenemos un área en la que destacamos. Identificarla ayuda a que el equipo aproveche las fortalezas de cada uno.',
+};
+
+// Columnas nuevas (migración V3). Si aún no existen en Supabase, se reintenta sin ellas
+// para que NUNCA se pierda un intento.
+const isMissingColumnError = (err: any): boolean => {
+  if (!err) return false;
+  const msg = `${err.message || ''} ${err.details || ''} ${err.hint || ''}`.toLowerCase();
+  return err.code === 'PGRST204' || err.code === '42703' || msg.includes('column') || msg.includes('schema cache');
+};
+
+const buildSettingsMeta = (s: Partial<ExamSettings>): string =>
+  `<!--SETTINGS:${JSON.stringify({
+    closeDate: s.closeDate,
+    preventRetries: s.preventRetries,
+    closeMessage: s.closeMessage,
+    shuffleQuestions: s.shuffleQuestions,
+    branches: s.branches,
+    departments: s.departments,
+  })}-->`;
+
+const mapParticipantRow = (p: any): Participant => ({
+  id: p.id,
+  quizId: p.quiz_id,
+  sessionId: p.session_id,
+  nickname: p.nickname,
+  avatar: p.avatar || '🦊',
+  totalScore: p.total_score,
+  streak: p.streak || 0,
+  maxStreak: p.max_streak || 0,
+  correctAnswersCount: p.correct_answers_count || 0,
+  totalQuestionsCount: p.total_questions_count || 0,
+  accuracyPercentage: Number(p.accuracy_percentage) || 0,
+  completedAt: p.completed_at || p.created_at,
+  branch: p.branch || undefined,
+  department: p.department || undefined,
+  tabSwitches: p.tab_switches ?? undefined,
+  timeAwayMs: p.time_away_ms ?? undefined,
+  deviceId: p.device_id || undefined,
+});
 
 export interface OptionStat {
   optionId: string;
@@ -399,6 +473,7 @@ export const sanitizeQuizForStorage = (quiz: Quiz): Quiz => {
         id: quesId,
         quizId: quizId,
         orderIndex: qIdx,
+        explanation: ques.explanation || DEFAULT_EXPLANATIONS[quesId] || undefined,
         options: (ques.options || []).map((opt, oIdx) => ({
           ...opt,
           id: generateUUID(opt.id),
@@ -509,6 +584,9 @@ export const quizService = {
                 closeDate: settings.closeDate || localSettings.closeDate,
                 preventRetries: settings.preventRetries ?? localSettings.preventRetries ?? false,
                 closeMessage: settings.closeMessage || localSettings.closeMessage,
+                shuffleQuestions: settings.shuffleQuestions ?? localSettings.shuffleQuestions ?? true,
+                branches: settings.branches ?? localSettings.branches ?? [],
+                departments: settings.departments ?? localSettings.departments ?? DEFAULT_DEPARTMENTS,
                 questions: (questionsData || []).map(ques => ({
                   id: ques.id,
                   quizId: ques.quiz_id,
@@ -519,6 +597,7 @@ export const quizService = {
                   questionType: (ques.question_type as any) || 'multiple_choice',
                   correctOrder: ques.correct_order || undefined,
                   acceptedAnswers: ques.accepted_answers || undefined,
+                  explanation: ques.explanation || DEFAULT_EXPLANATIONS[ques.id] || undefined,
                   options: (ques.question_options || []).map((opt: any) => ({
                     id: opt.id,
                     text: opt.option_text,
@@ -591,7 +670,15 @@ export const quizService = {
         const { error: upsertError } = await supabase.from('quizzes').upsert({
           id: quizToSave.id,
           title: quizToSave.title,
-          description: quizToSave.description || '',
+          // Conservar los ajustes del examen (candado, sucursales, etc.) embebidos en la descripción
+          description: (quizToSave.description || '').split('<!--SETTINGS:')[0] + buildSettingsMeta({
+            closeDate: quizToSave.closeDate,
+            preventRetries: quizToSave.preventRetries ?? false,
+            closeMessage: quizToSave.closeMessage,
+            shuffleQuestions: quizToSave.shuffleQuestions,
+            branches: quizToSave.branches,
+            departments: quizToSave.departments,
+          }),
           cover_image: quizToSave.coverImage || '',
           category: quizToSave.category || 'General',
           time_per_question: quizToSave.timePerQuestion || 20,
@@ -603,12 +690,20 @@ export const quizService = {
           throw upsertError;
         }
 
-        // Limpiar preguntas previas de este quiz antes de reinsertar para sincronización limpia
-        await supabase.from('questions').delete().eq('quiz_id', quizToSave.id);
+        // Sincronización SEGURA: upsert de preguntas/opciones existentes (mismo ID) y borrar
+        // solo las que el admin eliminó. Antes se borraban todas las preguntas y, por el
+        // ON DELETE CASCADE, eso eliminaba también las respuestas registradas de los participantes.
+        const keepQuestionIds = quizToSave.questions.map(q => q.id);
+        const { data: existingQs } = await supabase.from('questions').select('id').eq('quiz_id', quizToSave.id);
+        const removedQIds = (existingQs || []).map((r: any) => r.id).filter((id: string) => !keepQuestionIds.includes(id));
+        if (removedQIds.length > 0) {
+          await supabase.from('questions').delete().in('id', removedQIds);
+        }
 
+        let explanationSupported = true;
         for (let i = 0; i < quizToSave.questions.length; i++) {
           const ques = quizToSave.questions[i];
-          const { error: qError } = await supabase.from('questions').insert({
+          const baseRow: Record<string, any> = {
             id: ques.id,
             quiz_id: quizToSave.id,
             question_text: ques.questionText,
@@ -619,14 +714,28 @@ export const quizService = {
             correct_order: ques.correctOrder || null,
             accepted_answers: ques.acceptedAnswers || null,
             order_index: i,
-          });
+          };
+          let { error: qError } = await supabase
+            .from('questions')
+            .upsert(explanationSupported ? { ...baseRow, explanation: ques.explanation || null } : baseRow);
+          if (qError && explanationSupported && isMissingColumnError(qError)) {
+            explanationSupported = false;
+            ({ error: qError } = await supabase.from('questions').upsert(baseRow));
+          }
           if (qError) {
-            console.error('Error al insertar pregunta en Supabase:', qError);
+            console.error('Error al guardar pregunta en Supabase:', qError);
             throw qError;
           }
 
+          const keepOptIds = (ques.options || []).map(o => o.id);
+          const { data: existingOpts } = await supabase.from('question_options').select('id').eq('question_id', ques.id);
+          const removedOptIds = (existingOpts || []).map((r: any) => r.id).filter((id: string) => !keepOptIds.includes(id));
+          if (removedOptIds.length > 0) {
+            await supabase.from('question_options').delete().in('id', removedOptIds);
+          }
+
           if (ques.options && ques.options.length > 0) {
-            const optionsToInsert = ques.options.map((opt, j) => ({
+            const optionsToUpsert = ques.options.map((opt, j) => ({
               id: opt.id,
               question_id: ques.id,
               option_text: opt.text,
@@ -635,9 +744,9 @@ export const quizService = {
               shape: opt.shape,
               order_index: opt.orderIndex ?? j,
             }));
-            const { error: optError } = await supabase.from('question_options').insert(optionsToInsert);
+            const { error: optError } = await supabase.from('question_options').upsert(optionsToUpsert);
             if (optError) {
-              console.error('Error al insertar opciones en Supabase:', optError);
+              console.error('Error al guardar opciones en Supabase:', optError);
               throw optError;
             }
           }
@@ -729,7 +838,7 @@ export const quizService = {
 
     if (isSupabaseConfigured() && supabase) {
       try {
-        const { error: pError } = await supabase.from('participants').insert({
+        const baseRow: Record<string, any> = {
           id: participant.id,
           quiz_id: participant.quizId,
           session_id: participant.sessionId ? generateUUID(participant.sessionId) : null,
@@ -742,7 +851,22 @@ export const quizService = {
           total_questions_count: participant.totalQuestionsCount || 0,
           accuracy_percentage: participant.accuracyPercentage || 0,
           completed_at: participant.completedAt || new Date().toISOString(),
-        });
+        };
+        const extendedRow = {
+          ...baseRow,
+          branch: participant.branch || null,
+          department: participant.department || null,
+          tab_switches: participant.tabSwitches ?? 0,
+          time_away_ms: participant.timeAwayMs ?? 0,
+          device_id: participant.deviceId || null,
+        };
+
+        let { error: pError } = await supabase.from('participants').insert(extendedRow);
+        if (pError && isMissingColumnError(pError)) {
+          // La migración V3 aún no se ha ejecutado: guardar el intento sin los campos nuevos
+          console.warn('Columnas V3 no disponibles en Supabase, guardando intento sin ellas.');
+          ({ error: pError } = await supabase.from('participants').insert(baseRow));
+        }
 
         if (pError) {
           console.error('Error insertando participante en Supabase:', pError);
@@ -790,20 +914,7 @@ export const quizService = {
         if (error) throw error;
         if (data) {
           const validRows = data.filter((p: any) => p.nickname !== '__deleted__' && Number(p.total_score) >= 0);
-          return validRows.map((p: any) => ({
-            id: p.id,
-            quizId: p.quiz_id,
-            sessionId: p.session_id,
-            nickname: p.nickname,
-            avatar: p.avatar || '🦊',
-            totalScore: p.total_score,
-            streak: p.streak || 0,
-            maxStreak: p.max_streak || 0,
-            correctAnswersCount: p.correct_answers_count || 0,
-            totalQuestionsCount: p.total_questions_count || 0,
-            accuracyPercentage: Number(p.accuracy_percentage) || 0,
-            completedAt: p.completed_at || p.created_at,
-          }));
+          return validRows.map(mapParticipantRow);
         }
       } catch (err) {
         console.warn('Error obteniendo rankings de Supabase, usando local:', err);
@@ -920,18 +1031,22 @@ export const quizService = {
   },
 
   getExamSettings(quizId: string): ExamSettings {
-    try {
-      const local = localStorage.getItem(`kahoot_exam_settings_${quizId}`);
-      if (local) {
-        return JSON.parse(local);
-      }
-    } catch {}
-    return {
+    const defaults: ExamSettings = {
       isExamOpen: true,
       closeDate: undefined,
       preventRetries: false,
       closeMessage: 'Esta evaluación se encuentra cerrada por el administrador.',
+      shuffleQuestions: true,
+      branches: [],
+      departments: DEFAULT_DEPARTMENTS,
     };
+    try {
+      const local = localStorage.getItem(`kahoot_exam_settings_${quizId}`);
+      if (local) {
+        return { ...defaults, ...JSON.parse(local) };
+      }
+    } catch {}
+    return defaults;
   },
 
   async saveExamSettings(quizId: string, settings: ExamSettings): Promise<void> {
@@ -946,11 +1061,7 @@ export const quizService = {
         if (desc.includes('<!--SETTINGS:')) {
           desc = desc.split('<!--SETTINGS:')[0];
         }
-        const settingsMeta = `<!--SETTINGS:${JSON.stringify({
-          closeDate: settings.closeDate,
-          preventRetries: settings.preventRetries,
-          closeMessage: settings.closeMessage,
-        })}-->`;
+        const settingsMeta = buildSettingsMeta(settings);
 
         await supabase.from('quizzes').update({
           is_published: settings.isExamOpen,
@@ -1012,6 +1123,28 @@ export const quizService = {
 
     const rankings = await this.getRankings(quizId);
     return rankings.some(p => normalize(p.nickname) === targetNorm);
+  },
+
+  async getParticipantById(participantId: string): Promise<Participant | null> {
+    if (!participantId || !UUID_REGEX.test(participantId)) return null;
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('participants')
+          .select('*')
+          .eq('id', participantId)
+          .neq('nickname', '__deleted__')
+          .maybeSingle();
+        if (!error && data) return mapParticipantRow(data);
+      } catch {}
+    }
+    try {
+      const stored = localStorage.getItem(LOCAL_STORAGE_PARTICIPANTS_KEY);
+      const list: Participant[] = stored ? JSON.parse(stored) : [];
+      return list.find(p => p.id === participantId) || null;
+    } catch {
+      return null;
+    }
   },
 
   async getParticipantAnswers(participantId: string, quiz?: Quiz): Promise<DetailedParticipantAnswer[]> {

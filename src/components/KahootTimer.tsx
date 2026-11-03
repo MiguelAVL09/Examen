@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { soundEffects } from '../utils/soundEffects';
+import { haptic } from '../utils/security';
 
 interface KahootTimerProps {
   initialSeconds: number;
@@ -22,15 +23,18 @@ export const KahootTimer: React.FC<KahootTimerProps> = ({
   // Calculate percentage
   const percentage = Math.max(0, (timeLeft / initialSeconds) * 100);
 
-  // Determine color theme based on urgency
+  // Determine color theme based on urgency (Verde esmeralda -> Amarillo -> Rojo dramático)
   const isUrgent = timeLeft <= 5 && timeLeft > 0;
   const isCritical = timeLeft <= 3 && timeLeft > 0;
 
-  let strokeColor = '#26890c'; // Green
+  let strokeColor = '#10b981'; // Emerald
+  let glowColor = 'rgba(16, 185, 129, 0.35)';
   if (timeLeft <= 5) {
-    strokeColor = '#e21b3c'; // Red
+    strokeColor = '#ef4444'; // Dramatic Red
+    glowColor = 'rgba(239, 68, 68, 0.65)';
   } else if (timeLeft <= initialSeconds / 2) {
-    strokeColor = '#ffa602'; // Yellow
+    strokeColor = '#f59e0b'; // Amber Gold
+    glowColor = 'rgba(245, 158, 11, 0.45)';
   }
 
   useEffect(() => {
@@ -49,10 +53,13 @@ export const KahootTimer: React.FC<KahootTimerProps> = ({
     const timer = setInterval(() => {
       setTimeLeft(prev => {
         const next = prev - 1;
-        // Sound tick effect
+        // Sound tick effect + haptic pulse in final 5 seconds
         if (next >= 0) {
           const pitch = next <= 5 ? 1.5 + (5 - next) * 0.2 : 1.0;
           soundEffects.playTick(pitch);
+          if (next <= 5 && next > 0) {
+            haptic(next <= 3 ? [35, 40, 35] : 25);
+          }
         }
         return next;
       });
@@ -71,9 +78,10 @@ export const KahootTimer: React.FC<KahootTimerProps> = ({
   return (
     <div className="relative flex items-center justify-center select-none">
       <motion.div
-        animate={isCritical ? { scale: [1, 1.12, 1] } : isUrgent ? { scale: [1, 1.06, 1] } : {}}
-        transition={{ repeat: Infinity, duration: isCritical ? 0.4 : 0.8 }}
-        className="relative"
+        animate={isCritical ? { scale: [1, 1.15, 0.96, 1.1, 1] } : isUrgent ? { scale: [1, 1.08, 1] } : {}}
+        transition={{ repeat: Infinity, duration: isCritical ? 0.65 : 0.85 }}
+        style={{ filter: `drop-shadow(0 0 ${isUrgent ? '14px' : '8px'} ${glowColor})` }}
+        className={`relative rounded-full ${isUrgent ? 'animate-heartbeat' : ''}`}
       >
         <svg width={size} height={size} className="transform -rotate-90">
           {/* Background circle track */}

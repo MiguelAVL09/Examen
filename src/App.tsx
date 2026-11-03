@@ -14,6 +14,8 @@ export function App() {
   const [invitedQuiz, setInvitedQuiz] = useState<Quiz | null>(null);
   const [playerNickname, setPlayerNickname] = useState<string>('Jugador');
   const [playerAvatar, setPlayerAvatar] = useState<string>('🦊');
+  const [playerBranch, setPlayerBranch] = useState<string | undefined>(undefined);
+  const [playerDepartment, setPlayerDepartment] = useState<string | undefined>(undefined);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   // Load quizzes on launch
@@ -59,10 +61,18 @@ export function App() {
   }, [quizzes]);
 
   // Handle Solo Quiz Start
-  const handleStartQuiz = (quiz: Quiz, nickname: string, avatar: string) => {
+  const handleStartQuiz = (
+    quiz: Quiz,
+    nickname: string,
+    avatar: string,
+    branch?: string,
+    department?: string
+  ) => {
     setActiveQuiz(quiz);
     setPlayerNickname(nickname);
     setPlayerAvatar(avatar);
+    setPlayerBranch(branch);
+    setPlayerDepartment(department);
     setInvitedQuiz(null);
     // Limpiar el parámetro de la URL inmediatamente al entrar para que el inicio quede limpio al regresar
     if (typeof window !== 'undefined' && window.history) {
@@ -127,6 +137,8 @@ export function App() {
                 quiz={activeQuiz}
                 nickname={playerNickname}
                 avatar={playerAvatar}
+                branch={playerBranch}
+                department={playerDepartment}
                 onExit={() => {
                   setInvitedQuiz(null);
                   if (activeQuiz) {

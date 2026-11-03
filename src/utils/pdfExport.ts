@@ -183,8 +183,11 @@ export const exportRankingsToPDF = ({
 export const exportDiplomaPDF = (
   participant: Participant,
   rank: number,
-  quizTitle: string
+  quizTitle: string,
+  verifyCode?: string
 ) => {
+  // rank = 0 => Certificado de aprobacion (descargado por el propio colaborador)
+  const isApproval = rank <= 0;
   const doc = new jsPDF({
     orientation: 'landscape',
     unit: 'mm',
@@ -237,11 +240,12 @@ export const exportDiplomaPDF = (
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(26);
   doc.setTextColor(11, 19, 43);
-  doc.text('DIPLOMA DE RECONOCIMIENTO', width / 2, 50, { align: 'center' });
+  doc.text(isApproval ? 'CERTIFICADO DE APROBACION' : 'DIPLOMA DE RECONOCIMIENTO', width / 2, 50, { align: 'center' });
 
   // Rank Badge Text
-  const rankTitle =
-    rank === 1
+  const rankTitle = isApproval
+    ? 'EVALUACION APROBADA CON EXCELENCIA'
+    : rank === 1
       ? '1ER LUGAR DE EXCELENCIA'
       : rank === 2
       ? '2DO LUGAR DESTACADO'
@@ -250,7 +254,7 @@ export const exportDiplomaPDF = (
       : `POSICION #${rank} EN EL RANKING`;
 
   const rankBadgeColor: [number, number, number] =
-    rank === 1
+    isApproval || rank === 1
       ? [212, 175, 55] // Gold
       : rank === 2
       ? [140, 150, 165] // Silver
@@ -289,7 +293,9 @@ export const exportDiplomaPDF = (
   doc.setFontSize(10);
   doc.setTextColor(70, 70, 85);
   doc.text(
-    'Por su sobresaliente desempeno y dominio de conocimientos en la evaluacion:',
+    isApproval
+      ? 'Por haber aprobado satisfactoriamente (80% o mas de aciertos) la evaluacion:'
+      : 'Por su sobresaliente desempeno y dominio de conocimientos en la evaluacion:',
     width / 2,
     106,
     { align: 'center' }
@@ -358,7 +364,15 @@ export const exportDiplomaPDF = (
   doc.setTextColor(120, 120, 135);
   doc.text('Operaciones Cinepolis', width / 2 + 57.5, 187, { align: 'center' });
 
-  const fileName = `Diploma_${rank}Lugar_${participant.nickname.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+  if (verifyCode) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(140, 140, 155);
+    doc.text(`Folio de verificacion: ${verifyCode}`, width / 2, height - 20, { align: 'center' });
+  }
+
+  const safeName = participant.nickname.replace(/[^a-zA-Z0-9]/g, '_');
+  const fileName = isApproval ? `Certificado_Cinepolis_${safeName}.pdf` : `Diploma_${rank}Lugar_${safeName}.pdf`;
   doc.save(fileName);
 };
 

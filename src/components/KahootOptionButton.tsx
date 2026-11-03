@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { QuestionOption } from '../types/quiz';
 import { KahootShapeIcon } from './KahootShapes';
 import { Check, X } from 'lucide-react';
+import { haptic } from '../utils/security';
 
 interface OptionButtonProps {
   option: QuestionOption;
@@ -52,9 +53,14 @@ export const KahootOptionButton: React.FC<OptionButtonProps> = ({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.05, duration: 0.25 }}
-      onClick={() => !isDisabled && onSelect(option.id)}
+      onClick={() => {
+        if (!isDisabled) {
+          haptic(20);
+          onSelect(option.id);
+        }
+      }}
       disabled={isDisabled}
-      className={`relative w-full min-h-[64px] sm:min-h-[82px] md:min-h-[100px] p-3 sm:p-4 md:p-6 rounded-xl sm:rounded-2xl flex items-center justify-between transition-all duration-200 select-none ${colorClasses} ${opacityClass} ${borderClass} cursor-pointer disabled:cursor-not-allowed`}
+      className={`relative w-full min-h-[78px] sm:min-h-[92px] md:min-h-[108px] p-4 sm:p-5 md:p-6 rounded-2xl flex items-center justify-between transition-all duration-200 select-none touch-manipulation ${colorClasses} ${opacityClass} ${borderClass} cursor-pointer disabled:cursor-not-allowed`}
     >
       <div className="flex items-center gap-2.5 sm:gap-4 md:gap-5 flex-1 text-left min-w-0">
         {/* Shape Icon */}

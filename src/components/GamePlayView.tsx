@@ -1,31 +1,34 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import type { Quiz, Question, Participant, ParticipantAnswer, QuestionOption } from '../types/quiz';
 import { KahootTimer } from './KahootTimer';
 import { KahootOptionButton } from './KahootOptionButton';
 import { KahootShapeIcon } from './KahootShapes';
+import { CurtainsReveal, FilmStripProgress, CinemaTicketResult } from './CinemaEffects';
 import { soundEffects } from '../utils/soundEffects';
-import { quizService, generateUUID, UUID_REGEX } from '../services/quizService';
+import { quizService, generateUUID, UUID_REGEX, DEFAULT_EXPLANATIONS } from '../services/quizService';
+import { getDeviceFingerprint, shuffleQuizQuestions, haptic } from '../utils/security';
 import {
   Flame,
-  Trophy,
   CheckCircle,
   XCircle,
   ArrowRight,
-  RotateCcw,
-  Home,
   Sparkles,
-  Clock,
-  Target,
   Send,
-  Shuffle
+  Shuffle,
+  AlertTriangle,
+  Lightbulb,
+  RotateCcw,
+  BookOpen,
 } from 'lucide-react';
 
 interface GamePlayViewProps {
   quiz: Quiz;
   nickname: string;
   avatar: string;
+  branch?: string;
+  department?: string;
   onExit: () => void;
   onPlayAgain: () => void;
 }
@@ -34,13 +37,28 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
   quiz,
   nickname,
   avatar,
+  branch,
+  department,
   onExit,
   onPlayAgain,
 }) => {
+  // Anti-copia vecinal: barajar el orden de preguntas y opciones para cada participante
+  const activeQuestions: Question[] = useMemo(() => {
+    if (quiz.shuffleQuestions === false) return quiz.questions;
+    return shuffleQuizQuestions(quiz.questions);
+  }, [quiz]);
+
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number>(0);
   const [isQuestionActive, setIsQuestionActive] = useState<boolean>(true);
   const [showFeedback, setShowFeedback] = useState<boolean>(false);
   const [isGameOver, setIsGameOver] = useState<boolean>(false);
+  const [completedParticipant, setCompletedParticipant] = useState<Participant | null>(null);
+
+  // Anti-cheat: detección de cambios de pestaña / minimizar ventana
+  const [tabSwitches, setTabSwitches] = useState<number>(0);
+  const [timeAwayMs, setTimeAwayMs] = useState<number>(0);
+  const [showTabWarning, setShowTabWarning] = useState<boolean>(false);
+  const hiddenSinceRef = useRef<number | null>(null);
 
   // Stats & Scoring
   const [totalScore, setTotalScore] = useState<number>(0);
@@ -63,8 +81,26 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
 
   // Time tracking
   const questionStartTimeRef = useRef<number>(Date.now());
-  const currentQuestion: Question = quiz.questions[currentQuestionIndex];
-  const totalQuestions = quiz.questions.length;
+  const currentQuestion: Question = activeQuestions[currentQuestionIndex];
+  const totalQuestions = activeQuestions.length;
+
+  // Monitoreo de cambios de pestaña o salida de la aplicación durante el examen
+  useEffect(() => {
+    if (isGameOver) return;
+    const handleVisibility = () => {
+      if (document.hidden) {
+        hiddenSinceRef.current = Date.now();
+        setTabSwitches(prev => prev + 1);
+        setShowTabWarning(true);
+      } else if (hiddenSinceRef.current) {
+        const delta = Date.now() - hiddenSinceRef.current;
+        hiddenSinceRef.current = null;
+        setTimeAwayMs(prev => prev + Math.max(0, delta));
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [isGameOver]);
 
   // Initialize or reset question states
   useEffect(() => {
@@ -120,14 +156,22 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
       setLastPointsAwarded(pointsAwarded);
 
       soundEffects.playCorrect();
+      haptic(newStreak >= 2 ? [35, 30, 65] : 30);
       if (newStreak >= 2) {
         setTimeout(() => soundEffects.playStreakBonus(), 300);
+        confetti({
+          particleCount: Math.min(25 + newStreak * 12, 85),
+          spread: 65,
+          origin: { y: 0.75 },
+          colors: ['#fbbf24', '#f59e0b', '#fef08a', '#ffffff'],
+        });
       }
     } else {
       setStreak(0);
       setLastAnswerCorrect(false);
       setLastPointsAwarded(0);
       soundEffects.playWrong();
+      haptic([60, 50, 60]);
     }
 
     const answerRecord: ParticipantAnswer = {
@@ -265,7 +309,13 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
       accuracyPercentage: accuracy,
       completedAt: new Date().toISOString(),
       answers: participantAnswers,
+      branch: branch || undefined,
+      department: department || undefined,
+      tabSwitches,
+      timeAwayMs,
+      deviceId: getDeviceFingerprint(),
     };
+    setCompletedParticipant(participantData);
 
     try {
       await quizService.saveParticipantResult(participantData);
@@ -276,9 +326,40 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
   };
 
   return (
-    <div className="min-h-[calc(100vh-70px)] flex flex-col justify-between p-2 sm:p-4 md:p-8 max-w-5xl mx-auto w-full">
+    <div className="min-h-[calc(100vh-70px)] flex flex-col justify-between p-2 sm:p-4 md:p-8 max-w-5xl mx-auto w-full relative">
+      {/* Animación de apertura de telón de cine al iniciar y al mostrar resultados */}
+      <CurtainsReveal triggerKey={isGameOver ? 'podium' : 'start'} />
+
+      {/* Aviso anti-trampas si el colaborador salió de la pestaña */}
+      {showTabWarning && !isGameOver && (
+        <div className="mb-2 px-4 py-2 rounded-xl bg-red-950/80 border border-red-500/50 text-red-200 text-xs font-bold flex items-center justify-between gap-2 shadow-lg">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+            <span>
+              Se detectó salida de la pantalla ({tabSwitches} {tabSwitches === 1 ? 'vez' : 'veces'}). Permanece en el examen; esta actividad queda registrada.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowTabWarning(false)}
+            className="text-white/60 hover:text-white font-black px-2"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Barra de Progreso estilo Rollo de Película 35mm */}
+      {!isGameOver && (
+        <FilmStripProgress
+          total={totalQuestions}
+          currentIndex={currentQuestionIndex}
+          answers={participantAnswers}
+        />
+      )}
+
       {/* Top Status Bar */}
-      <div className="flex items-center justify-between gap-2 sm:gap-4 mb-3 sm:mb-4 bg-kahoot-purple-dark/80 p-2.5 sm:p-4 md:px-6 rounded-xl sm:rounded-2xl border border-white/10 shadow-lg backdrop-blur-md">
+      <div className="flex items-center justify-between gap-2 sm:gap-4 mb-3 sm:mb-4 cinepolis-glass p-2.5 sm:p-4 md:px-6 rounded-xl sm:rounded-2xl">
         <div className="flex items-center gap-2 sm:gap-3">
           <div className="px-2.5 sm:px-3.5 py-1 bg-white/10 rounded-lg sm:rounded-xl text-[11px] sm:text-xs md:text-sm font-black tracking-wider uppercase">
             Pregunta {currentQuestionIndex + 1} / {totalQuestions}
@@ -302,21 +383,21 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
             initial={{ scale: 0 }}
             animate={{ scale: [1, 1.15, 1] }}
             transition={{ repeat: Infinity, duration: 1.5 }}
-            className="flex items-center gap-1 px-2 sm:px-3 py-0.5 sm:py-1 bg-red-600/30 border border-red-500/40 rounded-full text-amber-300 font-black text-[11px] sm:text-xs md:text-sm shadow-md"
+            className="flex items-center gap-1 px-2.5 sm:px-3.5 py-0.5 sm:py-1 bg-gradient-to-r from-amber-500/30 to-yellow-500/30 border border-amber-400/60 rounded-full text-amber-300 font-black text-[11px] sm:text-xs md:text-sm combo-golden-glow"
           >
             <Flame className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 animate-bounce" />
-            <span>x{streak}</span>
+            <span>RACHA x{streak}</span>
           </motion.div>
         )}
 
         <div className="flex items-center gap-2 sm:gap-3">
-          <div className="flex items-center gap-1.5 sm:gap-2 bg-black/30 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl border border-white/10">
+          <div className={`flex items-center gap-1.5 sm:gap-2 bg-black/40 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl border transition-all ${streak >= 2 ? 'border-amber-400/70 combo-golden-glow' : 'border-white/10'}`}>
             <span className="text-lg sm:text-xl">{avatar}</span>
             <span className="font-extrabold text-xs sm:text-sm md:text-base text-white max-w-[80px] sm:max-w-[120px] truncate">
               {nickname}
             </span>
           </div>
-          <div className="bg-kahoot-yellow px-2.5 sm:px-4 py-1 sm:py-1.5 rounded-lg sm:rounded-xl shadow-md text-black font-black text-xs sm:text-sm md:text-lg">
+          <div className={`bg-kahoot-yellow px-2.5 sm:px-4 py-1 sm:py-1.5 rounded-lg sm:rounded-xl shadow-md text-black font-black text-xs sm:text-sm md:text-lg transition-all ${streak >= 2 ? 'combo-golden-glow' : ''}`}>
             {totalScore.toLocaleString()} <span className="text-[10px] sm:text-xs uppercase">pts</span>
           </div>
         </div>
@@ -627,12 +708,25 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
                     </div>
                   )}
 
+                  {/* Ficha Formativa Inmediata ("¿Por qué es la correcta?") */}
+                  {(currentQuestion.explanation || DEFAULT_EXPLANATIONS[currentQuestion.id]) && (
+                    <div className="mb-4 sm:mb-6 p-3.5 rounded-2xl bg-black/35 border border-amber-300/30 text-left">
+                      <div className="flex items-center gap-1.5 text-[10px] sm:text-xs font-black uppercase tracking-wider text-amber-300 mb-1">
+                        <BookOpen className="w-3.5 h-3.5 shrink-0" />
+                        <span>Cápsula Formativa Cinépolis · ¿Por qué es la correcta?</span>
+                      </div>
+                      <p className="text-xs sm:text-sm text-white/95 font-medium leading-relaxed">
+                        {currentQuestion.explanation || DEFAULT_EXPLANATIONS[currentQuestion.id]}
+                      </p>
+                    </div>
+                  )}
+
                   <button
                     onClick={handleNextQuestion}
                     className="w-full py-3.5 sm:py-4 rounded-xl sm:rounded-2xl bg-white text-gray-900 font-black text-base sm:text-lg uppercase tracking-wider shadow-xl hover:bg-gray-100 active:scale-95 transition flex items-center justify-center gap-2 min-h-[48px]"
                   >
                     <span>
-                      {currentQuestionIndex + 1 < totalQuestions ? 'Siguiente Pregunta' : 'Ver Resultados'}
+                      {currentQuestionIndex + 1 < totalQuestions ? 'Siguiente Pregunta' : 'Ver Boleto de Resultados'}
                     </span>
                     <ArrowRight className="w-5 h-5" />
                   </button>
@@ -642,87 +736,31 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
           </AnimatePresence>
         </motion.div>
       ) : (
-        /* Game Over Screen */
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="flex-1 flex flex-col items-center justify-center text-center my-auto py-3 sm:py-6 w-full"
-        >
-          <div className="bg-kahoot-purple-dark/90 border border-white/20 rounded-2xl sm:rounded-3xl p-5 sm:p-8 md:p-12 max-w-xl w-full shadow-2xl backdrop-blur-md">
-            <div className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 mx-auto mb-3 sm:mb-6 bg-gradient-to-tr from-amber-400 to-yellow-300 rounded-2xl sm:rounded-3xl shadow-xl flex items-center justify-center transform -rotate-6">
-              <Trophy className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 text-kahoot-purple-dark" />
-            </div>
-
-            <h2 className="text-2xl sm:text-3xl md:text-5xl font-black text-white tracking-tight uppercase mb-1 sm:mb-2">
-              ¡Cuestionario Completado!
-            </h2>
-            <p className="text-white/80 font-semibold mb-4 sm:mb-8 text-xs sm:text-base">
-              Gran trabajo, <span className="text-kahoot-yellow font-extrabold">{nickname}</span>
-            </p>
-
-            <div className="bg-black/40 rounded-xl sm:rounded-2xl p-3.5 sm:p-6 mb-4 sm:mb-8 border border-white/10">
-              <span className="text-[10px] sm:text-xs uppercase font-black tracking-widest text-white/60">
-                Puntaje Total Obtenido
-              </span>
-              <div className="text-4xl sm:text-5xl md:text-6xl font-black text-kahoot-yellow my-0.5 sm:my-1">
-                {totalScore.toLocaleString()}
-              </div>
-              <span className="text-xs sm:text-sm font-bold text-white/80">puntos Kahoot</span>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-4 sm:mb-8">
-              <div className="bg-white/5 p-2.5 sm:p-4 rounded-xl border border-white/10">
-                <Target className="w-5 h-5 sm:w-6 sm:h-6 text-green-400 mx-auto mb-1" />
-                <div className="text-base sm:text-xl md:text-2xl font-black text-white">
-                  {correctCount}/{totalQuestions}
-                </div>
-                <div className="text-[10px] sm:text-[11px] font-bold text-white/60 uppercase">Aciertos</div>
-              </div>
-
-              <div className="bg-white/5 p-2.5 sm:p-4 rounded-xl border border-white/10">
-                <Clock className="w-5 h-5 sm:w-6 sm:h-6 text-blue-400 mx-auto mb-1" />
-                <div className="text-base sm:text-xl md:text-2xl font-black text-white">
-                  {totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 0}%
-                </div>
-                <div className="text-[10px] sm:text-[11px] font-bold text-white/60 uppercase">Precisión</div>
-              </div>
-
-              <div className="bg-white/5 p-2.5 sm:p-4 rounded-xl border border-white/10">
-                <Flame className="w-5 h-5 sm:w-6 sm:h-6 text-amber-400 mx-auto mb-1" />
-                <div className="text-base sm:text-xl md:text-2xl font-black text-white">
-                  x{maxStreak}
-                </div>
-                <div className="text-[10px] sm:text-[11px] font-bold text-white/60 uppercase">Mejor Racha</div>
-              </div>
-            </div>
-
-            <div className="bg-kahoot-purple-light/20 p-3 sm:p-4 rounded-xl border border-kahoot-purple-light/40 mb-5 sm:mb-6 text-xs text-white/80 text-left flex items-start gap-2 sm:gap-2.5">
-              <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-kahoot-yellow flex-shrink-0 mt-0.5" />
-              <div>
-                <strong className="text-white block font-black">Resultados guardados correctamente.</strong>
-                Los rankings y posiciones generales quedan reservados para el panel de administradores.
-              </div>
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-4 justify-center">
-              <button
-                onClick={onPlayAgain}
-                className="w-full sm:flex-1 py-3.5 sm:py-4 px-6 rounded-xl sm:rounded-2xl bg-kahoot-yellow hover:bg-amber-400 text-black font-black uppercase tracking-wider text-xs sm:text-sm shadow-xl active:scale-95 transition flex items-center justify-center gap-2 min-h-[48px]"
-              >
-                <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span>Jugar de Nuevo</span>
-              </button>
-
-              <button
-                onClick={onExit}
-                className="w-full sm:flex-1 py-3.5 sm:py-4 px-6 rounded-xl sm:rounded-2xl bg-white/10 hover:bg-white/20 text-white font-black uppercase tracking-wider text-xs sm:text-sm border border-white/20 active:scale-95 transition flex items-center justify-center gap-2 min-h-[48px]"
-              >
-                <Home className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span>Menú Principal</span>
-              </button>
-            </div>
-          </div>
-        </motion.div>
+        /* Game Over Screen - Tarjeta estilo Boleto de Cine con QR, Medalla 3D, Diploma PDF y Ficha Formativa */
+        <CinemaTicketResult
+          quiz={quiz}
+          participant={
+            completedParticipant || {
+              id: 'FOLIO-LOCAL',
+              quizId: quiz.id,
+              nickname,
+              avatar,
+              totalScore,
+              correctAnswersCount: correctCount,
+              totalQuestionsCount: totalQuestions,
+              accuracyPercentage: totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 0,
+              streak,
+              maxStreak,
+              completedAt: new Date().toISOString(),
+              branch,
+              department,
+              tabSwitches,
+              timeAwayMs,
+            }
+          }
+          onPlayAgain={onPlayAgain}
+          onExit={onExit}
+        />
       )}
     </div>
   );
