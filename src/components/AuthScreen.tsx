@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { ArrowLeft, ArrowRight, Eye, EyeOff, IdCard, LockKeyhole } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Eye, EyeOff, IdCard, LockKeyhole } from 'lucide-react';
 import { authService } from '../services/authService';
 import './AuthScreen.css';
 
@@ -28,6 +28,7 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: () => boolean
   const [showPassword, setShowPassword] = useState(false);
   const [question, setQuestion] = useState('');
   const [busy, setBusy] = useState(false);
+  const [entering, setEntering] = useState(false);
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
   const heading = useRef<HTMLHeadingElement>(null);
@@ -36,6 +37,17 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: () => boolean
   useEffect(() => {
     if (modeChanged.current) heading.current?.focus();
   }, [mode]);
+
+  useEffect(() => {
+    if (!entering) return;
+    const timer = window.setTimeout(() => {
+      if (!onAuthenticated()) {
+        setEntering(false);
+        setError('El navegador no pudo abrir la sesión. Intenta de nuevo.');
+      }
+    }, 1250);
+    return () => window.clearTimeout(timer);
+  }, [entering, onAuthenticated]);
 
   function changeMode(next: Mode) {
     modeChanged.current = true;
@@ -48,7 +60,7 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: () => boolean
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy) return;
+    if (busy || entering) return;
     const fields = new FormData(event.currentTarget);
     const value = (key: string) => String(fields.get(key) ?? '');
     const id = employeeNumber.trim();
@@ -80,8 +92,13 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: () => boolean
         securityAnswer: value('securityAnswer'),
       }) : await authService.login(id, value('password'));
 
-      if (!result.success) setError(result.error || 'No se pudo iniciar sesión.');
-      else if (!onAuthenticated()) setError('El navegador no pudo abrir la sesión. Intenta de nuevo.');
+      if (!result.success) {
+        setError(result.error || 'No se pudo iniciar sesión.');
+      } else if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        if (!onAuthenticated()) setError('El navegador no pudo abrir la sesión. Intenta de nuevo.');
+      } else {
+        setEntering(true);
+      }
     } catch {
       setError('No se pudo completar la solicitud. Intenta de nuevo.');
     } finally {
@@ -103,7 +120,7 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: () => boolean
         </div>
       </section>
 
-      <section className="auth-main" aria-labelledby="auth-heading">
+      <section className="auth-main" aria-labelledby="auth-heading" inert={entering}>
         <div className="auth-card">
           <div className="auth-form-content" key={mode}>
             {mode !== 'login' && <button type="button" className="auth-link auth-back" disabled={busy} onClick={() => changeMode('login')}>
@@ -169,6 +186,14 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: () => boolean
           </div>
         </div>
       </section>
+      {entering && <div className="auth-arrival" role="status">
+        <div className="auth-arrival-lens" aria-hidden="true" />
+        <div className="auth-arrival-strip" aria-hidden="true" />
+        <div className="auth-arrival-content">
+          <span><Check size={38} aria-hidden="true" /></span>
+          <p>Acceso confirmado</p>
+        </div>
+      </div>}
     </main>
   );
 }

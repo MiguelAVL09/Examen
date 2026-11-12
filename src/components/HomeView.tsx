@@ -23,7 +23,7 @@ import { quizService, DEFAULT_DEPARTMENTS } from '../services/quizService';
 import { ShareQuizModal } from './ShareQuizModal';
 import { FlashcardsModal } from './CinemaEffects';
 import { SurveyStartDialog } from './SurveyStartDialog';
-import { isSurveyQuiz } from '../utils/quizKind';
+import { canPracticeQuiz, isSurveyQuiz } from '../utils/quizKind';
 
 interface HomeViewProps {
   quizzes: Quiz[];
@@ -193,7 +193,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-            {!invitedSurvey && <button
+            {canPracticeQuiz(invitedQuiz) && <button
               type="button"
               onClick={() => setFlashcardsQuiz(invitedQuiz)}
               className="flex-1 md:flex-none px-5 py-3.5 bg-black/15 hover:bg-black/25 text-black font-black uppercase text-xs rounded-2xl transition flex items-center justify-center gap-2 border border-black/20"
@@ -327,14 +327,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 </button>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <button
+                  {canPracticeQuiz(quiz) && <button
                     onClick={() => setFlashcardsQuiz(quiz)}
                     className="min-h-11 py-2 px-2 rounded-xl btn-cinepolis-glass font-bold text-sm flex items-center justify-center gap-1.5"
                     title="Estudiar preguntas sin afectar el ranking"
                   >
                     <BookOpen className="w-4 h-4 shrink-0 text-amber-300" />
                     <span>Practicar</span>
-                  </button>
+                  </button>}
 
                   <button
                     onClick={() => onHostGame(quiz)}
@@ -517,7 +517,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   </div>
 
                   {/* Botón de Modo Práctica (Cine-Flashcards) antes del examen */}
-                  <button
+                  {canPracticeQuiz(selectedQuiz) && <button
                     type="button"
                     onClick={() => {
                       setIsJoinModalOpen(false);
@@ -527,7 +527,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   >
                     <BookOpen className="w-4 h-4 text-amber-300" />
                     <span>Repasar con Cine-Flashcards (Sin registro de intento)</span>
-                  </button>
+                  </button>}
 
                   {/* Botones de Acción */}
                   <div className="flex gap-3 pt-2">
@@ -563,7 +563,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       )}
 
       {/* Cine-Flashcards Study Modal */}
-      {flashcardsQuiz && (
+      {flashcardsQuiz && canPracticeQuiz(flashcardsQuiz) && (
         <FlashcardsModal
           quiz={flashcardsQuiz}
           onClose={() => setFlashcardsQuiz(null)}

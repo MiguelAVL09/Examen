@@ -53,7 +53,18 @@ const isMissingColumnError = (err: any): boolean => {
   return err.code === 'PGRST204' || err.code === '42703' || msg.includes('column') || msg.includes('schema cache');
 };
 
-const buildSettingsMeta = (s: Partial<ExamSettings>): string =>
+type StoredSettings = Partial<ExamSettings> & Pick<Quiz, 'quizKind' | 'isAnonymousSurvey'>;
+
+function readSettingsMeta(description: string) {
+  const [text, raw] = description.split('<!--SETTINGS:');
+  let settings: StoredSettings = {};
+  if (raw) {
+    try { settings = JSON.parse(raw.replace('-->', '')) ?? {}; } catch {}
+  }
+  return { text, settings };
+}
+
+const buildSettingsMeta = (s: StoredSettings): string =>
   `<!--SETTINGS:${JSON.stringify({
     isExamOpen: s.isExamOpen,
     closeDate: s.closeDate,
@@ -62,6 +73,8 @@ const buildSettingsMeta = (s: Partial<ExamSettings>): string =>
     closeMessage: s.closeMessage,
     shuffleQuestions: s.shuffleQuestions,
     departments: s.departments,
+    quizKind: s.quizKind,
+    isAnonymousSurvey: s.isAnonymousSurvey,
   })}-->`;
 
 const mapParticipantRow = (p: any): Participant => ({
@@ -560,18 +573,9 @@ export const quizService = {
                 .eq('quiz_id', q.id)
                 .order('order_index', { ascending: true });
 
-              let cleanDescription = q.description || '';
-              let settings: Partial<ExamSettings> = { closeDate: undefined, preventRetries: false };
-              if (cleanDescription.includes('<!--SETTINGS:')) {
-                try {
-                  const parts = cleanDescription.split('<!--SETTINGS:');
-                  cleanDescription = parts[0];
-                  const parsed = JSON.parse(parts[1].replace('-->', ''));
-                  settings = { ...settings, ...parsed };
-                } catch {}
-              }
-
+              const { text: cleanDescription, settings } = readSettingsMeta(q.description || '');
               const localSettings = quizService.getExamSettings(q.id);
+              const localQuiz = localQuizzes.find(quiz => quiz.id === q.id);
 
               return {
                 id: q.id,
@@ -579,12 +583,14 @@ export const quizService = {
                 description: cleanDescription,
                 coverImage: q.cover_image,
                 category: q.category || 'General',
+                quizKind: settings.quizKind ?? localQuiz?.quizKind,
+                isAnonymousSurvey: settings.isAnonymousSurvey ?? localQuiz?.isAnonymousSurvey,
                 timePerQuestion: q.time_per_question || 20,
                 createdAt: q.created_at,
                 isPublished: q.is_published,
                 isExamOpen: q.is_published ?? true,
                 closeDate: settings.closeDate || localSettings.closeDate,
-                preventRetries: settings.preventRetries ?? localSettings.preventRetries ?? false,
+                preventRetries: settings.preventRetries ?? false,
                 maxAttemptsPerUser: settings.maxAttemptsPerUser !== undefined
                   ? settings.maxAttemptsPerUser
                   : (localSettings.maxAttemptsPerUser !== undefined ? localSettings.maxAttemptsPerUser : (settings.preventRetries ? 1 : undefined)),
@@ -683,6 +689,8 @@ export const quizService = {
             closeMessage: quizToSave.closeMessage,
             shuffleQuestions: quizToSave.shuffleQuestions,
             departments: quizToSave.departments,
+            quizKind: quizToSave.quizKind,
+            isAnonymousSurvey: quizToSave.isAnonymousSurvey,
           }),
           cover_image: quizToSave.coverImage || '',
           category: quizToSave.category || 'General',
@@ -1081,11 +1089,8 @@ export const quizService = {
     if (isSupabaseConfigured() && supabase) {
       try {
         const { data: qData } = await supabase.from('quizzes').select('description').eq('id', quizId).maybeSingle();
-        let desc = qData?.description || '';
-        if (desc.includes('<!--SETTINGS:')) {
-          desc = desc.split('<!--SETTINGS:')[0];
-        }
-        const settingsMeta = buildSettingsMeta(settings);
+        const { text: desc, settings: previous } = readSettingsMeta(qData?.description || '');
+        const settingsMeta = buildSettingsMeta({ ...previous, ...settings });
 
         await supabase.from('quizzes').update({
           is_published: settings.isExamOpen,

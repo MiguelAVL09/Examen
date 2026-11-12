@@ -496,7 +496,7 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
                   index={idx}
                   isSelected={selectedOptionId === opt.id}
                   isDisabled={!isQuestionActive}
-                  revealResult={showFeedback}
+                  revealResult={showFeedback && !isSurvey}
                   onSelect={handleSelectOption}
                 />
               ))}
@@ -513,7 +513,7 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
                   index={idx}
                   isSelected={selectedOptionId === opt.id}
                   isDisabled={!isQuestionActive}
-                  revealResult={showFeedback}
+                  revealResult={showFeedback && !isSurvey}
                   onSelect={handleSelectOption}
                 />
               ))}
@@ -544,7 +544,7 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
                     index={idx}
                     isSelected={selectedOptionId === opt.id}
                     isDisabled={!isQuestionActive}
-                    revealResult={showFeedback}
+                    revealResult={showFeedback && !isSurvey}
                     onSelect={handleSelectOption}
                   />
                 ))}
@@ -569,7 +569,7 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
                     index={idx}
                     isSelected={selectedOptionId === opt.id}
                     isDisabled={!isQuestionActive}
-                    revealResult={showFeedback}
+                    revealResult={showFeedback && !isSurvey}
                     onSelect={handleSelectOption}
                   />
                 ))}
@@ -710,7 +710,7 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
                     index={idx}
                     isSelected={selectedOptionId === opt.id}
                     isDisabled={!isQuestionActive}
-                    revealResult={showFeedback}
+                    revealResult={showFeedback && !isSurvey}
                     onSelect={handleSelectOption}
                   />
                 ))}
@@ -735,7 +735,7 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
                     index={idx}
                     isSelected={selectedOptionId === opt.id}
                     isDisabled={!isQuestionActive}
-                    revealResult={showFeedback}
+                    revealResult={showFeedback && !isSurvey}
                     onSelect={handleSelectOption}
                   />
                 ))}

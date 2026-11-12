@@ -24,6 +24,7 @@ import type { Participant, ParticipantAnswer, Question, Quiz } from '../types/qu
 import { DEFAULT_EXPLANATIONS } from '../services/quizService';
 import { exportDiplomaPDF } from '../utils/pdfExport';
 import { haptic } from '../utils/security';
+import { canPracticeQuiz } from '../utils/quizKind';
 
 // ============================================================================
 // 1. ANIMACIÓN DE APERTURA DE TELÓN DE CINE (Curtains Reveal)
@@ -686,7 +687,7 @@ export const FlashcardsModal: React.FC<FlashcardsModalProps> = ({
   const [flipped, setFlipped] = useState(false);
 
   const current = questions[idx];
-  if (!current) return null;
+  if (!current || !canPracticeQuiz(quiz)) return null;
 
   const correctOption = current.options.find(o => o.isCorrect);
   const explanation = current.explanation || DEFAULT_EXPLANATIONS[current.id];
