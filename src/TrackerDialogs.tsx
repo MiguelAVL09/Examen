@@ -169,8 +169,7 @@ export function ReportForm({ workspace, onClose, onDownload, initial }: {
     setBusy(true)
     setError('')
     try {
-      await downloadReport(workspace, filters)
-      onDownload()
+      if (await downloadReport(workspace, filters)) onDownload()
     } catch {
       setError('No se pudo generar el PDF. Vuelve a intentarlo.')
     } finally {

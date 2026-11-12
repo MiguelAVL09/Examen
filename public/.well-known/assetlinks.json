@@ -1,0 +1,10 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "mx.cinepolis.capacitacion",
+      "sha256_cert_fingerprints": ["4D:E6:45:B7:38:A3:6A:B8:56:D4:6F:BA:A9:A6:3E:F8:F3:B3:9E:D2:2A:F9:5E:7D:AE:4D:92:C7:84:14:8A:53"]
+    }
+  }
+]

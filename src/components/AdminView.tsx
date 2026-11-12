@@ -62,9 +62,11 @@ import { quizService, generateUUID, DEFAULT_DEPARTMENTS, DEFAULT_EXPLANATIONS, t
 import { isSupabaseConfigured } from '../services/supabaseClient';
 import { authService, cloudEmployeeAccess, localAuthService, USERS_STORAGE_KEY } from '../services/authService';
 import { loadSurveyCompletions, readSurveyCompletions, surveyCompletionKey } from '../services/surveyCompletion';
+import { readSharedWorkspace } from '../services/sharedWorkspace';
 import { employeeKey, getDirectoryPeople, readWorkspace, storageKey, validEmployeeId } from '../tracker';
 import type { Cinepolito } from '../tracker';
 import { isSurveyQuiz } from '../utils/quizKind';
+import { saveDocument } from '../utils/platform';
 import { CINEPOLIS_QUIZ_TEMPLATES, instantiateQuizFromTemplate, type QuizTemplateDefinition } from '../utils/quizTemplates';
 import { processImageUpload, PRESET_IMAGES } from '../utils/imageUtils';
 import { exportRankingsToPDF, exportDiplomaPDF, exportTop3Diplomas, exportQuestionAnalyticsPDF } from '../utils/pdfExport';
@@ -85,7 +87,7 @@ interface AdminViewProps {
 
 function readTrainingDirectory() {
   try {
-    return { people: readWorkspace().people, completions: cloudEmployeeAccess ? {} : readSurveyCompletions(), error: '' };
+    return { people: cloudEmployeeAccess ? [] : readWorkspace().people, completions: cloudEmployeeAccess ? {} : readSurveyCompletions(), error: '' };
   } catch {
     return { people: [], completions: {}, error: 'No se pudo leer el directorio o el avance de Expertos.' };
   }
@@ -214,9 +216,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
   async function refreshTrainingDirectory() {
     const local = readTrainingDirectory();
     try {
-      setTrainingDirectory(cloudEmployeeAccess ? { ...local, completions: await loadSurveyCompletions() } : local);
+      if (cloudEmployeeAccess) {
+        const [workspace, completions] = await Promise.all([readSharedWorkspace(), loadSurveyCompletions()]);
+        setTrainingDirectory({ people: workspace.people, completions, error: '' });
+      } else setTrainingDirectory(local);
     } catch {
-      setTrainingDirectory(previous => ({ ...previous, people: local.people, error: 'No se pudo actualizar el avance de las encuestas.' }));
+      setTrainingDirectory(previous => ({ ...previous, error: 'No se pudo actualizar el directorio o el avance de las encuestas.' }));
     }
   }
 
@@ -311,19 +316,13 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
   };
 
   // Exportar y Respaldar Cuestionarios a archivo JSON
-  const handleDownloadQuizzesBackup = () => {
+  const handleDownloadQuizzesBackup = async () => {
     const jsonStr = quizService.exportQuizzesToJson();
     const blob = new Blob([jsonStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `kahoot_cuestionarios_respaldo_${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    setJsonBackupStatus('¡Archivo de respaldo descargado exitosamente en tu equipo!');
-    setTimeout(() => setJsonBackupStatus(''), 4000);
+    if (await saveDocument(blob, `kahoot_cuestionarios_respaldo_${new Date().toISOString().slice(0, 10)}.json`)) {
+      setJsonBackupStatus('Archivo de respaldo guardado.');
+      setTimeout(() => setJsonBackupStatus(''), 4000);
+    }
   };
 
   // Importar Cuestionarios desde archivo JSON

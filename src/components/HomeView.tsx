@@ -27,6 +27,8 @@ interface HomeViewProps {
   quizzes: Quiz[];
   currentUser?: UserAccount | null;
   invitedQuiz?: Quiz | null;
+  verifyId?: string | null;
+  onClearVerification: () => void;
   onClearInvitation?: () => void;
   onStartQuiz: (quiz: Quiz, nickname: string, avatar: string, branch?: string, department?: string) => void;
   onHostGame: (quiz: Quiz) => void;
@@ -46,6 +48,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
   quizzes,
   currentUser,
   invitedQuiz,
+  verifyId,
+  onClearVerification,
   onClearInvitation,
   onStartQuiz,
   onHostGame,
@@ -88,14 +92,15 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
   // Si alguien escanea el QR de un boleto (?verify=<uuid>), mostrar su constancia oficial
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const verifyId = params.get('verify');
+    let active = true;
+    setVerifiedParticipant(null);
     if (verifyId) {
       quizService.getParticipantById(verifyId).then(p => {
-        if (p) setVerifiedParticipant(p);
+        if (active) setVerifiedParticipant(p);
       });
     }
-  }, []);
+    return () => { active = false; };
+  }, [verifyId]);
 
   const handleSaveProfile = (nick: string, av: string, br?: string, dept?: string) => {
     setNickname(nick);
@@ -574,9 +579,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
               type="button"
               onClick={() => {
                 setVerifiedParticipant(null);
-                if (typeof window !== 'undefined' && window.history) {
-                  window.history.replaceState({}, '', window.location.pathname);
-                }
+                onClearVerification();
               }}
               className="w-full py-3 rounded-2xl btn-cinepolis-gold text-xs font-black uppercase tracking-wider"
             >

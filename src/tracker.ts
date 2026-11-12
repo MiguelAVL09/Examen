@@ -163,8 +163,10 @@ export function pendingTasks(tasks: Task[]) {
 
 export function readWorkspace(): Workspace {
   const raw = localStorage.getItem(storageKey)
-  if (!raw) return emptyWorkspace
-  const data: Workspace = JSON.parse(raw)
+  return raw ? parseWorkspace(JSON.parse(raw)) : emptyWorkspace
+}
+
+export function parseWorkspace(data: Workspace): Workspace {
   if (!Array.isArray(data?.people) || !Array.isArray(data.courses) || !Array.isArray(data.tasks)) {
     throw new Error('Invalid workspace')
   }

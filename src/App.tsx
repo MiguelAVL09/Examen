@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { App as NativeApp } from '@capacitor/app';
 import type { Quiz, UserAccount } from './types/quiz';
 import { LOCAL_STORAGE_QUIZZES_KEY, quizService } from './services/quizService';
 import { authService, cloudEmployeeAccess, USERS_STORAGE_KEY } from './services/authService';
@@ -15,6 +16,7 @@ import { UserProfileModal } from './components/UserProfileModal';
 import { PinModal } from './components/PinModal';
 import { isSurveyQuiz } from './utils/quizKind';
 import { clearExpertLocation, expertHash, isExpertLocation } from './utils/expertLocation';
+import { appLinkQuery, isAndroidApp } from './utils/platform';
 import ExpertDashboard from './ExpertDashboard';
 import './QuizNavigation.css';
 
@@ -26,6 +28,7 @@ export function App() {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [activeQuiz, setActiveQuiz] = useState<Quiz | null>(null);
   const [invitedQuiz, setInvitedQuiz] = useState<Quiz | null>(null);
+  const [linkSearch, setLinkSearch] = useState(() => window.location.search);
   const isExpert = currentUser?.role === 'expert' && currentUser.isActive;
   const isAdmin = currentUser?.role === 'admin' && currentUser.isActive;
   const view = (currentView === 'expert' && !isExpert) ||
@@ -159,10 +162,30 @@ export function App() {
     };
   }, [currentUser]);
 
-  // Check URL query parameters for direct quiz links (e.g. ?quiz=<id>)
+  useEffect(() => {
+    if (!isAndroidApp) return;
+    let active = true;
+    function openAppLink(url: string) {
+      if (!active) return;
+      const query = appLinkQuery(url);
+      if (!query) return;
+      history.replaceState({}, '', '/' + query);
+      setLinkSearch(query);
+      setInvitedQuiz(null);
+      setIsPinModalOpen(false);
+      setIsProfileModalOpen(false);
+      setActiveQuiz(null);
+      setCurrentView('home');
+      void refreshQuizzes();
+    }
+    const listener = NativeApp.addListener('appUrlOpen', event => openAppLink(event.url));
+    void NativeApp.getLaunchUrl().then(result => { if (result?.url) openAppLink(result.url); });
+    return () => { active = false; void listener.then(handle => handle.remove()); };
+  }, []);
+
   useEffect(() => {
     if (quizzes.length > 0) {
-      const params = new URLSearchParams(window.location.search);
+      const params = new URLSearchParams(linkSearch);
       const quizParam = params.get('quiz');
       const alreadyCompleted = sessionStorage.getItem('kahoot_completed_quiz');
       if (quizParam && (!alreadyCompleted || alreadyCompleted !== quizParam)) {
@@ -171,7 +194,7 @@ export function App() {
         );
         if (found) {
           setInvitedQuiz(found);
-        } else {
+        } else if (!isAndroidApp && !location.pathname.startsWith('/app/')) {
           const fallback = quizzes.find(q => q.id === 'f3f7aa07-4389-4769-a162-3fb8b989bfc0') || quizzes[0];
           if (fallback) {
             setInvitedQuiz(fallback);
@@ -179,7 +202,12 @@ export function App() {
         }
       }
     }
-  }, [quizzes]);
+  }, [quizzes, linkSearch]);
+
+  function clearActivityLink() {
+    setLinkSearch('');
+    history.replaceState({}, '', window.location.pathname.startsWith('/app/') ? '/' : window.location.pathname);
+  }
 
   // Handle Solo Quiz Start
   const handleStartQuiz = (
@@ -194,9 +222,7 @@ export function App() {
     setPlayerAvatar(avatar);
     setPlayerDepartment(department || currentUser?.department);
     setInvitedQuiz(null);
-    if (typeof window !== 'undefined' && window.history) {
-      window.history.replaceState({}, '', window.location.pathname);
-    }
+    clearActivityLink();
     setCurrentView('game');
     window.scrollTo({ top: 0 });
   };
@@ -238,6 +264,26 @@ export function App() {
     if (currentView !== 'home') handleNavigate('home');
     setFocusSurveys(true);
   };
+
+  useEffect(() => {
+    if (!isAndroidApp) return;
+    const listener = NativeApp.addListener('backButton', () => {
+      const dialogs = document.querySelectorAll('dialog[open]');
+      const dialog = dialogs.item(dialogs.length - 1);
+      if (dialog instanceof HTMLDialogElement) {
+        if (dialog.dispatchEvent(new Event('cancel', { cancelable: true }))) dialog.close();
+      } else if (isPinModalOpen) setIsPinModalOpen(false);
+      else if (isProfileModalOpen) setIsProfileModalOpen(false);
+      else if (view === 'expert' && location.hash !== expertHash && location.hash !== expertHash + '/resumen') {
+        location.hash = expertHash + '/resumen';
+      } else if (view !== 'home') {
+        if ((view === 'game' || view === 'host') && !window.confirm('¿Salir de la actividad en curso?')) return;
+        setActiveQuiz(null);
+        handleNavigate('home');
+      } else void NativeApp.minimizeApp();
+    });
+    return () => { void listener.then(handle => handle.remove()); };
+  }, [view, isPinModalOpen, isProfileModalOpen]);
 
   const handleLogout = () => {
     void authService.logout();
@@ -314,7 +360,9 @@ export function App() {
                 quizzes={quizzes}
                 currentUser={currentUser}
                 invitedQuiz={invitedQuiz}
-                onClearInvitation={() => setInvitedQuiz(null)}
+                onClearInvitation={() => { setInvitedQuiz(null); clearActivityLink(); }}
+                verifyId={new URLSearchParams(linkSearch).get('verify')}
+                onClearVerification={clearActivityLink}
                 onStartQuiz={handleStartQuiz}
                 onHostGame={handleHostGame}
                 onOpenPinModal={() => setIsPinModalOpen(true)}

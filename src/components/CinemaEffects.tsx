@@ -22,6 +22,7 @@ import type { Participant, ParticipantAnswer, Quiz } from '../types/quiz';
 import { DEFAULT_EXPLANATIONS } from '../services/quizService';
 import { exportDiplomaPDF } from '../utils/pdfExport';
 import { haptic } from '../utils/security';
+import { activityLink, openExternalLink } from '../utils/platform';
 
 // ============================================================================
 // 1. ANIMACIÓN DE APERTURA DE TELÓN DE CINE (Curtains Reveal)
@@ -276,10 +277,7 @@ export const CinemaTicketResult: React.FC<CinemaTicketResultProps> = ({
 
   const isApproved = participant.accuracyPercentage >= 80;
   const folio = participant.id.slice(0, 8).toUpperCase();
-  const verifyUrl =
-    typeof window !== 'undefined'
-      ? `${window.location.origin}/?verify=${participant.id}`
-      : `https://examen-smoky-mu.vercel.app/?verify=${participant.id}`;
+  const verifyUrl = activityLink('verify', participant.id);
 
   const handleShareWhatsApp = () => {
     const text = encodeURIComponent(
@@ -289,14 +287,14 @@ export const CinemaTicketResult: React.FC<CinemaTicketResultProps> = ({
       `Avalado formalmente por la Dirección y Gerencia de Conjunto Cinépolis.\n` +
       `Verifica mi resultado aquí: ${verifyUrl}`
     );
-    window.open(`https://wa.me/?text=${text}`, '_blank');
+    void openExternalLink(`https://wa.me/?text=${text}`);
   };
 
-  const handleSendEmail = (e: React.FormEvent) => {
+  const handleSendEmail = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!recipientEmail.trim()) return;
 
-    exportDiplomaPDF(participant, 0, quiz.title, folio);
+    if (!await exportDiplomaPDF(participant, 0, quiz.title, folio)) return;
 
     const subject = encodeURIComponent(`¡Felicidades! Acreditación Oficial en Cinépolis: ${quiz.title}`);
     const body = encodeURIComponent(
@@ -313,7 +311,7 @@ export const CinemaTicketResult: React.FC<CinemaTicketResultProps> = ({
       `"La Capital del Cine"`
     );
 
-    window.open(`mailto:${recipientEmail.trim()}?subject=${subject}&body=${body}`, '_blank');
+    if (!await openExternalLink(`mailto:${recipientEmail.trim()}?subject=${subject}&body=${body}`)) return;
     setEmailStatus('¡Plantilla oficial preparada y diploma descargado exitosamente!');
     setTimeout(() => {
       setEmailStatus('');

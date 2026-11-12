@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/app/actividad", "destination": "/index.html" },
+    { "source": "/app/resultado", "destination": "/index.html" }
+  ]
+}

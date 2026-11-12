@@ -9,6 +9,7 @@ import { CourseForm, PersonForm, ReportForm, TaskForm } from './TrackerDialogs'
 import { EmployeeImport } from './EmployeeImport'
 import type { EmployeeRow } from './employeePdf'
 import { authService, cloudEmployeeAccess, USERS_STORAGE_KEY } from './services/authService'
+import { hasLocalWorkspaceToTransfer, readSharedWorkspace, transferLocalWorkspace, updateSharedWorkspace } from './services/sharedWorkspace'
 import { loadSurveyCompletions, readSurveyCompletions, surveyCompletionKey } from './services/surveyCompletion'
 import {
   calendarDate, employeeKey, emptyWorkspace, filterPeople, formatDate, formatUpdate, getDirectoryPeople,
@@ -50,7 +51,7 @@ function upsert<T extends { id: string }>(items: T[], record: T) {
 
 function readInitial() {
   try {
-    return { data: readWorkspace(), error: '' }
+    return { data: cloudEmployeeAccess ? emptyWorkspace : readWorkspace(), error: '' }
   } catch {
     return { data: emptyWorkspace, error: 'No se pudieron leer los registros guardados en este navegador.' }
   }
@@ -120,6 +121,7 @@ export default function ExpertDashboard({ quizzes, quizLoadError, onReloadQuizze
 }) {
   const [initial] = useState(readInitial)
   const [stored, setStored] = useState(initial.data)
+  const [showWorkspaceTransfer, setShowWorkspaceTransfer] = useState(() => cloudEmployeeAccess && hasLocalWorkspaceToTransfer())
   const [synced, setSynced] = useState(readSyncedData)
   const [page, setPage] = useState(getPage)
   const [menu, setMenu] = useState(false)
@@ -129,6 +131,7 @@ export default function ExpertDashboard({ quizzes, quizLoadError, onReloadQuizze
   const [storageError, setStorageError] = useState(initial.error)
   const [busy, setBusy] = useState(false)
   const committing = useRef(false)
+  const workspaceVersion = useRef(0)
   const [status, setStatus] = useState<PeopleStatus>('all')
   const [area, setArea] = useState('')
   const [courseFilter, setCourseFilter] = useState('')
@@ -167,7 +170,7 @@ export default function ExpertDashboard({ quizzes, quizLoadError, onReloadQuizze
       if (!cloudEmployeeAccess && (event.key === USERS_STORAGE_KEY || event.key === surveyCompletionKey || event.key === null)) {
         setSynced(readSyncedData())
       }
-      if (event.key !== storageKey && event.key !== null) return
+      if (cloudEmployeeAccess || (event.key !== storageKey && event.key !== null)) return
       try {
         setStored(readWorkspace())
         setStorageError('')
@@ -190,9 +193,13 @@ export default function ExpertDashboard({ quizzes, quizLoadError, onReloadQuizze
     async function refreshDirectory() {
       if (loading) return
       loading = true
+      const version = workspaceVersion.current
       try {
-        const [accounts, completions] = await Promise.all([authService.loadDirectoryAccounts(), loadSurveyCompletions()])
-        if (active) setSynced({ accounts, completions, error: '' })
+        const [accounts, completions, shared] = await Promise.all([authService.loadDirectoryAccounts(), loadSurveyCompletions(), readSharedWorkspace()])
+        if (active) {
+          setSynced({ accounts, completions, error: '' })
+          if (version === workspaceVersion.current && !committing.current) setStored(shared)
+        }
       } catch {
         if (active) setSynced(previous => ({ ...previous, error: 'No se pudo actualizar el directorio de cuentas y encuestas.' }))
       } finally {
@@ -238,6 +245,7 @@ export default function ExpertDashboard({ quizzes, quizLoadError, onReloadQuizze
   async function commit(transform: (latest: Workspace) => Workspace, message: string | (() => string)) {
     if (committing.current) return false
     committing.current = true
+    workspaceVersion.current++
     setBusy(true)
     setFormError('')
     try {
@@ -248,7 +256,11 @@ export default function ExpertDashboard({ quizzes, quizLoadError, onReloadQuizze
         if (!cloudEmployeeAccess) setSynced(readSyncedData())
         setStorageError('')
       }
-      if (navigator.locks) await navigator.locks.request(storageKey, write)
+      if (cloudEmployeeAccess) {
+        await authService.loadDirectoryAccounts()
+        setStored(await updateSharedWorkspace(transform))
+        setStorageError('')
+      } else if (navigator.locks) await navigator.locks.request(storageKey, write)
       else write()
       setEditor(null)
       setNotice(typeof message === 'string' ? message : message())
@@ -256,13 +268,32 @@ export default function ExpertDashboard({ quizzes, quizLoadError, onReloadQuizze
     } catch (error) {
       const message = error instanceof Error && error.name === 'ValidationError'
         ? error.message
-        : 'No se pudo guardar el cambio. Revisa el almacenamiento del navegador.'
+        : cloudEmployeeAccess ? 'No se pudo guardar el cambio. Revisa tu conexión y vuelve a intentarlo.'
+          : 'No se pudo guardar el cambio. Revisa el almacenamiento del navegador.'
       if (editor) setFormError(message)
       else setStorageError(message)
       return false
     } finally {
       committing.current = false
       setBusy(false)
+    }
+  }
+
+  async function importLocalWorkspace() {
+    if (committing.current) return
+    committing.current = true
+    workspaceVersion.current++
+    setBusy(true)
+    try {
+      setStored(await transferLocalWorkspace())
+      setShowWorkspaceTransfer(false)
+      setStorageError('')
+      setNotice('Cursos, tareas y registros trasladados al espacio compartido.')
+    } catch {
+      setStorageError('No se pudieron trasladar los registros de este dispositivo.')
+    } finally {
+      setBusy(false)
+      committing.current = false
     }
   }
 
@@ -374,7 +405,7 @@ export default function ExpertDashboard({ quizzes, quizLoadError, onReloadQuizze
       </nav>
       <div className="sidebar-bottom">
         <div className="workspace-indicator"><span className="workspace-icon"><Database size={17} /></span>
-          <div><strong>Datos del equipo</strong><small>Guardado en este navegador</small></div>
+          <div><strong>Datos del equipo</strong><small>{cloudEmployeeAccess ? 'Compartidos con la web y la app' : 'Guardado en este navegador'}</small></div>
         </div>
       </div>
     </aside>
@@ -406,6 +437,9 @@ export default function ExpertDashboard({ quizzes, quizLoadError, onReloadQuizze
         </header>
 
         {storageError && <p className="storage-error" role="alert">{storageError}</p>}
+        {showWorkspaceTransfer && <div className="panel p-4 mb-4">
+          <button className="button secondary" disabled={busy} onClick={() => void importLocalWorkspace()}>Trasladar registros de este dispositivo</button>
+        </div>}
         {synced.error && <p className="storage-error" role="alert">{synced.error}</p>}
         {quizLoadError && <div className="storage-error" role="alert">
           No se pudieron cargar las encuestas de Kahoot. <button className="text-button" onClick={() => void onReloadQuizzes()}>Reintentar</button>

@@ -2,6 +2,7 @@ import ExcelJS from 'exceljs';
 import type { Participant } from '../types/quiz';
 import type { QuestionAnalytics } from '../services/quizService';
 import { getHardwareHash } from './security';
+import { saveDocument } from './platform';
 
 export interface ExcelExportOptions {
   quizTitle: string;
@@ -216,13 +217,6 @@ export const exportRankingsToExcel = async ({
   const blob = new Blob([buffer], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
   const safeTitle = quizTitle.replace(/[^a-zA-Z0-9]/g, '_');
-  link.download = `Reporte_Cinepolis_${safeTitle}_${new Date().toISOString().slice(0, 10)}.xlsx`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  return saveDocument(blob, `Reporte_Cinepolis_${safeTitle}_${new Date().toISOString().slice(0, 10)}.xlsx`);
 };

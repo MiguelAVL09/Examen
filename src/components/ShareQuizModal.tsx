@@ -7,12 +7,13 @@ import {
   X,
   QrCode,
   Smartphone,
-  ExternalLink,
   MessageCircle,
   Send
 } from 'lucide-react';
 import type { Quiz } from '../types/quiz';
 import { soundEffects } from '../utils/soundEffects';
+import { QRCodeSVG } from 'qrcode.react';
+import { activityLink, canShareLink, copyLink, isAndroidApp, openExternalLink, shareLink } from '../utils/platform';
 
 interface ShareQuizModalProps {
   quiz: Quiz;
@@ -24,12 +25,12 @@ export const ShareQuizModal: React.FC<ShareQuizModalProps> = ({ quiz, onClose })
   const [showQR, setShowQR] = useState<boolean>(false);
 
   // Construir URL limpia para compartir
-  const shareUrl = `${window.location.origin}/?quiz=${encodeURIComponent(quiz.id)}`;
+  const shareUrl = activityLink('quiz', quiz.id);
   const shareText = `¡Te desafío a jugar este cuestionario de Kahoot: "${quiz.title}"! ¿Qué tan alto llegarás en el ranking? Entra aquí:`;
 
   const handleCopyLink = async () => {
     try {
-      await navigator.clipboard.writeText(shareUrl);
+      await copyLink(shareUrl);
       setCopied(true);
       soundEffects.playCorrect();
       setTimeout(() => setCopied(false), 3000);
@@ -47,9 +48,9 @@ export const ShareQuizModal: React.FC<ShareQuizModalProps> = ({ quiz, onClose })
   };
 
   const handleNativeShare = async () => {
-    if (navigator.share) {
+    if (canShareLink) {
       try {
-        await navigator.share({
+        await shareLink({
           title: quiz.title,
           text: shareText,
           url: shareUrl,
@@ -62,9 +63,11 @@ export const ShareQuizModal: React.FC<ShareQuizModalProps> = ({ quiz, onClose })
     }
   };
 
-  const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&format=svg&data=${encodeURIComponent(
-    shareUrl
-  )}`;
+  const openInApp = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    if (!isAndroidApp) return;
+    event.preventDefault();
+    void openExternalLink(event.currentTarget.href);
+  };
 
   return (
     <AnimatePresence>
@@ -171,6 +174,7 @@ export const ShareQuizModal: React.FC<ShareQuizModalProps> = ({ quiz, onClose })
                 )}`}
                 target="_blank"
                 rel="noreferrer"
+                onClick={openInApp}
                 className="p-3 rounded-xl bg-emerald-600/30 hover:bg-emerald-600/50 border border-emerald-500/40 text-emerald-200 flex flex-col items-center justify-center gap-1 text-xs font-bold transition active:scale-95"
               >
                 <MessageCircle className="w-5 h-5 text-emerald-400" />
@@ -184,6 +188,7 @@ export const ShareQuizModal: React.FC<ShareQuizModalProps> = ({ quiz, onClose })
                 )}&text=${encodeURIComponent(shareText)}`}
                 target="_blank"
                 rel="noreferrer"
+                onClick={openInApp}
                 className="p-3 rounded-xl bg-sky-600/30 hover:bg-sky-600/50 border border-sky-500/40 text-sky-200 flex flex-col items-center justify-center gap-1 text-xs font-bold transition active:scale-95"
               >
                 <Send className="w-5 h-5 text-sky-400" />
@@ -197,6 +202,7 @@ export const ShareQuizModal: React.FC<ShareQuizModalProps> = ({ quiz, onClose })
                 )}&url=${encodeURIComponent(shareUrl)}`}
                 target="_blank"
                 rel="noreferrer"
+                onClick={openInApp}
                 className="p-3 rounded-xl bg-black/40 hover:bg-black/60 border border-white/20 text-white flex flex-col items-center justify-center gap-1 text-xs font-bold transition active:scale-95"
               >
                 <svg className="w-5 h-5 fill-current text-white" viewBox="0 0 24 24">
@@ -228,9 +234,10 @@ export const ShareQuizModal: React.FC<ShareQuizModalProps> = ({ quiz, onClose })
               exit={{ opacity: 0, height: 0 }}
               className="bg-white p-6 rounded-2xl flex flex-col items-center justify-center gap-3 mb-6 shadow-inner text-black"
             >
-              <img
-                src={qrImageUrl}
-                alt={`Código QR para ${quiz.title}`}
+              <QRCodeSVG
+                value={shareUrl}
+                title={`Código QR para ${quiz.title}`}
+                marginSize={4}
                 className="w-48 h-48 rounded-lg shadow"
               />
               <p className="text-xs text-gray-700 font-bold text-center">
@@ -240,7 +247,7 @@ export const ShareQuizModal: React.FC<ShareQuizModalProps> = ({ quiz, onClose })
           )}
 
           {/* Mobile Native Share Button if supported */}
-          {typeof navigator !== 'undefined' && 'share' in navigator && (
+          {canShareLink && (
             <button
               onClick={handleNativeShare}
               className="w-full py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 border border-white/20 transition active:scale-95 mb-4"

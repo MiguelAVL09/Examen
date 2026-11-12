@@ -79,5 +79,6 @@ export async function downloadReport(workspace: Workspace, filters: ReportFilter
     doc.text('Seguimiento de capacitación y operación', 14, footerY)
     doc.text(page + ' / ' + pages, width - 14, footerY, { align: 'right' })
   }
-  doc.save('cinepolis-expertos-' + filters.type + '.pdf')
+  return saveDocument(doc.output('blob'), 'cinepolis-expertos-' + filters.type + '.pdf')
 }
+import { saveDocument } from './utils/platform'

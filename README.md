@@ -34,7 +34,13 @@ La migración conserva el ID de empleado, el rol, el estado de la cuenta y el av
 
 Para un registro en lote, entra a **Cinepolitos → Importar PDF**. Usa un PDF con texto seleccionable, un ID por renglón o una tabla con la columna **ID de empleado**. Puedes incluir columnas **Nombre** y **Área**. Revisa la vista previa y confirma los registros seleccionados. Los IDs existentes se omiten y los datos faltantes se pueden completar en el directorio. La importación agrega registros de seguimiento. Las cuentas de inicio de sesión se crean desde **Usuarios & Accesos**.
 
-Con Supabase configurado, el directorio de cuentas y el avance de encuestas se guardan en el servidor. Los cursos y las tareas de Learning Center se guardan en el navegador. Sin Supabase, la aplicación funciona en modo local, con registro y recuperación de cuentas en el navegador y limpieza reversible desde **Usuarios & Accesos**.
+Con Supabase configurado, la web y la app de Android comparten el directorio, el avance de las encuestas, los cursos y las tareas. Para incorporar registros de Expertos creados antes de la sincronización, abre **Panel de expertos → Trasladar registros de este dispositivo** en el navegador original. También puedes hacerlo desde **Administración → Usuarios & Accesos → Migrar cuentas de este navegador**. Sin Supabase, la aplicación funciona en modo local.
+
+## App de Android
+
+La app usa la misma cuenta que la web. Los enlaces de invitación y de resultados abren la app en Android si está instalada y habilitada para esos enlaces. En los demás dispositivos abren la web.
+
+Para compilar en Windows, usa JDK 21, Android SDK Platform 36 y Build-Tools 36.0.0. Ejecuta `pwsh -File scripts/build-android.ps1` con `JAVA_HOME` y `ANDROID_HOME` configurados. El APK firmado se guarda en `dist-android`. Para actualizar instalaciones existentes y conservar la apertura de enlaces, firma con el mismo almacén de claves.
 
 ## Verificar la compilación
 

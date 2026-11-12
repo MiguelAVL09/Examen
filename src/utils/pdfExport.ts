@@ -2,6 +2,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type { Participant, Quiz } from '../types/quiz';
 import type { QuestionAnalytics } from '../services/quizService';
+import { saveDocument } from './platform';
 
 export interface PDFExportOptions {
   quizTitle: string;
@@ -177,7 +178,7 @@ export const exportRankingsToPDF = ({
   });
 
   const fileName = `Reporte_Ranking_${quizTitle.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().slice(0, 10)}.pdf`;
-  doc.save(fileName);
+  return saveDocument(doc.output('blob'), fileName);
 };
 
 export const exportDiplomaPDF = (
@@ -373,16 +374,16 @@ export const exportDiplomaPDF = (
 
   const safeName = participant.nickname.replace(/[^a-zA-Z0-9]/g, '_');
   const fileName = isApproval ? `Certificado_Cinepolis_${safeName}.pdf` : `Diploma_${rank}Lugar_${safeName}.pdf`;
-  doc.save(fileName);
+  return saveDocument(doc.output('blob'), fileName);
 };
 
-export const exportTop3Diplomas = (
+export const exportTop3Diplomas = async (
   top3: Participant[],
   quizTitle: string
 ) => {
-  top3.slice(0, 3).forEach((p, idx) => {
-    exportDiplomaPDF(p, idx + 1, quizTitle);
-  });
+  for (const [index, participant] of top3.slice(0, 3).entries()) {
+    if (!await exportDiplomaPDF(participant, index + 1, quizTitle)) break;
+  }
 };
 
 export const exportQuestionAnalyticsPDF = (
@@ -499,5 +500,5 @@ export const exportQuestionAnalyticsPDF = (
     );
   }
 
-  doc.save(`Reporte_Preguntas_Dificiles_${quizTitle.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`);
+  return saveDocument(doc.output('blob'), `Reporte_Preguntas_Dificiles_${quizTitle.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`);
 };
