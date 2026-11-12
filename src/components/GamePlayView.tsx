@@ -260,6 +260,10 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
   const handleTypeAnswerSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!isQuestionActive || !typedAnswer.trim()) return;
+    if (isSurvey) {
+      evaluateAnswer(true, { typedText: typedAnswer.trim() });
+      return;
+    }
 
     const normalize = (str: string) =>
       str
@@ -314,7 +318,7 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
     if (isSurvey) setSurveySaveStatus('saving');
     try {
       if (!savedResponse.current) {
-        await quizService.saveParticipantResult(participant);
+        await quizService.saveParticipantResult(participant, isSurvey);
         savedResponse.current = true;
       }
       if (isSurvey && accountId) await recordSurveyCompletion(quiz.id, accountId);
@@ -752,6 +756,7 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
                   disabled={!isQuestionActive}
                   placeholder="Escribe tu respuesta aquí..."
                   value={typedAnswer}
+                  maxLength={isSurvey ? 2000 : undefined}
                   onChange={e => setTypedAnswer(e.target.value)}
                   className="w-full text-center text-2xl md:text-3xl font-black py-5 px-6 rounded-3xl bg-white text-gray-900 shadow-2xl border-4 border-white/30 focus:border-kahoot-yellow focus:outline-none transition uppercase placeholder-gray-400 disabled:opacity-60"
                 />

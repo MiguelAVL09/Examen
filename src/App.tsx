@@ -4,10 +4,12 @@ import type { Quiz, UserAccount } from './types/quiz';
 import { LOCAL_STORAGE_QUIZZES_KEY, quizService } from './services/quizService';
 import { authService, cloudEmployeeAccess, USERS_STORAGE_KEY } from './services/authService';
 import { getActivityStartError } from './services/activityAccess';
+import { publishExpertSurvey } from './services/expertSurveyService';
 import { Navbar } from './components/Navbar';
 import type { Destination } from './components/Navbar';
 import { ExpertViewBoundary } from './components/ExpertViewBoundary';
 import { HomeView } from './components/HomeView';
+import { KahootQuizEditor, newKahootSurvey } from './components/KahootQuizEditor';
 import { GamePlayView } from './components/GamePlayView';
 import { AdminView } from './components/AdminView';
 import { HostGameView } from './components/HostGameView';
@@ -28,6 +30,8 @@ export function App() {
     currentUser?.role === 'expert' && isExpertLocation() ? 'expert' : 'home');
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [activeQuiz, setActiveQuiz] = useState<Quiz | null>(null);
+  const [surveyDraft, setSurveyDraft] = useState<Quiz | null>(null);
+  const [publishedSurveyTitle, setPublishedSurveyTitle] = useState('');
   const [returnToExpertCourses, setReturnToExpertCourses] = useState(false);
   const [invitedQuiz, setInvitedQuiz] = useState<Quiz | null>(null);
   const [linkSearch, setLinkSearch] = useState(() => window.location.search);
@@ -299,6 +303,22 @@ export function App() {
     setFocusSurveys(true);
   };
 
+  function openSurveyEditor() {
+    if (!isExpert) return;
+    setInvitedQuiz(null);
+    setPublishedSurveyTitle('');
+    handleNavigate('home');
+    setSurveyDraft(newKahootSurvey());
+  }
+
+  async function publishSurvey(draft: Quiz) {
+    await publishExpertSurvey(draft);
+    setSurveyDraft(null);
+    setPublishedSurveyTitle(draft.title.trim());
+    await refreshQuizzes();
+    setFocusSurveys(true);
+  }
+
   useEffect(() => {
     if (!isAndroidApp) return;
     const listener = NativeApp.addListener('backButton', () => {
@@ -326,6 +346,8 @@ export function App() {
   const handleLogout = () => {
     void authService.logout();
     setCurrentUser(null);
+    setSurveyDraft(null);
+    setPublishedSurveyTitle('');
     setIsProfileModalOpen(false);
     setIsPinModalOpen(false);
     setInvitedQuiz(null);
@@ -369,6 +391,7 @@ export function App() {
           currentUser={currentUser}
           onNavigate={handleNavigate}
           onOpenSurveys={openSurveys}
+          onCreateSurvey={isExpert && (view === 'home' || view === 'expert') ? openSurveyEditor : undefined}
           onOpenProfile={() => setIsProfileModalOpen(true)}
           onOpenPinModal={() => setIsPinModalOpen(true)}
           onLogout={handleLogout}
@@ -407,6 +430,8 @@ export function App() {
                 onHostGame={handleHostGame}
                 onOpenPinModal={() => setIsPinModalOpen(true)}
                 onOpenSurveys={openSurveys}
+                onCreateSurvey={isExpert ? openSurveyEditor : undefined}
+                publishedSurveyTitle={publishedSurveyTitle}
               />
             )}
 
@@ -468,6 +493,8 @@ export function App() {
           </>
         )}
       </main>
+      {view === 'home' && isExpert && surveyDraft && <KahootQuizEditor expertSurvey editingQuiz={surveyDraft}
+        setEditingQuiz={setSurveyDraft} onClose={() => setSurveyDraft(null)} onSave={publishSurvey} />}
 
       {/* Modal de Portal / Perfil del Colaborador */}
       {currentUser && (

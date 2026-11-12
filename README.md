@@ -28,7 +28,7 @@ La migración conserva el ID de empleado, el rol, el estado de la cuenta y el av
 ## Registrar y consultar avances
 
 1. En **Cursos**, agrega los cursos de Learning Center que vas a monitorear. Las encuestas de Kahoot aparecen automáticamente en el catálogo.
-   Con el rol **Cinepolito Experto**, pulsa **Crear encuesta** para escribir las preguntas y publicar una encuesta de Kahoot desde la web o Android.
+   Con el rol **Cinepolito Experto**, abre **Encuestas y evaluaciones → Crear encuesta** en Kahoot para preparar y publicar una encuesta desde la web o Android.
 2. En **Cinepolitos**, registra el avance de Learning Center. El avance de cada encuesta se actualiza cuando el cinepolito envía sus respuestas con su sesión iniciada. En las encuestas anónimas se registra el estado de cumplimiento por separado de las respuestas.
 3. En **Tareas**, registra actividades con responsable, fecha límite y prioridad. Puedes completarlas y reabrirlas desde la lista.
 4. En **Reportes**, descarga un PDF con todos los cinepolitos, quienes tienen cursos pendientes, quienes están al corriente, quienes no tienen cursos asignados o las tareas pendientes. Los reportes de capacitación admiten filtros por área y curso.

@@ -35,6 +35,8 @@ interface HomeViewProps {
   onHostGame: (quiz: Quiz) => void;
   onOpenPinModal: () => void;
   onOpenSurveys: () => void;
+  onCreateSurvey?: () => void;
+  publishedSurveyTitle?: string;
 }
 
 const AVATAR_OPTIONS = ['🦊', '🦁', '🐼', '🚀', '⚡', '👑', '🦄', '🎮', '🐯', '🔥', '🤖', '🦖', '🌟', '🎯', '🍿', '🎬'];
@@ -56,6 +58,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onHostGame,
   onOpenPinModal,
   onOpenSurveys,
+  onCreateSurvey,
+  publishedSurveyTitle,
 }) => {
   const [nickname, setNickname] = useState<string>(() => {
     return currentUser?.name || currentUser?.nickname || localStorage.getItem('kahoot_player_nickname') || '';
@@ -226,7 +230,11 @@ export const HomeView: React.FC<HomeViewProps> = ({
       </section>
 
       <section id="encuestas" className="quiz-section" tabIndex={-1} aria-labelledby="surveys-heading">
-        <h2 id="surveys-heading"><ClipboardList size={27} aria-hidden="true" /> Encuestas disponibles</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 id="surveys-heading"><ClipboardList size={27} aria-hidden="true" /> Encuestas disponibles</h2>
+          {onCreateSurvey && <button type="button" className="quiz-action quiz-action-primary" onClick={onCreateSurvey}>Crear encuesta</button>}
+        </div>
+        {publishedSurveyTitle && <p role="status" className="my-3 rounded-xl bg-emerald-950/60 px-4 py-3 text-sm text-emerald-100">Encuesta publicada. {publishedSurveyTitle}</p>}
         {surveys.length ? (
           <>
             <p className="quiz-section-intro">Busca la encuesta que te indicaron y selecciona «Responder encuesta».</p>

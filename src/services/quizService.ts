@@ -1,5 +1,6 @@
 import type { Quiz, Participant, QuizSession } from '../types/quiz';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
+import { sha256Hex } from '../../supabase/functions/_shared/employeeIdentity';
 
 export interface ExamSettings {
   isExamOpen: boolean;
@@ -476,6 +477,11 @@ export const generateUUID = (id?: string): string => {
   });
 };
 
+async function surveyAnswerId(attemptId: string, questionId: string) {
+  const hex = await sha256Hex(`${attemptId}:${questionId}`);
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+}
+
 export const sanitizeQuizForStorage = (quiz: Quiz): Quiz => {
   const quizId = generateUUID(quiz.id);
   return {
@@ -829,7 +835,7 @@ export const quizService = {
     }
   },
 
-  async saveParticipantResult(rawParticipant: Participant): Promise<Participant> {
+  async saveParticipantResult(rawParticipant: Participant, isSurvey = false): Promise<Participant> {
     const OFFICIAL_QUIZ_UUID = 'f3f7aa07-4389-4769-a162-3fb8b989bfc0';
     const validQuizId = (rawParticipant.quizId && UUID_REGEX.test(rawParticipant.quizId))
       ? rawParticipant.quizId
@@ -841,10 +847,13 @@ export const quizService = {
       quizId: validQuizId,
     };
 
+    const storeComments = isSurvey && participant.answers?.some(answer => answer.questionType === 'type_answer');
     const stored = localStorage.getItem(LOCAL_STORAGE_PARTICIPANTS_KEY);
     const list: Participant[] = stored ? JSON.parse(stored) : [];
-    list.unshift(participant);
-    localStorage.setItem(LOCAL_STORAGE_PARTICIPANTS_KEY, JSON.stringify(list));
+    if (!list.some(attempt => attempt.id === participant.id)) {
+      list.unshift(participant);
+      localStorage.setItem(LOCAL_STORAGE_PARTICIPANTS_KEY, JSON.stringify(list));
+    }
 
     if (isSupabaseConfigured() && supabase) {
       try {
@@ -871,11 +880,14 @@ export const quizService = {
           device_id: participant.deviceId || null,
         };
 
-        let { error: pError } = await supabase.from('participants').insert(extendedRow);
+        const writeParticipant = (row: Record<string, unknown>) => storeComments
+          ? supabase.from('participants').upsert(row, { onConflict: 'id', ignoreDuplicates: true })
+          : supabase.from('participants').insert(row);
+        let { error: pError } = await writeParticipant(extendedRow);
         if (pError && isMissingColumnError(pError)) {
           // La migración V3 aún no se ha ejecutado: guardar el intento sin los campos nuevos
           console.warn('Columnas V3 no disponibles en Supabase, guardando intento sin ellas.');
-          ({ error: pError } = await supabase.from('participants').insert(baseRow));
+          ({ error: pError } = await writeParticipant(baseRow));
         }
 
         if (pError) {
@@ -884,21 +896,26 @@ export const quizService = {
         }
 
         if (participant.answers && participant.answers.length > 0) {
-          const answerRows = participant.answers.map(ans => ({
-            id: generateUUID(),
+          const answerRows = await Promise.all(participant.answers.map(async ans => ({
+            id: storeComments ? await surveyAnswerId(participant.id, ans.questionId) : generateUUID(),
             participant_id: participant.id,
             question_id: generateUUID(ans.questionId),
             selected_option_id: ans.selectedOptionId ? generateUUID(ans.selectedOptionId) : null,
             is_correct: ans.isCorrect,
             time_taken_ms: ans.timeTakenMs || 0,
             points_awarded: ans.pointsAwarded || 0,
-          }));
-          const { error: ansError } = await supabase.from('participant_answers').insert(answerRows);
+            ...(storeComments ? { submitted_text: ans.questionType === 'type_answer' ? ans.submittedText ?? null : null } : {}),
+          })));
+          const { error: ansError } = storeComments
+            ? await supabase.from('participant_answers').upsert(answerRows, { onConflict: 'id', ignoreDuplicates: true })
+            : await supabase.from('participant_answers').insert(answerRows);
           if (ansError) {
+            if (storeComments) throw ansError;
             console.warn('Error insertando respuestas del participante en Supabase:', ansError);
           }
         }
       } catch (err) {
+        if (storeComments) throw err;
         console.warn('Error guardando participante en Supabase:', err);
       }
     }
@@ -1278,6 +1295,14 @@ export const quizService = {
           .eq('participant_id', participantId);
 
         if (!error && data && data.length > 0) {
+          const hasTypedAnswers = data.some(({ questions }) => {
+            const question = Array.isArray(questions) ? questions[0] : questions;
+            return question?.question_type === 'type_answer';
+          });
+          const { data: comments } = hasTypedAnswers
+            ? await supabase.rpc('read_survey_comments', { attempt_id: participantId })
+            : { data: null };
+          const commentsByQuestion = new Map((comments ?? []).map(({ question_id, response }) => [question_id, response]));
           return data.map((row: any) => {
             const q = row.questions || {};
             const opts: any[] = q.question_options || [];
@@ -1289,7 +1314,7 @@ export const quizService = {
               participantId: row.participant_id,
               questionId: row.question_id,
               selectedOptionId: row.selected_option_id,
-              selectedOptionText: chosenOpt?.option_text || 'Sin selección',
+              selectedOptionText: chosenOpt?.option_text || commentsByQuestion.get(row.question_id) || 'Sin selección',
               isCorrect: Boolean(row.is_correct),
               timeTakenMs: row.time_taken_ms || 0,
               pointsAwarded: row.points_awarded || 0,

@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import {
   ChevronRight, ClipboardList, Gamepad2, GraduationCap, LogOut,
-  Menu, ShieldCheck, Smartphone, UserRound, Volume2, VolumeX, X,
+  Menu, Plus, ShieldCheck, Smartphone, UserRound, Volume2, VolumeX, X,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { soundEffects } from '../utils/soundEffects';
@@ -14,6 +14,7 @@ interface NavbarProps {
   onNavigate: (view: Destination) => void;
   currentUser: UserAccount;
   onOpenSurveys: () => void;
+  onCreateSurvey?: () => void;
   onOpenProfile: () => void;
   onOpenPinModal: () => void;
   onLogout: () => void;
@@ -30,7 +31,7 @@ interface MenuItem {
 const roleLabel = { user: 'Colaborador', expert: 'Cinepolito Experto', admin: 'Administrador' };
 
 export function Navbar({
-  currentView, onNavigate, currentUser, onOpenSurveys, onOpenProfile, onOpenPinModal, onLogout,
+  currentView, onNavigate, currentUser, onOpenSurveys, onCreateSurvey, onOpenProfile, onOpenPinModal, onLogout,
 }: NavbarProps) {
   const [isMuted, setIsMuted] = useState(() => soundEffects.getMuted());
   const [menuOpen, setMenuOpen] = useState(false);
@@ -45,6 +46,7 @@ export function Navbar({
   const items: MenuItem[] = [
     { label: 'Encuestas y evaluaciones', description: 'Ve a las actividades disponibles', icon: ClipboardList, action: onOpenSurveys, current: currentView === 'home' },
   ];
+  if (onCreateSurvey) items.push({ label: 'Crear encuesta de Kahoot', description: 'Abre el editor de encuestas', icon: Plus, action: onCreateSurvey });
   if (role === 'expert') {
     items.push({ label: 'Panel de expertos', description: 'Consulta tareas y cursos de Learning Center', icon: GraduationCap, action: () => onNavigate('expert'), current: currentView === 'expert' });
   }
