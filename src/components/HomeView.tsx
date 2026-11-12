@@ -329,7 +329,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   <button
                     onClick={() => onHostGame(quiz)}
                     className="min-h-11 py-2 px-2 rounded-xl btn-cinepolis-glass font-bold text-sm flex items-center justify-center gap-1.5"
-                    title="Crear una sala multijugador para el equipo"
+                    title="Compartir esta evaluación con un PIN"
                   >
                     <Users className="w-4 h-4 shrink-0 text-blue-300" />
                     <span>Crear sala</span>

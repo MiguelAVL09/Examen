@@ -57,7 +57,7 @@ export function Navbar({
     );
   }
   items.push({ label: 'Mi perfil', description: 'Consulta tus datos y resultados', icon: UserRound, action: onOpenProfile });
-  items.push({ label: 'Unirme con PIN', description: 'Entra a una actividad en vivo', icon: Gamepad2, action: onOpenPinModal });
+  items.push({ label: 'Unirme con PIN', description: 'Abre la actividad de una sala', icon: Gamepad2, action: onOpenPinModal });
 
   return (
     <header className="quiz-header">

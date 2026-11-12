@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { App as NativeApp } from '@capacitor/app';
-import type { Quiz, UserAccount } from './types/quiz';
+import type { Quiz, QuizSession, UserAccount } from './types/quiz';
 import { LOCAL_STORAGE_QUIZZES_KEY, quizService } from './services/quizService';
 import { authService, cloudEmployeeAccess, USERS_STORAGE_KEY } from './services/authService';
 import { getActivityStartError } from './services/activityAccess';
@@ -30,6 +30,8 @@ export function App() {
     currentUser?.role === 'expert' && isExpertLocation() ? 'expert' : 'home');
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [activeQuiz, setActiveQuiz] = useState<Quiz | null>(null);
+  const [roomId, setRoomId] = useState<string>();
+  const [hostRoom, setHostRoom] = useState<QuizSession | null>(null);
   const [surveyDraft, setSurveyDraft] = useState<Quiz | null>(null);
   const [publishedSurveyTitle, setPublishedSurveyTitle] = useState('');
   const [returnToExpertCourses, setReturnToExpertCourses] = useState(false);
@@ -222,9 +224,11 @@ export function App() {
     avatar: string,
     _branch?: string,
     department?: string,
-    fromExpertCourses = false
+    fromExpertCourses = false,
+    sessionId?: string,
   ) => {
     setActiveQuiz(quiz);
+    setRoomId(sessionId);
     setReturnToExpertCourses(fromExpertCourses);
     setPlayerNickname(nickname);
     setPlayerAvatar(avatar);
@@ -263,16 +267,23 @@ export function App() {
 
   // Handle Host Live Game
   const handleHostGame = (quiz: Quiz) => {
+    setHostRoom(null);
     setActiveQuiz(quiz);
     setCurrentView('host');
   };
 
-  // Handle Join with PIN
-  const handleJoinWithPin = (_pin: string, nickname: string, avatar: string) => {
-    if (quizzes.length > 0) {
-      const targetQuiz = quizzes[0];
-      handleStartQuiz(targetQuiz, nickname, avatar, undefined, currentUser?.department);
-    }
+  const handleJoinWithPin = async (pin: string, avatar: string) => {
+    const player = authService.getCurrentUser();
+    if (!player) return 'Inicia sesión para ingresar a la sala.';
+    const room = await quizService.findRoomByPin(pin);
+    if (!room) return 'No encontramos una sala abierta con ese PIN. Verifica el código.';
+    const targetQuiz = await quizService.getQuizById(room.quizId);
+    if (!targetQuiz) return 'La actividad de esta sala no está disponible.';
+    const playerName = player.name || player.nickname;
+    const error = await getActivityStartError(targetQuiz, playerName);
+    if (error) return error;
+    if (authService.getCurrentUser()?.id !== player.id) return 'Vuelve a iniciar sesión para ingresar a la sala.';
+    handleStartQuiz(targetQuiz, playerName, avatar, undefined, player.department, false, room.id);
   };
 
   const handleNavigate = (view: Destination) => {
@@ -352,6 +363,8 @@ export function App() {
     setIsPinModalOpen(false);
     setInvitedQuiz(null);
     setActiveQuiz(null);
+    setRoomId(undefined);
+    setHostRoom(null);
     setReturnToExpertCourses(false);
     setFocusSurveys(false);
     setCurrentView('home');
@@ -439,6 +452,7 @@ export function App() {
               <GamePlayView
                 quiz={activeQuiz}
                 accountId={accountId}
+                roomId={roomId}
                 nickname={playerNickname}
                 avatar={playerAvatar}
                 department={playerDepartment}
@@ -455,18 +469,17 @@ export function App() {
             {view === 'host' && activeQuiz && (
               <HostGameView
                 quiz={activeQuiz}
+                room={hostRoom}
+                onRoomCreated={setHostRoom}
                 onExit={() => {
                   setInvitedQuiz(null);
-                  if (activeQuiz) {
-                    sessionStorage.setItem('kahoot_completed_quiz', activeQuiz.id);
-                  }
+                  setHostRoom(null);
                   if (typeof window !== 'undefined' && window.history) {
                     window.history.replaceState({}, '', window.location.pathname);
                   }
                   refreshQuizzes();
                   setCurrentView('home');
                 }}
-                onOpenAdmin={() => handleNavigate('admin')}
               />
             )}
 
@@ -516,7 +529,6 @@ export function App() {
       <PinModal
         isOpen={isPinModalOpen}
         onClose={() => setIsPinModalOpen(false)}
-        initialNickname={currentUser?.name || currentUser?.nickname || playerNickname}
         initialAvatar={playerAvatar}
         onJoin={handleJoinWithPin}
       />

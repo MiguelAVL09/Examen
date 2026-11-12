@@ -9,6 +9,7 @@ import { CurtainsReveal, FilmStripProgress, CinemaTicketResult } from './CinemaE
 import { soundEffects } from '../utils/soundEffects';
 import { quizService, generateUUID, UUID_REGEX, DEFAULT_EXPLANATIONS } from '../services/quizService';
 import { recordSurveyCompletion } from '../services/surveyCompletion';
+import { supabase } from '../services/supabaseClient';
 import { getDeviceFingerprint, shuffleQuizQuestions, haptic } from '../utils/security';
 import { isSurveyQuiz } from '../utils/quizKind';
 import {
@@ -29,6 +30,7 @@ import {
 interface GamePlayViewProps {
   quiz: Quiz;
   accountId?: string;
+  roomId?: string;
   nickname: string;
   avatar: string;
   branch?: string;
@@ -41,6 +43,7 @@ interface GamePlayViewProps {
 export const GamePlayView: React.FC<GamePlayViewProps> = ({
   quiz,
   accountId,
+  roomId,
   nickname,
   avatar,
   branch,
@@ -61,7 +64,7 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
   const [showFeedback, setShowFeedback] = useState<boolean>(false);
   const [isGameOver, setIsGameOver] = useState<boolean>(false);
   const [completedParticipant, setCompletedParticipant] = useState<Participant | null>(null);
-  const [surveySaveStatus, setSurveySaveStatus] = useState<'saving' | 'saved' | 'error'>('saving');
+  const [saveStatus, setSaveStatus] = useState<'saving' | 'saved' | 'error'>('saving');
   const savingResult = useRef(false);
   const savedResponse = useRef(false);
 
@@ -315,17 +318,17 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
   const saveResult = async (participant: Participant) => {
     if (savingResult.current) return;
     savingResult.current = true;
-    if (isSurvey) setSurveySaveStatus('saving');
+      if (isSurvey || roomId) setSaveStatus('saving');
     try {
       if (!savedResponse.current) {
         await quizService.saveParticipantResult(participant, isSurvey);
         savedResponse.current = true;
       }
-      if (isSurvey && accountId) await recordSurveyCompletion(quiz.id, accountId);
+        if (isSurvey && accountId && !supabase) await recordSurveyCompletion(quiz.id, accountId);
       localStorage.setItem(`cinepolis_completed_${quiz.id}`, 'true');
-      if (isSurvey) setSurveySaveStatus('saved');
+      if (isSurvey || roomId) setSaveStatus('saved');
     } catch (err) {
-      if (isSurvey) setSurveySaveStatus('error');
+      if (isSurvey || roomId) setSaveStatus('error');
       console.warn('Error saving participant result:', err);
     } finally {
       savingResult.current = false;
@@ -356,6 +359,7 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
     const participantData: Participant = {
       id: generateUUID(),
       quizId: targetQuizId,
+      sessionId: roomId,
       nickname: finalNickname,
       avatar: isAnonymous ? '🛡️' : avatar,
       totalScore: isAnonymous ? 0 : totalScore,
@@ -366,7 +370,7 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
       accuracyPercentage: accuracy,
       completedAt: new Date().toISOString(),
       answers: participantAnswers,
-      department: department || undefined,
+      department: isAnonymous ? undefined : department || undefined,
       tabSwitches: isAnonymous ? 0 : tabSwitches,
       timeAwayMs: isAnonymous ? 0 : timeAwayMs,
       deviceId: isAnonymous ? undefined : getDeviceFingerprint(),
@@ -892,15 +896,15 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
             )}
           </AnimatePresence>
         </motion.div>
-      ) : isSurvey ? (
+      ) : isSurvey || (roomId && saveStatus !== 'saved') ? (
         <section className="quiz-message">
-          <h1 role={surveySaveStatus === 'error' ? 'alert' : 'status'}>{
-            surveySaveStatus === 'saving' ? 'Guardando tus respuestas…' :
-              surveySaveStatus === 'saved' ? 'Encuesta completada' : 'No se pudo guardar la encuesta'
+          <h1 role={saveStatus === 'error' ? 'alert' : 'status'}>{
+            saveStatus === 'saving' ? 'Guardando tus respuestas…' :
+              saveStatus === 'saved' ? 'Encuesta completada' : isSurvey ? 'No se pudo guardar la encuesta' : 'No se pudo guardar la evaluación'
           }</h1>
-          <p>{surveySaveStatus === 'saved' ? 'Gracias por responder.' : surveySaveStatus === 'error' ? 'Puedes reintentar el guardado sin responder de nuevo.' : quiz.title}</p>
-          {surveySaveStatus === 'error' && completedParticipant && <button type="button" className="quiz-action quiz-action-primary" onClick={() => void saveResult(completedParticipant)}>Reintentar guardado</button>}
-          <button type="button" className="quiz-action quiz-action-primary" onClick={onExit} disabled={surveySaveStatus === 'saving'}>{surveyExitLabel}</button>
+          <p>{saveStatus === 'saved' ? 'Gracias por responder.' : saveStatus === 'error' ? 'Puedes reintentar el guardado sin responder de nuevo.' : quiz.title}</p>
+          {saveStatus === 'error' && completedParticipant && <button type="button" className="quiz-action quiz-action-primary" onClick={() => void saveResult(completedParticipant)}>Reintentar guardado</button>}
+          <button type="button" className="quiz-action quiz-action-primary" onClick={onExit} disabled={saveStatus === 'saving'}>{isSurvey ? surveyExitLabel : 'Volver a actividades'}</button>
         </section>
       ) : (
         /* Game Over Screen - Tarjeta estilo Boleto de Cine con QR, Medalla 3D, Diploma PDF y Ficha Formativa */

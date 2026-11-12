@@ -477,7 +477,7 @@ export const generateUUID = (id?: string): string => {
   });
 };
 
-async function surveyAnswerId(attemptId: string, questionId: string) {
+async function roomAnswerId(attemptId: string, questionId: string) {
   const hex = await sha256Hex(`${attemptId}:${questionId}`);
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
@@ -847,10 +847,21 @@ export const quizService = {
       quizId: validQuizId,
     };
 
-    const storeComments = isSurvey && participant.answers?.some(answer => answer.questionType === 'type_answer');
+    if (isSurvey && supabase) {
+      const { error } = await supabase.rpc('submit_employee_survey', {
+        result: { id: participant.id, quiz_id: participant.quizId, session_id: participant.sessionId, avatar: participant.avatar },
+        responses: (participant.answers ?? []).map(answer => ({
+          question_id: answer.questionId, selected_option_id: answer.selectedOptionId,
+          submitted_text: answer.questionType === 'type_answer' ? answer.submittedText : null,
+          time_taken_ms: answer.timeTakenMs,
+        })),
+      });
+      if (error) throw error;
+      return participant;
+    }
     const stored = localStorage.getItem(LOCAL_STORAGE_PARTICIPANTS_KEY);
     const list: Participant[] = stored ? JSON.parse(stored) : [];
-    if (!list.some(attempt => attempt.id === participant.id)) {
+    if (!(supabase && participant.sessionId) && !list.some(attempt => attempt.id === participant.id)) {
       list.unshift(participant);
       localStorage.setItem(LOCAL_STORAGE_PARTICIPANTS_KEY, JSON.stringify(list));
     }
@@ -880,7 +891,7 @@ export const quizService = {
           device_id: participant.deviceId || null,
         };
 
-        const writeParticipant = (row: Record<string, unknown>) => storeComments
+        const writeParticipant = (row: Record<string, unknown>) => participant.sessionId
           ? supabase.from('participants').upsert(row, { onConflict: 'id', ignoreDuplicates: true })
           : supabase.from('participants').insert(row);
         let { error: pError } = await writeParticipant(extendedRow);
@@ -897,25 +908,24 @@ export const quizService = {
 
         if (participant.answers && participant.answers.length > 0) {
           const answerRows = await Promise.all(participant.answers.map(async ans => ({
-            id: storeComments ? await surveyAnswerId(participant.id, ans.questionId) : generateUUID(),
+            id: participant.sessionId ? await roomAnswerId(participant.id, ans.questionId) : generateUUID(),
             participant_id: participant.id,
             question_id: generateUUID(ans.questionId),
             selected_option_id: ans.selectedOptionId ? generateUUID(ans.selectedOptionId) : null,
             is_correct: ans.isCorrect,
             time_taken_ms: ans.timeTakenMs || 0,
             points_awarded: ans.pointsAwarded || 0,
-            ...(storeComments ? { submitted_text: ans.questionType === 'type_answer' ? ans.submittedText ?? null : null } : {}),
           })));
-          const { error: ansError } = storeComments
+          const { error: ansError } = participant.sessionId
             ? await supabase.from('participant_answers').upsert(answerRows, { onConflict: 'id', ignoreDuplicates: true })
             : await supabase.from('participant_answers').insert(answerRows);
           if (ansError) {
-            if (storeComments) throw ansError;
+            if (participant.sessionId) throw ansError;
             console.warn('Error insertando respuestas del participante en Supabase:', ansError);
           }
         }
       } catch (err) {
-        if (storeComments) throw err;
+        if (participant.sessionId) throw err;
         console.warn('Error guardando participante en Supabase:', err);
       }
     }
@@ -1005,37 +1015,55 @@ export const quizService = {
   },
 
   async createLiveSession(quizId: string): Promise<QuizSession> {
-    const pin = Math.floor(100000 + Math.random() * 900000).toString();
-    const session: QuizSession = {
-      id: 'session-' + Date.now(),
-      quizId,
-      pin,
-      status: 'lobby',
-      currentQuestionIndex: 0,
-      participants: [],
-      createdAt: new Date().toISOString(),
-    };
-
     const stored = localStorage.getItem(LOCAL_STORAGE_SESSIONS_KEY);
-    const sessions: QuizSession[] = stored ? JSON.parse(stored) : [];
-    sessions.push(session);
-    localStorage.setItem(LOCAL_STORAGE_SESSIONS_KEY, JSON.stringify(sessions));
-
-    if (isSupabaseConfigured() && supabase) {
-      try {
-        await supabase.from('quiz_sessions').insert({
-          id: session.id,
-          quiz_id: quizId,
-          pin: session.pin,
-          status: 'lobby',
-          current_question_index: 0,
-        });
-      } catch (err) {
-        console.warn('Error creando sesión en Supabase:', err);
+    const sessions: QuizSession[] = !supabase && stored ? JSON.parse(stored) : [];
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const pin = String(100000 + crypto.getRandomValues(new Uint32Array(1))[0] % 900000);
+      const session: QuizSession = { id: generateUUID(), quizId, pin, status: 'lobby', currentQuestionIndex: 0,
+        participants: [], createdAt: new Date().toISOString() };
+      if (supabase) {
+        const { error } = await supabase.from('quiz_sessions').insert({ id: session.id, quiz_id: quizId, pin });
+        if (error?.code === '23505') continue;
+        if (error) throw error;
+      } else {
+        if (sessions.some(room => room.pin === pin && room.status === 'lobby')) continue;
+        localStorage.setItem(LOCAL_STORAGE_SESSIONS_KEY, JSON.stringify([...sessions, session]));
       }
+      return session;
     }
+    throw new Error('No se pudo asignar un PIN a la sala.');
+  },
 
-    return session;
+  async findRoomByPin(pin: string): Promise<Pick<QuizSession, 'id' | 'quizId'> | null> {
+    if (!/^\d{6}$/.test(pin)) return null;
+    if (supabase) {
+      const { data, error } = await supabase.rpc('find_quiz_room', { room_pin: pin }).maybeSingle<{ id: string; quiz_id: string }>();
+      if (error) throw error;
+      return data && { id: data.id, quizId: data.quiz_id };
+    }
+    const sessions: QuizSession[] = JSON.parse(localStorage.getItem(LOCAL_STORAGE_SESSIONS_KEY) ?? '[]');
+    return sessions.find(room => room.pin === pin && room.status === 'lobby' &&
+      Date.parse(room.createdAt) > Date.now() - 12 * 60 * 60 * 1000) ?? null;
+  },
+
+  async closeRoom(id: string) {
+    if (supabase) {
+      const { error } = await supabase.from('quiz_sessions').update({ status: 'finished' }).eq('id', id).select('id').single();
+      if (error) throw error;
+      return;
+    }
+    const sessions: QuizSession[] = JSON.parse(localStorage.getItem(LOCAL_STORAGE_SESSIONS_KEY) ?? '[]');
+    localStorage.setItem(LOCAL_STORAGE_SESSIONS_KEY, JSON.stringify(sessions.map(room => room.id === id ? { ...room, status: 'finished' } : room)));
+  },
+
+  async getRoomResults(roomId: string): Promise<Participant[]> {
+    if (supabase) {
+      const { data, error } = await supabase.from('participants').select('*').eq('session_id', roomId)
+        .neq('nickname', '__deleted__').gte('total_score', 0).order('total_score', { ascending: false });
+      if (error) throw error;
+      return data.map(mapParticipantRow);
+    }
+    return (await this.getRankings()).filter(result => result.sessionId === roomId);
   },
 
   async syncSeedToSupabase(): Promise<{ success: boolean; message: string }> {
@@ -1244,12 +1272,7 @@ export const quizService = {
     if (!participantId || !UUID_REGEX.test(participantId)) return null;
     if (isSupabaseConfigured() && supabase) {
       try {
-        const { data, error } = await supabase
-          .from('participants')
-          .select('*')
-          .eq('id', participantId)
-          .neq('nickname', '__deleted__')
-          .maybeSingle();
+        const { data, error } = await supabase.rpc('verify_quiz_result', { attempt_id: participantId }).maybeSingle();
         if (!error && data) return mapParticipantRow(data);
       } catch {}
     }
