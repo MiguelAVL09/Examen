@@ -1,16 +1,20 @@
 import type { UserAccount, UserRole, UserSession } from '../types/quiz';
 import { generateUUID } from './quizService';
-import { readWorkspace, storageKey } from '../tracker';
-import type { Cinepolito, Workspace } from '../tracker';
+import { employeeKey, readWorkspace, storageKey, validEmployeeId } from '../tracker';
+import type { Cinepolito, DirectoryAccount, Workspace } from '../tracker';
+import { cloudAuthService } from './cloudAuthService';
+import { supabase } from './supabaseClient';
 
-const USERS_STORAGE_KEY = 'cinepolis_users_secure_v1';
+export const USERS_STORAGE_KEY = 'cinepolis_users_secure_v1';
 const SESSION_STORAGE_KEY = 'cinepolis_auth_session_v1';
 const DIRECTORY_ARCHIVE_KEY = 'cinepolis-directory.archive.v1';
 
 interface DirectoryArchive {
-  accounts: UserAccount[];
+  accounts: LocalUserAccount[];
   people: Cinepolito[];
 }
+
+type LocalUserAccount = UserAccount & { passwordHash: string; salt: string };
 
 // Hash seguro SHA-256 con Salt mediante Web Crypto API
 async function hashText(text: string, salt: string, preserveCase = false): Promise<string> {
@@ -41,25 +45,20 @@ export interface RegisterDTO {
   securityAnswer?: string;
 }
 
-type AccountResult = { success: boolean; user?: UserAccount; error?: string };
+type AccountResult = { success: boolean; user?: LocalUserAccount; error?: string };
 
-function employeeKey(value?: string) {
-  return typeof value === 'string' ? value.trim().normalize('NFKC').toUpperCase() : '';
-}
-
-function validEmployeeId(value: string) {
-  return /^[\p{L}\p{N}][\p{L}\p{N}._/-]{0,29}$/u.test(value);
+function readAccounts(): LocalUserAccount[] {
+  const accounts: unknown = JSON.parse(localStorage.getItem(USERS_STORAGE_KEY) ?? '[]');
+  if (!Array.isArray(accounts)) throw new Error('No se pudo leer el directorio de cuentas.');
+  return accounts;
 }
 
 class AuthService {
-  private usersCache: UserAccount[] = [];
+  private usersCache: LocalUserAccount[] = [];
   private initialized = false;
 
   private async initializeDefaults(): Promise<void> {
-    const stored = localStorage.getItem(USERS_STORAGE_KEY);
-    const accounts: unknown = stored ? JSON.parse(stored) : [];
-    if (!Array.isArray(accounts)) throw new Error('No se pudo leer el directorio de cuentas.');
-    this.usersCache = accounts;
+    this.usersCache = readAccounts();
     if (this.initialized) return;
 
     // Verificar si existe la cuenta de Administrador por defecto
@@ -69,13 +68,14 @@ class AuthService {
       const adminPassHash = await hashText('Mike040903', adminSalt);
       const adminAnswerHash = await hashText('Cinepolis2026', adminSalt);
 
-      const defaultAdmin: UserAccount = {
+      const defaultAdmin: LocalUserAccount = {
         id: 'admin-cinepolis-master',
         email: 'admin@cinepolis.com',
         nickname: 'Admin Cinépolis',
         name: 'Administrador General',
         employeeNumber: 'CIN-MASTER',
         role: 'admin',
+        isMaster: true,
         branch: 'Corporativo Cinépolis',
         department: 'Operaciones',
         passwordHash: adminPassHash,
@@ -111,8 +111,8 @@ class AuthService {
     }
   }
 
-  private saveSession(user: UserAccount) {
-    const session: UserSession = {
+  private saveSession(user: LocalUserAccount) {
+    const session: UserSession & { user: LocalUserAccount } = {
       user: { ...user },
       token: `sess_${generateUUID()}_${Date.now()}`,
       expiresAt: Date.now() + 12 * 60 * 60 * 1000,
@@ -126,7 +126,7 @@ class AuthService {
     const key = employeeKey(employeeNumber);
     const matches = key ? this.usersCache.filter(user => employeeKey(user.employeeNumber) === key) : [];
     if (matches.length === 1) return { user: matches[0] };
-    return { error: matches.length > 1 ? 'Este ID está repetido en cuentas anteriores. Pide al administrador que lo revise.' : 'No encontramos una cuenta con ese ID de empleado.' };
+    return { error: matches.length > 1 ? 'Este ID está repetido en cuentas anteriores. Pide al administrador que lo revise.' : 'No encontramos una cuenta con ese ID de empleado en este navegador.' };
   }
 
   private employeeIdTaken(employeeNumber: string, excludedId?: string) {
@@ -202,7 +202,7 @@ class AuthService {
       securityAnswerHash = await hashText(data.securityAnswer, salt);
     }
 
-    const newUser: UserAccount = {
+    const newUser: LocalUserAccount = {
       id: generateUUID(),
       nickname: employeeNumber,
       name: data.name.trim(),
@@ -227,13 +227,12 @@ class AuthService {
     });
   }
 
-  getCurrentUser(): UserAccount | null {
+  getCurrentUser(): LocalUserAccount | null {
     try {
       const stored = sessionStorage.getItem(SESSION_STORAGE_KEY);
       if (!stored) return null;
-      const session: UserSession = JSON.parse(stored);
-      const accounts: UserAccount[] = JSON.parse(localStorage.getItem(USERS_STORAGE_KEY) ?? '[]');
-      const user = accounts.find(account => account.id === session.user.id);
+      const session: UserSession & { user: LocalUserAccount } = JSON.parse(stored);
+      const user = readAccounts().find(account => account.id === session.user.id);
       if (!user?.isActive || user.passwordHash !== session.user.passwordHash || (session.expiresAt && Date.now() >= session.expiresAt)) {
         this.logout();
         return null;
@@ -248,6 +247,10 @@ class AuthService {
   isAdmin(): boolean {
     const user = this.getCurrentUser();
     return user !== null && user.role === 'admin' && user.isActive === true;
+  }
+
+  async refreshCurrentUser() {
+    return this.getCurrentUser();
   }
 
   logout(): void {
@@ -306,6 +309,33 @@ class AuthService {
     return this.withAccounts(() => [...this.usersCache]);
   }
 
+  getDirectoryAccounts(): DirectoryAccount[] {
+    return readAccounts().map(({ id, employeeNumber, name, fullName, nickname, department }) => ({
+      id, employeeNumber, name, fullName, nickname, department,
+    }));
+  }
+
+  async loadDirectoryAccounts() {
+    return this.getDirectoryAccounts();
+  }
+
+  private async linkDirectoryPerson(account: UserAccount) {
+    const number = employeeKey(account.employeeNumber);
+    if (!number || this.employeeIdTaken(number, account.id)) return;
+
+    const write = () => {
+      const workspace = readWorkspace();
+      const people = workspace.people.map(person => !person.accountId && employeeKey(person.number) === number
+        ? { ...person, accountId: account.id }
+        : person);
+      if (people.some((person, index) => person !== workspace.people[index])) {
+        localStorage.setItem(storageKey, JSON.stringify({ ...workspace, people }));
+      }
+    };
+    if (navigator.locks) await navigator.locks.request(storageKey, write);
+    else write();
+  }
+
   hasDirectoryArchive() {
     return localStorage.getItem(DIRECTORY_ARCHIVE_KEY) !== null;
   }
@@ -326,7 +356,7 @@ class AuthService {
         const previousArchive = localStorage.getItem(DIRECTORY_ARCHIVE_KEY);
         const workspace = readWorkspace();
         const previousAccountCount = this.usersCache.length;
-        let accounts: UserAccount[];
+        let accounts: LocalUserAccount[];
         let people: Cinepolito[];
         let archive: DirectoryArchive | null;
 
@@ -337,10 +367,13 @@ class AuthService {
           if (user.id === admin.id) throw new Error('Ingresa el ID del cinepolito que quieres conservar junto con tu cuenta.');
           accounts = [admin, user];
           const keep = new Set(accounts.map(account => employeeKey(account.employeeNumber)).filter(Boolean));
-          people = workspace.people.filter(person => keep.has(employeeKey(person.number)));
+          const keepPerson = (person: Cinepolito) => person.accountId
+            ? accounts.some(account => account.id === person.accountId)
+            : keep.has(employeeKey(person.number));
+          people = workspace.people.filter(keepPerson);
           archive = {
             accounts: this.usersCache.filter(account => account.id !== admin.id && account.id !== user.id),
-            people: workspace.people.filter(person => !keep.has(employeeKey(person.number))),
+            people: workspace.people.filter(person => !keepPerson(person)),
           };
           if (!archive.accounts.length && !archive.people.length) return { accounts: 0, people: 0 };
         } else {
@@ -349,7 +382,7 @@ class AuthService {
           if (saved.accounts.some(account => this.usersCache.some(current => current.id === account.id ||
             (employeeKey(account.employeeNumber) && employeeKey(account.employeeNumber) === employeeKey(current.employeeNumber)))) ||
             saved.people.some(person => workspace.people.some(current => current.id === person.id ||
-              (employeeKey(person.number) && employeeKey(person.number) === employeeKey(current.number))))) {
+              (!person.accountId && !current.accountId && employeeKey(person.number) && employeeKey(person.number) === employeeKey(current.number))))) {
             throw new Error('Hay IDs que ya se volvieron a registrar. El archivo sigue guardado.');
           }
           accounts = [...this.usersCache, ...saved.accounts];
@@ -382,7 +415,7 @@ class AuthService {
   }
 
   async updateUser(userId: string, updates: Partial<UserAccount>): Promise<{ success: boolean; user?: UserAccount; error?: string }> {
-    return this.withAccounts(() => {
+    return this.withAccounts(async () => {
       const current = this.getCurrentUser();
       if (!current || (current.id !== userId && current.role !== 'admin')) {
         return { success: false, error: 'Tu cuenta no tiene permiso para editar este usuario.' };
@@ -403,6 +436,13 @@ class AuthService {
         const employeeNumber = employeeKey(updates.employeeNumber);
         if (!validEmployeeId(employeeNumber)) return { success: false, error: 'Ingresa un ID de empleado válido, de hasta 30 caracteres y sin espacios.' };
         if (this.employeeIdTaken(employeeNumber, userId)) return { success: false, error: 'Ese ID de empleado ya está registrado.' };
+        if (employeeKey(user.employeeNumber) !== employeeNumber) {
+          try {
+            await this.linkDirectoryPerson(user);
+          } catch {
+            return { success: false, error: 'No se pudo conservar el registro de capacitación al cambiar el ID.' };
+          }
+        }
         updates = { ...updates, employeeNumber };
       }
       Object.assign(user, updates);
@@ -453,7 +493,7 @@ class AuthService {
   }
 
   async deleteUser(userId: string): Promise<{ success: boolean; error?: string }> {
-    return this.withAccounts(() => {
+    return this.withAccounts(async () => {
       if (!this.isAdmin()) return { success: false, error: 'Solo un administrador puede eliminar cuentas.' };
       if (userId === 'admin-cinepolis-master') {
         return { success: false, error: 'No es posible eliminar al Administrador Maestro.' };
@@ -462,6 +502,12 @@ class AuthService {
       const idx = this.usersCache.findIndex(u => u.id === userId);
       if (idx === -1) return { success: false, error: 'Usuario no encontrado.' };
 
+      try {
+        await this.linkDirectoryPerson(this.usersCache[idx]);
+      } catch {
+        return { success: false, error: 'No se pudo actualizar el directorio de capacitación.' };
+      }
+
       this.usersCache.splice(idx, 1);
       if (!this.saveUsersToStorage()) return { success: false, error: 'El navegador no pudo eliminar la cuenta.' };
       return { success: true };
@@ -469,4 +515,12 @@ class AuthService {
   }
 }
 
-export const authService = new AuthService();
+export const localAuthService = new AuthService();
+export const cloudEmployeeAccess = !!supabase;
+export const authService = cloudEmployeeAccess ? cloudAuthService : localAuthService;
+
+export function getLegacyAccounts() {
+  return readAccounts().map(({ id, employeeNumber, name, department, role, isActive }) => ({
+    id, employeeNumber, name, department, role, isActive,
+  }));
+}

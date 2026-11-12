@@ -35,6 +35,9 @@ export function SurveyStartDialog({ quiz, user, initialName, onClose, onStart }:
       </div>
       <p className="survey-start-title">{quiz.title}</p>
       <p>{questions} {questions === 1 ? 'pregunta' : 'preguntas'}.{quiz.isAnonymousSurvey && ' La encuesta es anónima.'}</p>
+      {user && <p>{quiz.isAnonymousSurvey
+        ? 'Expertos registra que completaste la encuesta. Tus respuestas se guardan por separado de tu cuenta.'
+        : 'Al enviar tus respuestas, la encuesta se marcará como completada en Expertos.'}</p>}
       <form onSubmit={async event => {
         event.preventDefault();
         if (busy || !access.accessible || !questions) return;

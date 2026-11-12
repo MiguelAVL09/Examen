@@ -60,7 +60,11 @@ import {
 import type { Participant, Quiz, Question, QuestionType, UserAccount, UserRole } from '../types/quiz';
 import { quizService, generateUUID, DEFAULT_DEPARTMENTS, DEFAULT_EXPLANATIONS, type ExamSettings, type QuestionAnalytics, type DetailedParticipantAnswer } from '../services/quizService';
 import { isSupabaseConfigured } from '../services/supabaseClient';
-import { authService } from '../services/authService';
+import { authService, cloudEmployeeAccess, localAuthService, USERS_STORAGE_KEY } from '../services/authService';
+import { loadSurveyCompletions, readSurveyCompletions, surveyCompletionKey } from '../services/surveyCompletion';
+import { employeeKey, getDirectoryPeople, readWorkspace, storageKey, validEmployeeId } from '../tracker';
+import type { Cinepolito } from '../tracker';
+import { isSurveyQuiz } from '../utils/quizKind';
 import { CINEPOLIS_QUIZ_TEMPLATES, instantiateQuizFromTemplate, type QuizTemplateDefinition } from '../utils/quizTemplates';
 import { processImageUpload, PRESET_IMAGES } from '../utils/imageUtils';
 import { exportRankingsToPDF, exportDiplomaPDF, exportTop3Diplomas, exportQuestionAnalyticsPDF } from '../utils/pdfExport';
@@ -71,11 +75,20 @@ import { KahootShapeIcon } from './KahootShapes';
 import { ShareQuizModal } from './ShareQuizModal';
 import { AdminCreateUserDialog } from './AdminCreateUserDialog';
 import { DirectoryArchiveDialog } from './DirectoryArchiveDialog';
+import { EmployeeMigrationDialog } from './EmployeeMigrationDialog';
 
 interface AdminViewProps {
   onBackToHome: () => void;
   onOpenKiosk?: () => void;
   onLogout: () => void;
+}
+
+function readTrainingDirectory() {
+  try {
+    return { people: readWorkspace().people, completions: cloudEmployeeAccess ? {} : readSurveyCompletions(), error: '' };
+  } catch {
+    return { people: [], completions: {}, error: 'No se pudo leer el directorio o el avance de Expertos.' };
+  }
 }
 
 export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk, onLogout }) => {
@@ -114,13 +127,17 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
 
   // Estados para Gestión de Usuarios & Accesos Cinépolis
   const [usersList, setUsersList] = useState<UserAccount[]>([]);
+  const [trainingDirectory, setTrainingDirectory] = useState(readTrainingDirectory);
+  const peopleWithoutAccount = useMemo(() => getDirectoryPeople(trainingDirectory.people, usersList).filter(person => !person.accountId),
+    [trainingDirectory.people, usersList]);
   const [userSearchQuery, setUserSearchQuery] = useState<string>('');
-  const [userRoleFilter, setUserRoleFilter] = useState<'all' | UserRole>('all');
+  const [userRoleFilter, setUserRoleFilter] = useState<'all' | 'no-account' | UserRole>('all');
   const [userQuizFilter, setUserQuizFilter] = useState<string>('all');
   const [userQuizStatusFilter, setUserQuizStatusFilter] = useState<'all' | 'completed' | 'pending'>('all');
   const [editingUser, setEditingUser] = useState<UserAccount | null>(null);
-  const [creatingUser, setCreatingUser] = useState(false);
+  const [creatingUser, setCreatingUser] = useState<Cinepolito | 'new' | null>(null);
   const [directoryArchiveOpen, setDirectoryArchiveOpen] = useState(false);
+  const [employeeMigrationOpen, setEmployeeMigrationOpen] = useState(false);
   const [resettingUserPassword, setResettingUserPassword] = useState<{ id: string; name: string } | null>(null);
   const [newTempPassword, setNewTempPassword] = useState<string>('');
   const [passwordResetError, setPasswordResetError] = useState('');
@@ -194,6 +211,15 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
     };
   }, [isAuthenticated]);
 
+  async function refreshTrainingDirectory() {
+    const local = readTrainingDirectory();
+    try {
+      setTrainingDirectory(cloudEmployeeAccess ? { ...local, completions: await loadSurveyCompletions() } : local);
+    } catch {
+      setTrainingDirectory(previous => ({ ...previous, people: local.people, error: 'No se pudo actualizar el avance de las encuestas.' }));
+    }
+  }
+
   const loadData = async () => {
     setIsLoading(true);
     try {
@@ -230,6 +256,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
       // Cargar lista de usuarios registrados
       const allUsers = await authService.getUsers();
       setUsersList(allUsers);
+      await refreshTrainingDirectory();
     } catch (err) {
       console.error('Error cargando datos de admin:', err);
     } finally {
@@ -242,6 +269,35 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
       loadData();
     }
   }, [isAuthenticated, selectedQuizId]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    function refreshDirectory(event: StorageEvent) {
+      if (event.key === null || event.key === storageKey || event.key === surveyCompletionKey) {
+        void refreshTrainingDirectory();
+      }
+      if (event.key === null || event.key === USERS_STORAGE_KEY) {
+        void authService.getUsers().then(setUsersList).catch(error => console.error('Error al actualizar usuarios:', error));
+      }
+    }
+    window.addEventListener('storage', refreshDirectory);
+    return () => window.removeEventListener('storage', refreshDirectory);
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!isAuthenticated || activeTab !== 'users' || !cloudEmployeeAccess) return;
+    const refresh = () => {
+      void refreshTrainingDirectory();
+      void authService.getUsers().then(setUsersList).catch(error => console.error('Error al actualizar usuarios:', error));
+    };
+    refresh();
+    const timer = window.setInterval(refresh, 20000);
+    window.addEventListener('focus', refresh);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refresh);
+    };
+  }, [isAuthenticated, activeTab]);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -405,6 +461,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
     if (res.success) {
       setUserActionMessage('¡Datos de usuario actualizados exitosamente!');
       setEditingUser(null);
+      await refreshTrainingDirectory();
       const updated = await authService.getUsers();
       setUsersList(updated);
       setTimeout(() => setUserActionMessage(''), 4000);
@@ -472,6 +529,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
     const res = await authService.deleteUser(user.id);
     if (res.success) {
       setUserActionMessage(`Cuenta de ${user.nickname} eliminada.`);
+      await refreshTrainingDirectory();
       const updated = await authService.getUsers();
       setUsersList(updated);
       setTimeout(() => setUserActionMessage(''), 4000);
@@ -2926,7 +2984,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
                   <Users className="w-5 h-5" />
                 </span>
                 <h2 className="text-2xl font-black uppercase text-white tracking-tight">
-                  Control de Usuarios & Accesos ({usersList.length})
+                  Control de Usuarios & Accesos ({usersList.length + peopleWithoutAccount.length})
                 </h2>
               </div>
               <p className="text-xs text-white/70 mt-1">
@@ -2940,18 +2998,20 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
                   ✓ {userActionMessage}
                 </span>
               )}
-              <button type="button" onClick={() => setCreatingUser(true)} className="btn-cinepolis-gold flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black text-black">
+              <button type="button" onClick={() => setCreatingUser('new')} className="btn-cinepolis-gold flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black text-black">
                 <UserPlus className="w-4 h-4" /> Dar de alta usuario
               </button>
-              <button type="button" onClick={() => setDirectoryArchiveOpen(true)} className="rounded-xl border border-white/25 px-4 py-2 text-sm font-bold">
-                {authService.hasDirectoryArchive() ? 'Restaurar limpieza archivada' : 'Limpiar directorio y cuentas'}
-              </button>
+              {cloudEmployeeAccess ? <button type="button" onClick={() => setEmployeeMigrationOpen(true)} className="rounded-xl border border-white/25 px-4 py-2 text-sm font-bold">
+                Migrar cuentas de este navegador
+              </button> : <button type="button" onClick={() => setDirectoryArchiveOpen(true)} className="rounded-xl border border-white/25 px-4 py-2 text-sm font-bold">
+                {localAuthService.hasDirectoryArchive() ? 'Restaurar limpieza archivada' : 'Limpiar directorio y cuentas'}
+              </button>}
             </div>
           </div>
 
-          {creatingUser && <AdminCreateUserDialog onClose={() => setCreatingUser(false)} onCreated={user => {
-            setUsersList(previous => [...previous, user]);
-            setCreatingUser(false);
+          {creatingUser && <AdminCreateUserDialog person={creatingUser === 'new' ? undefined : creatingUser} onClose={() => setCreatingUser(null)} onCreated={user => {
+            setUsersList(previous => [...previous.filter(account => account.id !== user.id), user]);
+            setCreatingUser(null);
             setUserSearchQuery('');
             setUserRoleFilter('all');
             setUserQuizStatusFilter('all');
@@ -2964,8 +3024,14 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
             setUserRoleFilter('all');
             setUserQuizStatusFilter('all');
             setUserActionMessage(message);
+            void refreshTrainingDirectory();
             void authService.getUsers().then(setUsersList);
           }} />}
+          {employeeMigrationOpen && <EmployeeMigrationDialog onClose={() => setEmployeeMigrationOpen(false)} onMigrated={() => {
+            void refreshTrainingDirectory();
+            void authService.getUsers().then(setUsersList).catch(error => console.error('Error al actualizar usuarios:', error));
+          }} />}
+          {trainingDirectory.error && <p className="text-sm text-amber-300" role="alert">{trainingDirectory.error}</p>}
 
           {/* Filtros de Búsqueda de Usuarios */}
           <div className="bg-kahoot-purple-dark/80 p-4 rounded-2xl border border-white/10 shadow-lg flex flex-col lg:flex-row items-center justify-between gap-3">
@@ -2991,7 +3057,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
                 >
                   <option value="all">🌐 Todos los Cuestionarios ({quizzes.length})</option>
                   {quizzes.map(q => {
-                    const prefix = q.isAnonymousSurvey
+                    const prefix = isSurveyQuiz(q)
                       ? '🛡️ [Encuesta] '
                       : q.quizKind === 'simulator'
                       ? '🎭 [Simulador] '
@@ -3025,13 +3091,14 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
               <div className="relative">
                 <select
                   value={userRoleFilter}
-                  onChange={e => setUserRoleFilter(e.target.value as 'all' | UserRole)}
+                  onChange={e => setUserRoleFilter(e.target.value as typeof userRoleFilter)}
                   className="px-3.5 py-2.5 pr-8 rounded-xl bg-black/40 border border-white/20 text-white font-bold text-xs appearance-none focus:outline-none focus:border-amber-400"
                 >
                   <option value="all">Todos los Roles</option>
                   <option value="admin">Solo Administradores</option>
                   <option value="user">Solo Colaboradores</option>
                   <option value="expert">Solo Cinepolitos Expertos</option>
+                  <option value="no-account">Sin cuenta de acceso</option>
                 </select>
                 <ChevronDown className="w-3.5 h-3.5 text-white/60 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
@@ -3055,17 +3122,23 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
           <div className="grid grid-cols-1 gap-3">
             {(() => {
               const q = userSearchQuery.trim().toLowerCase();
-              const filtered = usersList.filter(u => {
-                if (userRoleFilter !== 'all' && u.role !== userRoleFilter) return false;
-
+              const selectedSurvey = quizzes.find(quiz => quiz.id === userQuizFilter && isSurveyQuiz(quiz));
+              const surveyAccounts = new Set(selectedSurvey ? trainingDirectory.completions[selectedSurvey.id] : []);
+              const getAttempts = (u: UserAccount) => {
+                if (selectedSurvey) return [];
                 const uNickNorm = normalizePlayerName(u.nickname || '');
                 const uNameNorm = normalizePlayerName(u.name || u.fullName || '');
-                const userAttempts = rankings.filter(r => {
+                return rankings.filter(r => {
                   if (userQuizFilter !== 'all' && r.quizId !== userQuizFilter) return false;
                   const rNorm = normalizePlayerName(r.nickname || '');
                   return rNorm === uNickNorm || rNorm === uNameNorm;
                 });
-                const hasCompleted = userAttempts.length > 0;
+              };
+              const filtered = usersList.map(u => {
+                const userAttempts = getAttempts(u);
+                return { u, userAttempts, hasCompleted: selectedSurvey ? surveyAccounts.has(u.id) : userAttempts.length > 0 };
+              }).filter(({ u, hasCompleted }) => {
+                if (userRoleFilter !== 'all' && u.role !== userRoleFilter) return false;
 
                 if (userQuizStatusFilter === 'completed' && !hasCompleted) return false;
                 if (userQuizStatusFilter === 'pending' && hasCompleted) return false;
@@ -3079,8 +3152,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
                   (u.department && u.department.toLowerCase().includes(q))
                 );
               });
+              const withoutAccount = userQuizStatusFilter !== 'completed' && (userRoleFilter === 'all' || userRoleFilter === 'no-account')
+                ? peopleWithoutAccount.filter(person => [person.name, person.number, person.area].some(value => value.toLowerCase().includes(q)))
+                : [];
 
-              if (filtered.length === 0) {
+              if (filtered.length === 0 && withoutAccount.length === 0) {
                 return (
                   <div className="py-12 text-center text-white/50 bg-black/20 rounded-2xl border border-white/5">
                     <Users className="w-10 h-10 mx-auto mb-2 opacity-30" />
@@ -3089,17 +3165,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
                 );
               }
 
-              return filtered.map(u => {
-                const uNickNorm = normalizePlayerName(u.nickname || '');
-                const uNameNorm = normalizePlayerName(u.name || u.fullName || '');
-                const userAttempts = rankings.filter(r => {
-                  if (userQuizFilter !== 'all' && r.quizId !== userQuizFilter) return false;
-                  const rNorm = normalizePlayerName(r.nickname || '');
-                  return rNorm === uNickNorm || rNorm === uNameNorm;
-                });
-                const hasCompleted = userAttempts.length > 0;
-                const bestScore = hasCompleted ? Math.max(...userAttempts.map(a => a.totalScore)) : 0;
-                const bestAccuracy = hasCompleted
+              return <>{filtered.map(({ u, userAttempts, hasCompleted }) => {
+                const bestScore = userAttempts.length ? Math.max(...userAttempts.map(a => a.totalScore)) : 0;
+                const bestAccuracy = userAttempts.length
                   ? userAttempts.reduce((max, a) => (a.accuracyPercentage > max ? a.accuracyPercentage : max), 0)
                   : 0;
 
@@ -3138,7 +3206,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
                         {hasCompleted ? (
                           <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
                             <Check className="w-3 h-3 text-emerald-400" />
-                            {userAttempts.length} evaluación{userAttempts.length > 1 ? `es (${userAttempts.length} intentos)` : ' completada'} • {bestScore.toLocaleString()} pts ({bestAccuracy}%)
+                            {selectedSurvey ? 'Encuesta completada' : `${userAttempts.length} evaluación${userAttempts.length > 1 ? `es (${userAttempts.length} intentos)` : ' completada'} • ${bestScore.toLocaleString()} pts (${bestAccuracy}%)`}
                           </span>
                         ) : (
                           <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-400/10 text-amber-300/80 border border-amber-400/20 flex items-center gap-1">
@@ -3169,7 +3237,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
                     {u.role !== 'expert' && <button
                       type="button"
                       onClick={() => handleToggleUserRole(u)}
-                      disabled={u.id === 'admin-cinepolis-master'}
+                      disabled={u.isMaster || u.id === 'admin-cinepolis-master'}
                       className="px-3 py-1.5 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 text-blue-200 border border-blue-500/30 font-bold text-xs flex items-center gap-1.5 transition active:scale-95 disabled:opacity-30"
                       title="Cambiar rol (Admin / Colaborador)"
                     >
@@ -3203,7 +3271,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
                     <button
                       type="button"
                       onClick={() => handleToggleUserStatus(u)}
-                      disabled={u.id === 'admin-cinepolis-master'}
+                      disabled={u.isMaster || u.id === 'admin-cinepolis-master'}
                       className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 font-bold text-xs flex items-center gap-1.5 transition active:scale-95 disabled:opacity-30"
                       title="Activar o suspender acceso a la cuenta"
                     >
@@ -3211,7 +3279,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
                       <span>{u.isActive ? 'Suspender' : 'Activar'}</span>
                     </button>
 
-                    {u.id !== 'admin-cinepolis-master' && (
+                    {!u.isMaster && u.id !== 'admin-cinepolis-master' && (
                       <button
                         type="button"
                         onClick={() => handleDeleteUserAccount(u)}
@@ -3224,7 +3292,19 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
                   </div>
                 </div>
               );
-            });
+            })}{withoutAccount.map(person => (
+              <div key={person.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-kahoot-purple-dark/80 p-4 sm:p-5">
+                <div>
+                  <p className="font-black text-white">{person.name} <span className="ml-2 text-xs font-semibold text-amber-300">Sin cuenta de acceso</span></p>
+                  <p className="mt-1 text-xs text-white/60">{person.number ? `ID de empleado ${person.number}` : 'Sin ID de empleado'} · {person.area}</p>
+                </div>
+                {validEmployeeId(employeeKey(person.number)) ? (
+                  <button type="button" onClick={() => setCreatingUser(person)} className="btn-cinepolis-gold flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black text-black">
+                    <UserPlus size={16} /> Dar de alta cuenta
+                  </button>
+                ) : <p className="text-xs text-white/70">Asigna un ID válido en Expertos.</p>}
+              </div>
+            ))}</>;
           })()}
           </div>
         </div>
@@ -4128,7 +4208,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
                   <select
                     id="edit-user-role"
                     value={editingUser.role}
-                    disabled={editingUser.id === 'admin-cinepolis-master'}
+                    disabled={editingUser.isMaster || editingUser.id === 'admin-cinepolis-master'}
                     onChange={e => setEditingUser({ ...editingUser, role: e.target.value as UserRole })}
                     className="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/20 text-white font-semibold text-sm focus:outline-none focus:border-amber-400 disabled:opacity-50"
                   >
@@ -4203,13 +4283,13 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
               <form onSubmit={handleResetUserPassword} className="space-y-4">
                 <div>
                   <label htmlFor="admin-reset-password" className="text-xs uppercase font-bold text-white/70 block mb-1">
-                    Nueva contraseña (mínimo 6 caracteres)
+                    Nueva contraseña (mínimo {cloudEmployeeAccess ? 8 : 6} caracteres)
                   </label>
                   <input
                     id="admin-reset-password"
                     type="password"
                     required
-                    minLength={6}
+                    minLength={cloudEmployeeAccess ? 8 : 6}
                     autoComplete="new-password"
                     disabled={resettingPassword}
                     placeholder="••••••••"

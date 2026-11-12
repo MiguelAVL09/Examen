@@ -1,5 +1,12 @@
+import type { Quiz, UserAccount } from './types/quiz'
+import { isSurveyQuiz } from './utils/quizKind'
+import { employeeKey } from '../supabase/functions/_shared/employeeIdentity'
+
+export { employeeKey, validEmployeeId } from '../supabase/functions/_shared/employeeIdentity'
+
 export interface Cinepolito {
   id: string
+  accountId?: string
   name: string
   number: string
   area: string
@@ -10,7 +17,10 @@ export interface Course {
   id: string
   name: string
   description: string
+  survey?: true
 }
+
+export type DirectoryAccount = Pick<UserAccount, 'id' | 'employeeNumber' | 'name' | 'fullName' | 'nickname' | 'department'>
 
 export interface Task {
   id: string
@@ -31,6 +41,61 @@ export interface Workspace {
 
 export const emptyWorkspace: Workspace = { people: [], courses: [], tasks: [], updatedAt: null }
 export const storageKey = 'cinepolis-expertos.workspace.v1'
+
+export function getDirectoryPeople(people: Cinepolito[], accounts: DirectoryAccount[]) {
+  const accountsByNumber = new Map<string, DirectoryAccount | null>()
+  for (const account of accounts) {
+    const number = employeeKey(account.employeeNumber)
+    if (number) accountsByNumber.set(number, accountsByNumber.has(number) ? null : account)
+  }
+
+  const linkedPeople = new Map<string, Cinepolito>()
+  const peopleWithoutAccount: Cinepolito[] = []
+  for (const person of people) {
+    const accountId = person.accountId ?? accountsByNumber.get(employeeKey(person.number))?.id
+    if (!accountId) {
+      peopleWithoutAccount.push(person)
+      continue
+    }
+    const other = linkedPeople.get(accountId)
+    if (!other) linkedPeople.set(accountId, person)
+    else {
+      const [primary, secondary] = person.accountId ? [person, other] : [other, person]
+      linkedPeople.set(accountId, { ...primary, progress: { ...secondary.progress, ...primary.progress } })
+    }
+  }
+
+  return [...accounts.map(account => {
+    const person = linkedPeople.get(account.id)
+    return {
+      id: person?.id ?? account.id,
+      accountId: account.id,
+      name: account.name || account.fullName || person?.name || account.nickname,
+      number: account.employeeNumber ?? '',
+      area: account.department || person?.area || 'Sin asignar',
+      progress: person?.progress ?? {},
+    }
+  }), ...peopleWithoutAccount]
+}
+
+export function getTrainingWorkspace(workspace: Workspace, people: Cinepolito[], quizzes: Quiz[], completions: Record<string, string[]>): Workspace {
+  const surveys = quizzes.filter(isSurveyQuiz).map(quiz => ({
+    course: { id: `survey:${quiz.id}`, name: quiz.title, description: quiz.description, survey: true as const },
+    completed: new Set(completions[quiz.id]),
+  }))
+
+  return {
+    ...workspace,
+    courses: [...workspace.courses, ...surveys.map(({ course }) => course)],
+    people: people.map(person => ({
+      ...person,
+      progress: {
+        ...person.progress,
+        ...Object.fromEntries(surveys.map(({ course, completed }) => [course.id, !!person.accountId && completed.has(person.accountId)])),
+      },
+    })),
+  }
+}
 
 export function calendarDate(offset = 0) {
   const parts = new Intl.DateTimeFormat('en-CA', {

@@ -1,4 +1,4 @@
-import { normalize } from './tracker'
+import { employeeKey, normalize, validEmployeeId } from './tracker'
 
 export interface EmployeeRow {
   number: string
@@ -53,7 +53,7 @@ function heading(cell: TextCell) {
 }
 
 function isEmployeeId(value: string, inTable: boolean) {
-  return /^[a-z0-9][a-z0-9._/-]{0,29}$/i.test(value) &&
+  return validEmployeeId(employeeKey(value)) &&
     !/^\d{1,4}[-/.]\d{1,2}[-/.]\d{1,4}$/.test(value) &&
     (inTable || /\d/.test(value))
 }
@@ -82,7 +82,7 @@ export async function readEmployeePdf(file: File) {
   let headers: TextCell[] = []
 
   function add(row: EmployeeRow) {
-    const key = normalize(row.number)
+    const key = employeeKey(row.number)
     if (records.has(key)) duplicates++
     else records.set(key, row)
   }

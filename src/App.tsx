@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { Quiz, UserAccount } from './types/quiz';
-import { quizService } from './services/quizService';
-import { authService } from './services/authService';
+import { LOCAL_STORAGE_QUIZZES_KEY, quizService } from './services/quizService';
+import { authService, cloudEmployeeAccess, USERS_STORAGE_KEY } from './services/authService';
 import { Navbar } from './components/Navbar';
 import type { Destination } from './components/Navbar';
 import { ExpertViewBoundary } from './components/ExpertViewBoundary';
@@ -20,6 +20,7 @@ import './QuizNavigation.css';
 
 export function App() {
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => authService.getCurrentUser());
+  const [sessionStatus, setSessionStatus] = useState<'loading' | 'ready' | 'error'>(cloudEmployeeAccess ? 'loading' : 'ready');
   const [currentView, setCurrentView] = useState<Destination | 'game' | 'host'>(() =>
     currentUser?.role === 'expert' && isExpertLocation() ? 'expert' : 'home');
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
@@ -46,6 +47,26 @@ export function App() {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
   const [isPinModalOpen, setIsPinModalOpen] = useState<boolean>(false);
 
+  async function restoreSession() {
+    setSessionStatus('loading');
+    try {
+      const user = await authService.refreshCurrentUser();
+      setCurrentUser(user);
+      if (user) {
+        setPlayerNickname(user.name || user.nickname);
+        setPlayerDepartment(user.department);
+      }
+      if (user?.role === 'expert' && isExpertLocation()) setCurrentView('expert');
+      setSessionStatus('ready');
+    } catch {
+      setSessionStatus('error');
+    }
+  }
+
+  useEffect(() => {
+    if (cloudEmployeeAccess) void restoreSession();
+  }, []);
+
   // Load quizzes on launch
   const refreshQuizzes = async () => {
     setIsLoading(true);
@@ -63,7 +84,15 @@ export function App() {
 
   const accountId = currentUser?.id;
   useEffect(() => {
-    if (accountId) void refreshQuizzes();
+    if (!accountId) return;
+    void refreshQuizzes();
+    function syncQuizCatalog(event: StorageEvent) {
+      if (event.key !== LOCAL_STORAGE_QUIZZES_KEY && event.key !== null) return;
+      setQuizzes(quizService.getCachedQuizzes());
+      setQuizLoadError(false);
+    }
+    window.addEventListener('storage', syncQuizCatalog);
+    return () => window.removeEventListener('storage', syncQuizCatalog);
   }, [accountId]);
 
   useEffect(() => {
@@ -88,29 +117,44 @@ export function App() {
 
   useEffect(() => {
     if (!currentUser) return;
-    function refreshSession() {
-      const user = authService.getCurrentUser();
-      if (!user) {
-        setCurrentView('home');
-        setIsProfileModalOpen(false);
-        setIsPinModalOpen(false);
-        clearExpertLocation();
-      } else if (currentUser?.role !== user.role) {
-        if (user.role !== 'expert') clearExpertLocation();
-        setCurrentView(previous => {
-          if (previous === 'expert' && user.role !== 'expert') return 'home';
-          if ((previous === 'admin' || previous === 'kiosk') && user.role !== 'admin') return 'home';
-          return previous;
-        });
+    let active = true;
+    let checking = false;
+    async function refreshSession() {
+      if (checking) return;
+      checking = true;
+      try {
+        const user = await authService.refreshCurrentUser();
+        if (!active) return;
+        if (!user) {
+          setCurrentView('home');
+          setIsProfileModalOpen(false);
+          setIsPinModalOpen(false);
+          clearExpertLocation();
+        } else if (currentUser?.role !== user.role) {
+          if (user.role !== 'expert') clearExpertLocation();
+          setCurrentView(previous => {
+            if (previous === 'expert' && user.role !== 'expert') return 'home';
+            if ((previous === 'admin' || previous === 'kiosk') && user.role !== 'admin') return 'home';
+            return previous;
+          });
+        }
+        setCurrentUser(previous => JSON.stringify(previous) === JSON.stringify(user) ? previous : user);
+      } catch (error) {
+        console.warn('No se pudo comprobar la sesión:', error);
+      } finally {
+        checking = false;
       }
-      setCurrentUser(previous => JSON.stringify(previous) === JSON.stringify(user) ? previous : user);
+    }
+    function sessionStorageChanged(event: StorageEvent) {
+      if (event.key === null || event.key === USERS_STORAGE_KEY || event.key?.endsWith('-auth-token')) void refreshSession();
     }
     window.addEventListener('focus', refreshSession);
-    window.addEventListener('storage', refreshSession);
+    window.addEventListener('storage', sessionStorageChanged);
     const timer = window.setInterval(refreshSession, 15000);
     return () => {
+      active = false;
       window.removeEventListener('focus', refreshSession);
-      window.removeEventListener('storage', refreshSession);
+      window.removeEventListener('storage', sessionStorageChanged);
       window.clearInterval(timer);
     };
   }, [currentUser]);
@@ -196,7 +240,7 @@ export function App() {
   };
 
   const handleLogout = () => {
-    authService.logout();
+    void authService.logout();
     setCurrentUser(null);
     setIsProfileModalOpen(false);
     setIsPinModalOpen(false);
@@ -207,6 +251,15 @@ export function App() {
     clearExpertLocation();
     window.scrollTo({ top: 0 });
   };
+
+  if (sessionStatus !== 'ready') {
+    return <main className="quiz-app min-h-screen bg-kahoot-pattern flex items-center justify-center">
+      <section className="quiz-message" role={sessionStatus === 'error' ? 'alert' : 'status'}>
+        <h1>{sessionStatus === 'error' ? 'No se pudo comprobar tu sesión' : 'Cargando tu sesión…'}</h1>
+        {sessionStatus === 'error' && <button type="button" className="quiz-action quiz-action-primary" onClick={() => void restoreSession()}>Reintentar</button>}
+      </section>
+    </main>;
+  }
 
   if (!currentUser) {
     return <AuthScreen onAuthenticated={() => {
@@ -241,7 +294,7 @@ export function App() {
       <main className="flex-1">
         {view === 'expert' ? (
           <ExpertViewBoundary onBack={openSurveys}>
-            <ExpertDashboard onBack={openSurveys} />
+            <ExpertDashboard quizzes={quizzes} quizLoadError={quizLoadError} onReloadQuizzes={refreshQuizzes} onBack={openSurveys} />
           </ExpertViewBoundary>
         ) : view === 'home' && isLoading ? (
           <div className="min-h-[60vh] flex flex-col items-center justify-center text-white">
@@ -272,6 +325,7 @@ export function App() {
             {view === 'game' && activeQuiz && (
               <GamePlayView
                 quiz={activeQuiz}
+                accountId={accountId}
                 nickname={playerNickname}
                 avatar={playerAvatar}
                 department={playerDepartment}

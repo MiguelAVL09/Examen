@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { FileUp } from 'lucide-react'
 import { Dialog } from './TrackerDialogs'
-import { normalize } from './tracker'
+import { employeeKey } from './tracker'
 import type { Cinepolito } from './tracker'
 import type { EmployeeRow } from './employeePdf'
 
@@ -15,9 +15,9 @@ export function EmployeeImport({ people, busy, error, onClose, onImport }: {
   const [area, setArea] = useState('')
   const [reading, setReading] = useState(false)
   const [readError, setReadError] = useState('')
-  const existing = new Set(people.map(person => normalize(person.number)).filter(Boolean))
-  const registeredCount = result?.rows.filter(row => existing.has(normalize(row.number))).length ?? 0
-  const selected = result?.rows.filter(row => !existing.has(normalize(row.number)) && !excluded.has(row.number)) ?? []
+  const existing = new Set(people.map(person => employeeKey(person.number)).filter(Boolean))
+  const registeredCount = result?.rows.filter(row => existing.has(employeeKey(row.number))).length ?? 0
+  const selected = result?.rows.filter(row => !existing.has(employeeKey(row.number)) && !excluded.has(row.number)) ?? []
 
   async function read(file?: File) {
     setFileName(file?.name ?? '')
@@ -70,7 +70,7 @@ export function EmployeeImport({ people, busy, error, onClose, onImport }: {
           <p className="import-count" role="status">{selected.length} para agregar · {registeredCount} {registeredCount === 1 ? 'ya registrado' : 'ya registrados'} · {result.duplicates} {result.duplicates === 1 ? 'repetido' : 'repetidos'} en el PDF</p>
           <div className="import-preview" role="region" aria-label="Vista previa de empleados" tabIndex={0}>
             {result.rows.map(row => {
-              const registered = existing.has(normalize(row.number))
+              const registered = existing.has(employeeKey(row.number))
               return <label key={row.number} className="import-row">
                 <input type="checkbox" checked={!registered && !excluded.has(row.number)} disabled={registered || busy} aria-label={'Incluir ' + row.number} onChange={event => {
                   const next = new Set(excluded)

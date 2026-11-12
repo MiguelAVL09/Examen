@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { BookOpen, Download, FileText, Trash2, X } from 'lucide-react'
 import type { Cinepolito, Course, Task, Workspace } from './tracker'
-import { normalize, pendingTasks } from './tracker'
+import { employeeKey, normalize, pendingTasks, validEmployeeId } from './tracker'
 import { downloadReport, reportLabels, reportPeople } from './trackerReport'
 import type { ReportFilters, ReportType } from './trackerReport'
 
@@ -52,26 +52,37 @@ export function PersonForm({ person, workspace, busy, error, onSave, onClose, on
   const [area, setArea] = useState(person?.area ?? '')
   const [progress, setProgress] = useState(person?.progress ?? {})
   const [validation, setValidation] = useState('')
+  const currentProgress = workspace.people.find(item => item.id === person?.id)?.progress
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!name.trim() || !area.trim()) return setValidation('Ingresa el nombre y el área.')
+    const employeeNumber = employeeKey(number)
+    if (!person?.accountId && number.trim() !== (person?.number ?? '') && !validEmployeeId(employeeNumber)) {
+      return setValidation('Ingresa un ID de empleado válido, de hasta 30 caracteres y sin espacios.')
+    }
     setValidation('')
     const existingArea = workspace.people.find(item => normalize(item.area) === normalize(area))?.area
     void onSave({
-      id: person?.id ?? crypto.randomUUID(), name: name.trim(), number: number.trim(), area: existingArea ?? area.trim(),
-      progress: Object.fromEntries(workspace.courses.filter(course => Object.hasOwn(progress, course.id)).map(course => [course.id, progress[course.id]])),
+      id: person?.id ?? crypto.randomUUID(), accountId: person?.accountId,
+      name: name.trim(), number: employeeNumber, area: existingArea ?? area.trim(),
+      progress: Object.fromEntries(workspace.courses.filter(course => !course.survey && Object.hasOwn(progress, course.id)).map(course => [course.id, progress[course.id]])),
     })
   }
-  return <Dialog title={person ? 'Editar cinepolito' : 'Agregar cinepolito'} subtitle="Registra sus datos y actualiza su avance en Learning Center." onClose={onClose} busy={busy}>
+  return <Dialog title={person ? 'Editar cinepolito' : 'Agregar cinepolito'} subtitle={person?.accountId
+    ? 'Los datos de la cuenta se administran en Usuarios & Accesos.'
+    : 'Usa el mismo ID de empleado que se usará para ingresar a Kahoot.'} onClose={onClose} busy={busy}>
     <form onSubmit={submit}>
       <div className="dialog-body form-grid">
-        <label className="span-all">Nombre completo<input required maxLength={100} value={name} onChange={e => setName(e.target.value)} placeholder="Ej. Valeria Morales" /></label>
-        <label>Número de empleado <small>Opcional</small><input maxLength={30} value={number} onChange={e => setNumber(e.target.value)} placeholder="Ej. CP-1042" /></label>
-        <label>Área<input required maxLength={60} value={area} onChange={e => setArea(e.target.value)} list="areas" placeholder="Ej. Dulcería" /></label>
+        <label className="span-all">Nombre completo<input required readOnly={!!person?.accountId} maxLength={100} value={name} onChange={e => setName(e.target.value)} placeholder="Ej. Valeria Morales" /></label>
+        <label>ID de empleado<input required={!person || (!!person.number && !person.accountId)} readOnly={!!person?.accountId} maxLength={30} value={number} onChange={e => setNumber(e.target.value)} placeholder="Ej. CP-1042" /></label>
+        <label>Área<input required readOnly={!!person?.accountId} maxLength={60} value={area} onChange={e => setArea(e.target.value)} list="areas" placeholder="Ej. Dulcería" /></label>
         <datalist id="areas">{[...new Set(workspace.people.map(item => item.area))].sort().map(item => <option key={item} value={item} />)}</datalist>
         <fieldset className="span-all course-fieldset">
-          <legend>Cursos de Learning Center</legend>
-          {workspace.courses.length ? workspace.courses.map(course => <label className="course-choice" key={course.id}>
+          <legend>Cursos y encuestas</legend>
+          {workspace.courses.length ? workspace.courses.map(course => course.survey ? <div className="course-choice" key={course.id}>
+            <span>{course.name}</span>
+            <span>{currentProgress?.[course.id] ? 'Completada en Kahoot' : 'Pendiente en Kahoot'}</span>
+          </div> : <label className="course-choice" key={course.id}>
             <span>{course.name}</span>
             <select aria-label={'Estado de ' + course.name} value={!Object.hasOwn(progress, course.id) ? '' : progress[course.id] ? 'done' : 'open'} onChange={event => {
               const next = { ...progress }

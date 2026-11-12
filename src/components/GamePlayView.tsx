@@ -8,6 +8,7 @@ import { KahootShapeIcon } from './KahootShapes';
 import { CurtainsReveal, FilmStripProgress, CinemaTicketResult } from './CinemaEffects';
 import { soundEffects } from '../utils/soundEffects';
 import { quizService, generateUUID, UUID_REGEX, DEFAULT_EXPLANATIONS } from '../services/quizService';
+import { recordSurveyCompletion } from '../services/surveyCompletion';
 import { getDeviceFingerprint, shuffleQuizQuestions, haptic } from '../utils/security';
 import { isSurveyQuiz } from '../utils/quizKind';
 import {
@@ -27,6 +28,7 @@ import {
 
 interface GamePlayViewProps {
   quiz: Quiz;
+  accountId?: string;
   nickname: string;
   avatar: string;
   branch?: string;
@@ -37,6 +39,7 @@ interface GamePlayViewProps {
 
 export const GamePlayView: React.FC<GamePlayViewProps> = ({
   quiz,
+  accountId,
   nickname,
   avatar,
   branch,
@@ -57,6 +60,8 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
   const [isGameOver, setIsGameOver] = useState<boolean>(false);
   const [completedParticipant, setCompletedParticipant] = useState<Participant | null>(null);
   const [surveySaveStatus, setSurveySaveStatus] = useState<'saving' | 'saved' | 'error'>('saving');
+  const savingResult = useRef(false);
+  const savedResponse = useRef(false);
 
   // Anti-cheat: detección de cambios de pestaña / minimizar ventana
   const [tabSwitches, setTabSwitches] = useState<number>(0);
@@ -301,7 +306,28 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
     }
   };
 
-  const finishGame = async () => {
+  const saveResult = async (participant: Participant) => {
+    if (savingResult.current) return;
+    savingResult.current = true;
+    if (isSurvey) setSurveySaveStatus('saving');
+    try {
+      if (!savedResponse.current) {
+        await quizService.saveParticipantResult(participant);
+        savedResponse.current = true;
+      }
+      if (isSurvey && accountId) await recordSurveyCompletion(quiz.id, accountId);
+      localStorage.setItem(`cinepolis_completed_${quiz.id}`, 'true');
+      if (isSurvey) setSurveySaveStatus('saved');
+    } catch (err) {
+      if (isSurvey) setSurveySaveStatus('error');
+      console.warn('Error saving participant result:', err);
+    } finally {
+      savingResult.current = false;
+    }
+  };
+
+  const finishGame = () => {
+    if (isGameOver || savingResult.current) return;
     setIsGameOver(true);
     soundEffects.playPodiumFanfare();
 
@@ -341,15 +367,7 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
       isAnonymous,
     };
     setCompletedParticipant(participantData);
-
-    try {
-      await quizService.saveParticipantResult(participantData);
-      localStorage.setItem(`cinepolis_completed_${quiz.id}`, 'true');
-      if (isSurvey) setSurveySaveStatus('saved');
-    } catch (err) {
-      if (isSurvey) setSurveySaveStatus('error');
-      console.warn('Error saving participant result:', err);
-    }
+    void saveResult(participantData);
   };
 
   return (
@@ -718,31 +736,6 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
             </div>
           )}
 
-          {/* 2c. Encuesta de Clima Laboral / Satisfacción (Rating) */}
-          {currentQuestion.questionType === 'survey_rating' && (
-            <div className="space-y-3 pb-2">
-              <div className="bg-blue-500/15 border border-blue-400/30 rounded-2xl p-3 text-left flex items-center gap-2.5">
-                <span className="p-1.5 bg-blue-500/30 text-blue-200 rounded-xl text-base">🛡️</span>
-                <span className="text-xs text-blue-200 font-bold">
-                  {quiz.isAnonymousSurvey && 'La encuesta es anónima. '}Selecciona la opción que mejor represente tu experiencia.
-                </span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-4">
-                {currentQuestion.options.map((opt, idx) => (
-                  <KahootOptionButton
-                    key={opt.id}
-                    option={opt}
-                    index={idx}
-                    isSelected={selectedOptionId === opt.id}
-                    isDisabled={!isQuestionActive}
-                    revealResult={showFeedback && !isSurvey}
-                    onSelect={handleSelectOption}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* 4. Type Answer Open Text Input */}
           {currentQuestion.questionType === 'type_answer' && (
             <motion.div
@@ -898,7 +891,8 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
             surveySaveStatus === 'saving' ? 'Guardando tus respuestas…' :
               surveySaveStatus === 'saved' ? 'Encuesta completada' : 'No se pudo guardar la encuesta'
           }</h1>
-          <p>{surveySaveStatus === 'saved' ? 'Gracias por responder.' : surveySaveStatus === 'error' ? 'Puedes volver a las encuestas e intentarlo de nuevo.' : quiz.title}</p>
+          <p>{surveySaveStatus === 'saved' ? 'Gracias por responder.' : surveySaveStatus === 'error' ? 'Puedes reintentar el guardado sin responder de nuevo.' : quiz.title}</p>
+          {surveySaveStatus === 'error' && completedParticipant && <button type="button" className="quiz-action quiz-action-primary" onClick={() => void saveResult(completedParticipant)}>Reintentar guardado</button>}
           <button type="button" className="quiz-action quiz-action-primary" onClick={onExit} disabled={surveySaveStatus === 'saving'}>Volver a encuestas</button>
         </section>
       ) : (

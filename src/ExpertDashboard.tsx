@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowDownToLine, ArrowLeft, ArrowRight, BookOpen, CalendarDays, Check, CheckCircle2, ChevronRight,
   ClipboardList, Clock3, Database, FileText, FileUp, Film, GraduationCap, LayoutDashboard, Menu,
@@ -8,12 +8,15 @@ import type { LucideIcon } from 'lucide-react'
 import { CourseForm, PersonForm, ReportForm, TaskForm } from './TrackerDialogs'
 import { EmployeeImport } from './EmployeeImport'
 import type { EmployeeRow } from './employeePdf'
+import { authService, cloudEmployeeAccess, USERS_STORAGE_KEY } from './services/authService'
+import { loadSurveyCompletions, readSurveyCompletions, surveyCompletionKey } from './services/surveyCompletion'
 import {
-  calendarDate, emptyWorkspace, filterPeople, formatDate, formatUpdate,
-  getProgress, getStatus, normalize, pendingTasks, readWorkspace, statusLabels, storageKey,
+  calendarDate, employeeKey, emptyWorkspace, filterPeople, formatDate, formatUpdate, getDirectoryPeople,
+  getProgress, getStatus, getTrainingWorkspace, normalize, pendingTasks, readWorkspace, statusLabels, storageKey,
 } from './tracker'
 import type { Cinepolito, Course, PeopleStatus, Task, Workspace } from './tracker'
 import type { ReportFilters } from './trackerReport'
+import type { Quiz } from './types/quiz'
 import { expertHash } from './utils/expertLocation'
 import './ExpertDashboard.css'
 
@@ -30,8 +33,8 @@ const pages: { id: Page; label: string; icon: LucideIcon }[] = [
 const pageDescriptions: Record<Page, string> = {
   resumen: 'Consulta las tareas y el avance de capacitación de tu equipo.',
   tareas: 'Organiza las actividades del equipo y registra cuándo se completan.',
-  cinepolitos: 'Consulta y actualiza el avance de cada persona en Learning Center.',
-  cursos: 'Administra los cursos de Learning Center que asignas al equipo.',
+  cinepolitos: 'Consulta el avance de cada persona en cursos y encuestas.',
+  cursos: 'Administra cursos de Learning Center y consulta el avance en encuestas de Kahoot.',
   reportes: 'Descarga un PDF con los registros que necesitas compartir.',
 }
 
@@ -50,6 +53,14 @@ function readInitial() {
     return { data: readWorkspace(), error: '' }
   } catch {
     return { data: emptyWorkspace, error: 'No se pudieron leer los registros guardados en este navegador.' }
+  }
+}
+
+function readSyncedData() {
+  try {
+    return { accounts: authService.getDirectoryAccounts(), completions: cloudEmployeeAccess ? {} : readSurveyCompletions(), error: '' }
+  } catch {
+    return { accounts: [], completions: {}, error: 'No se pudieron leer las cuentas o el avance de las encuestas.' }
   }
 }
 
@@ -104,9 +115,12 @@ function PeopleTable({ people, onEdit }: { people: Cinepolito[]; onEdit: (person
   </div>
 }
 
-export default function ExpertDashboard({ onBack }: { onBack: () => void }) {
+export default function ExpertDashboard({ quizzes, quizLoadError, onReloadQuizzes, onBack }: {
+  quizzes: Quiz[]; quizLoadError: boolean; onReloadQuizzes: () => Promise<void>; onBack: () => void
+}) {
   const [initial] = useState(readInitial)
   const [stored, setStored] = useState(initial.data)
+  const [synced, setSynced] = useState(readSyncedData)
   const [page, setPage] = useState(getPage)
   const [menu, setMenu] = useState(false)
   const [editor, setEditor] = useState<Editor | null>(null)
@@ -120,7 +134,9 @@ export default function ExpertDashboard({ onBack }: { onBack: () => void }) {
   const [courseFilter, setCourseFilter] = useState('')
   const [query, setQuery] = useState('')
   const [taskFilter, setTaskFilter] = useState<TaskFilter>('open')
-  const workspace = stored
+  const directory = useMemo(() => getDirectoryPeople(stored.people, synced.accounts), [stored.people, synced.accounts])
+  const workspace = useMemo(() => getTrainingWorkspace(stored, directory, quizzes, synced.completions),
+    [stored, directory, quizzes, synced.completions])
   const openTasks = pendingTasks(workspace.tasks)
   const pending = filterPeople(workspace.people, 'pending').length
   const current = filterPeople(workspace.people, 'complete').length
@@ -148,6 +164,9 @@ export default function ExpertDashboard({ onBack }: { onBack: () => void }) {
       setMenu(false)
     }
     function storageChanged(event: StorageEvent) {
+      if (!cloudEmployeeAccess && (event.key === USERS_STORAGE_KEY || event.key === surveyCompletionKey || event.key === null)) {
+        setSynced(readSyncedData())
+      }
       if (event.key !== storageKey && event.key !== null) return
       try {
         setStored(readWorkspace())
@@ -161,6 +180,32 @@ export default function ExpertDashboard({ onBack }: { onBack: () => void }) {
     return () => {
       window.removeEventListener('hashchange', hashChanged)
       window.removeEventListener('storage', storageChanged)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!cloudEmployeeAccess) return
+    let active = true
+    let loading = false
+    async function refreshDirectory() {
+      if (loading) return
+      loading = true
+      try {
+        const [accounts, completions] = await Promise.all([authService.loadDirectoryAccounts(), loadSurveyCompletions()])
+        if (active) setSynced({ accounts, completions, error: '' })
+      } catch {
+        if (active) setSynced(previous => ({ ...previous, error: 'No se pudo actualizar el directorio de cuentas y encuestas.' }))
+      } finally {
+        loading = false
+      }
+    }
+    void refreshDirectory()
+    const timer = window.setInterval(refreshDirectory, 20000)
+    window.addEventListener('focus', refreshDirectory)
+    return () => {
+      active = false
+      window.clearInterval(timer)
+      window.removeEventListener('focus', refreshDirectory)
     }
   }, [])
 
@@ -200,6 +245,7 @@ export default function ExpertDashboard({ onBack }: { onBack: () => void }) {
         const next = { ...transform(readWorkspace()), updatedAt: new Date().toISOString() }
         localStorage.setItem(storageKey, JSON.stringify(next))
         setStored(next)
+        if (!cloudEmployeeAccess) setSynced(readSyncedData())
         setStorageError('')
       }
       if (navigator.locks) await navigator.locks.request(storageKey, write)
@@ -222,23 +268,45 @@ export default function ExpertDashboard({ onBack }: { onBack: () => void }) {
 
   function savePerson(person: Cinepolito) {
     return commit(latest => {
-      if (person.number && latest.people.some(item => item.id !== person.id && normalize(item.number) === normalize(person.number))) {
+      const accounts = authService.getDirectoryAccounts()
+      const people = getDirectoryPeople(latest.people, accounts)
+      const current = people.find(item => person.accountId ? item.accountId === person.accountId : item.id === person.id)
+      if (!current && editor?.kind === 'person' && editor.record) {
+        throw new DOMException('El registro de este cinepolito cambió. Vuelve a abrirlo desde el directorio.', 'ValidationError')
+      }
+      const record = current?.accountId ? current : person
+      const number = employeeKey(record.number)
+      if (!record.accountId && number && people.some(item => item.id !== person.id && employeeKey(item.number) === number)) {
         throw new DOMException('Ese número de empleado ya está registrado.', 'ValidationError')
       }
       const progress = Object.fromEntries(latest.courses.filter(course => Object.hasOwn(person.progress, course.id)).map(course => [course.id, person.progress[course.id]]))
-      const canonicalArea = latest.people.find(item => normalize(item.area) === normalize(person.area))?.area ?? person.area
-      return { ...latest, people: upsert(latest.people, { ...person, area: canonicalArea, progress }) }
+      const area = record.accountId ? record.area : people.find(item => normalize(item.area) === normalize(record.area))?.area ?? record.area
+      const uniqueAccountNumber = number && accounts.filter(account => employeeKey(account.employeeNumber) === number).length === 1
+      const storedPeople = record.accountId ? latest.people.filter(item => item.id === record.id ||
+        (item.accountId ? item.accountId !== record.accountId : !uniqueAccountNumber || employeeKey(item.number) !== number)) : latest.people
+      return { ...latest, people: upsert(storedPeople, { ...record, area, progress }) }
     }, 'Cinepolito guardado.')
+  }
+
+  function removePerson(id: string) {
+    return commit(latest => {
+      const person = getDirectoryPeople(latest.people, authService.getDirectoryAccounts()).find(item => item.id === id)
+      if (person?.accountId) {
+        throw new DOMException('Esta persona ya tiene una cuenta. Gestiona su acceso en Administración.', 'ValidationError')
+      }
+      return { ...latest, people: latest.people.filter(item => item.id !== id) }
+    }, 'Cinepolito eliminado.')
   }
 
   function importPeople(rows: EmployeeRow[], defaultArea: string) {
     let count = 0
     return commit(latest => {
-      const knownIds = new Set(latest.people.map(person => normalize(person.number)))
-      const knownAreas = new Map(latest.people.map(person => [normalize(person.area), person.area]))
+      const people = getDirectoryPeople(latest.people, authService.getDirectoryAccounts())
+      const knownIds = new Set(people.map(person => employeeKey(person.number)))
+      const knownAreas = new Map(people.map(person => [normalize(person.area), person.area]))
       const added: Cinepolito[] = []
       for (const row of rows) {
-        const id = normalize(row.number)
+        const id = employeeKey(row.number)
         if (knownIds.has(id)) continue
         knownIds.add(id)
         const area = row.area || defaultArea || 'Sin asignar'
@@ -338,6 +406,10 @@ export default function ExpertDashboard({ onBack }: { onBack: () => void }) {
         </header>
 
         {storageError && <p className="storage-error" role="alert">{storageError}</p>}
+        {synced.error && <p className="storage-error" role="alert">{synced.error}</p>}
+        {quizLoadError && <div className="storage-error" role="alert">
+          No se pudieron cargar las encuestas de Kahoot. <button className="text-button" onClick={() => void onReloadQuizzes()}>Reintentar</button>
+        </div>}
 
         {page === 'resumen' && <>
           <section className="hero" aria-label="Learning Center">
@@ -417,7 +489,9 @@ export default function ExpertDashboard({ onBack }: { onBack: () => void }) {
             const coursePeople = filterPeople(workspace.people, 'all', '', course.id)
             const done = coursePeople.filter(person => person.progress[course.id]).length
             return <article className="panel course-card" key={course.id}>
-              <div className="course-head"><span className="tile-icon blue"><BookOpen size={22} /></span><button className="icon-button" aria-label={'Editar ' + course.name} onClick={() => openEditor({ kind: 'course', record: course })}><Pencil size={17} /></button></div>
+              <div className="course-head"><span className="tile-icon blue"><BookOpen size={22} /></span>{course.survey
+                ? <small>Encuesta de Kahoot</small>
+                : <button className="icon-button" aria-label={'Editar ' + course.name} onClick={() => openEditor({ kind: 'course', record: course })}><Pencil size={17} /></button>}</div>
               <h2>{course.name}</h2>{course.description && <p>{course.description}</p>}
               <div className="course-progress"><progress aria-label={'Avance de ' + course.name} max={100} value={coursePeople.length ? done / coursePeople.length * 100 : 0} /><small>{done} de {coursePeople.length} cinepolitos lo completaron</small></div>
               <button className="text-button" onClick={() => showPeople('pending', course.id)}>Ver pendientes ({coursePeople.length - done}) <ArrowRight size={15} /></button>
@@ -434,9 +508,7 @@ export default function ExpertDashboard({ onBack }: { onBack: () => void }) {
     {notice && <div className="toast" role="status"><CheckCircle2 size={19} /> {notice}</div>}
 
     {editor?.kind === 'person' && <PersonForm person={editor.record} workspace={workspace} busy={busy} error={formError}
-      onClose={closeEditor} onSave={savePerson} onDelete={editor.record && (() => commit(latest => ({
-        ...latest, people: latest.people.filter(person => person.id !== editor.record!.id),
-      }), 'Cinepolito eliminado.'))} />}
+      onClose={closeEditor} onSave={savePerson} onDelete={editor.record && !editor.record.accountId ? () => removePerson(editor.record!.id) : undefined} />}
     {editor?.kind === 'course' && <CourseForm course={editor.record} busy={busy} error={formError} onClose={closeEditor} onSave={saveCourse}
       onDelete={editor.record && (() => removeCourse(editor.record!.id))} />}
     {editor?.kind === 'task' && <TaskForm task={editor.record} busy={busy} error={formError} onClose={closeEditor}

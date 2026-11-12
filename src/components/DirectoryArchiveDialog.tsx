@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { authService } from '../services/authService';
+import { localAuthService } from '../services/authService';
 
 export function DirectoryArchiveDialog({ onClose, onDone }: { onClose: () => void; onDone: (message: string) => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
-  const [restore] = useState(() => authService.hasDirectoryArchive());
+  const [restore] = useState(() => localAuthService.hasDirectoryArchive());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -28,7 +28,7 @@ export function DirectoryArchiveDialog({ onClose, onDone }: { onClose: () => voi
         setBusy(true);
         setError('');
         try {
-          const result = restore ? await authService.restoreDirectory() : await authService.archiveDirectory(employeeId);
+          const result = restore ? await localAuthService.restoreDirectory() : await localAuthService.archiveDirectory(employeeId);
           onDone(restore
             ? 'Se restauraron las cuentas y los registros archivados.'
             : 'Limpieza completada. Cuentas archivadas: ' + result.accounts + '. Registros del directorio archivados: ' + result.people + '.');

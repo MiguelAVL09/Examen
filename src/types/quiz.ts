@@ -121,10 +121,9 @@ export interface UserAccount {
   fullName?: string;
   employeeNumber?: string;
   role: UserRole;
+  isMaster?: boolean;
   branch?: string;
   department?: string;
-  passwordHash: string;
-  salt: string;
   securityQuestion?: string;
   securityAnswerHash?: string;
   createdAt: string;

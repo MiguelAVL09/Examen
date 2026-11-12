@@ -137,7 +137,7 @@ export interface DetailedParticipantAnswer {
   orderIndex: number;
 }
 
-const LOCAL_STORAGE_QUIZZES_KEY = 'kahoot_quizzes_v2';
+export const LOCAL_STORAGE_QUIZZES_KEY = 'kahoot_quizzes_v2';
 const LOCAL_STORAGE_PARTICIPANTS_KEY = 'kahoot_participants_v1';
 const LOCAL_STORAGE_SESSIONS_KEY = 'kahoot_sessions_v1';
 
@@ -553,6 +553,8 @@ const initializeLocalQuizzes = (): Quiz[] => {
 };
 
 export const quizService = {
+  getCachedQuizzes: initializeLocalQuizzes,
+
   async getQuizzes(): Promise<Quiz[]> {
     const localQuizzes = initializeLocalQuizzes();
 

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { ArrowLeft, ArrowRight, Check, Eye, EyeOff, IdCard, LockKeyhole } from 'lucide-react';
-import { authService } from '../services/authService';
+import { authService, cloudEmployeeAccess, localAuthService } from '../services/authService';
 import './AuthScreen.css';
 
 type Mode = 'login' | 'register' | 'recover';
@@ -70,11 +70,11 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: () => boolean
     try {
       if (mode === 'recover') {
         if (!question) {
-          const result = await authService.getSecurityQuestion(id);
+          const result = await localAuthService.getSecurityQuestion(id);
           if (result.success && result.question) setQuestion(result.question);
           else setError(result.error || 'No se pudo consultar tu pregunta de seguridad.');
         } else {
-          const result = await authService.recoverPasswordWithQuestion(id, value('securityAnswer'), value('password'));
+          const result = await localAuthService.recoverPasswordWithQuestion(id, value('securityAnswer'), value('password'));
           if (result.success) {
             changeMode('login');
             setStatus('Contraseña restablecida. Ya puedes iniciar sesión.');
@@ -83,7 +83,7 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: () => boolean
         return;
       }
 
-      const result = mode === 'register' ? await authService.register({
+      const result = mode === 'register' ? await localAuthService.register({
         name: value('name'),
         employeeNumber: id,
         department: value('department'),
@@ -179,7 +179,8 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: () => boolean
               </button>
             </form>
 
-            {mode === 'login' && <div className="auth-links">
+            {mode === 'login' && cloudEmployeeAccess && <p className="auth-hint">Si necesitas una cuenta o restablecer tu contraseña, consulta a Administración.</p>}
+            {mode === 'login' && !cloudEmployeeAccess && <div className="auth-links">
               <button type="button" className="auth-link" disabled={busy} onClick={() => changeMode('recover')}>Olvidé mi contraseña</button>
               <button type="button" className="auth-link" disabled={busy} onClick={() => changeMode('register')}>Crear cuenta</button>
             </div>}
