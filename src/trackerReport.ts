@@ -19,7 +19,7 @@ function courseSummary(person: Cinepolito, workspace: Workspace, courseId: strin
   return courses.map(course => course.name + (person.progress[course.id] ? ' (completado)' : ' (pendiente)')).join('\n') || 'Sin cursos asignados'
 }
 
-export async function downloadReport(workspace: Workspace, filters: ReportFilters, demo: boolean) {
+export async function downloadReport(workspace: Workspace, filters: ReportFilters) {
   const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([import('jspdf'), import('jspdf-autotable')])
   const doc = new jsPDF({ orientation: 'landscape', putOnlyUsedFonts: true })
   const width = doc.internal.pageSize.getWidth()
@@ -65,7 +65,7 @@ export async function downloadReport(workspace: Workspace, filters: ReportFilter
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(9)
       const count = body.length + (body.length === 1 ? ' registro' : ' registros')
-      doc.text(formatUpdate(new Date().toISOString()) + '  |  ' + count + (demo ? '  |  Datos de ejemplo' : ''), 14, 31)
+      doc.text(formatUpdate(new Date().toISOString()) + '  |  ' + count, 14, 31)
       if (filterLines.length) doc.text(filterLines, 14, 37)
     },
   })
@@ -79,5 +79,5 @@ export async function downloadReport(workspace: Workspace, filters: ReportFilter
     doc.text('Seguimiento de capacitación y operación', 14, footerY)
     doc.text(page + ' / ' + pages, width - 14, footerY, { align: 'right' })
   }
-  doc.save('cinepolis-expertos-' + (demo ? 'ejemplo-' : '') + filters.type + '.pdf')
+  doc.save('cinepolis-expertos-' + filters.type + '.pdf')
 }

@@ -6,8 +6,8 @@ import { normalize, pendingTasks } from './tracker'
 import { downloadReport, reportLabels, reportPeople } from './trackerReport'
 import type { ReportFilters, ReportType } from './trackerReport'
 
-export function Dialog({ title, subtitle, children, onClose, busy = false, demo = false }: {
-  title: string; subtitle: string; children: ReactNode; onClose: () => void; busy?: boolean; demo?: boolean
+export function Dialog({ title, subtitle, children, onClose, busy = false }: {
+  title: string; subtitle: string; children: ReactNode; onClose: () => void; busy?: boolean
 }) {
   const ref = useRef<HTMLDialogElement>(null)
   useEffect(() => {
@@ -23,7 +23,6 @@ export function Dialog({ title, subtitle, children, onClose, busy = false, demo 
       <div><h2 id="dialog-title">{title}</h2><p>{subtitle}</p></div>
       <button className="icon-button" type="button" aria-label="Cerrar ventana" onClick={onClose} disabled={busy}><X size={20} /></button>
     </header>
-    {demo && <p className="demo-note">Estás en la vista de ejemplo. Los cambios aquí se pierden al recargar.</p>}
     {children}
   </dialog>
 }
@@ -44,8 +43,8 @@ function FormActions({ busy, editing, onClose, onDelete }: {
   </footer>
 }
 
-export function PersonForm({ person, workspace, demo, busy, error, onSave, onClose, onDelete }: {
-  person?: Cinepolito; workspace: Workspace; demo: boolean; busy: boolean; error: string;
+export function PersonForm({ person, workspace, busy, error, onSave, onClose, onDelete }: {
+  person?: Cinepolito; workspace: Workspace; busy: boolean; error: string;
   onSave: (person: Cinepolito) => Promise<boolean>; onClose: () => void; onDelete?: () => Promise<boolean>
 }) {
   const [name, setName] = useState(person?.name ?? '')
@@ -63,7 +62,7 @@ export function PersonForm({ person, workspace, demo, busy, error, onSave, onClo
       progress: Object.fromEntries(workspace.courses.filter(course => Object.hasOwn(progress, course.id)).map(course => [course.id, progress[course.id]])),
     })
   }
-  return <Dialog title={person ? 'Editar cinepolito' : 'Agregar cinepolito'} subtitle="Registra sus datos y actualiza su avance en Learning Center." onClose={onClose} busy={busy} demo={demo}>
+  return <Dialog title={person ? 'Editar cinepolito' : 'Agregar cinepolito'} subtitle="Registra sus datos y actualiza su avance en Learning Center." onClose={onClose} busy={busy}>
     <form onSubmit={submit}>
       <div className="dialog-body form-grid">
         <label className="span-all">Nombre completo<input required maxLength={100} value={name} onChange={e => setName(e.target.value)} placeholder="Ej. Valeria Morales" /></label>
@@ -91,11 +90,11 @@ export function PersonForm({ person, workspace, demo, busy, error, onSave, onClo
   </Dialog>
 }
 
-export function CourseForm({ course, demo, busy, error, onSave, onClose, onDelete }: {
-  course?: Course; demo: boolean; busy: boolean; error: string; onSave: (course: Course) => Promise<boolean>; onClose: () => void; onDelete?: () => Promise<boolean>
+export function CourseForm({ course, busy, error, onSave, onClose, onDelete }: {
+  course?: Course; busy: boolean; error: string; onSave: (course: Course) => Promise<boolean>; onClose: () => void; onDelete?: () => Promise<boolean>
 }) {
   const [validation, setValidation] = useState('')
-  return <Dialog title={course ? 'Editar curso' : 'Agregar curso'} subtitle="Administra el catálogo de cursos que puedes asignar a tu equipo." onClose={onClose} busy={busy} demo={demo}>
+  return <Dialog title={course ? 'Editar curso' : 'Agregar curso'} subtitle="Administra el catálogo de cursos que puedes asignar a tu equipo." onClose={onClose} busy={busy}>
     <form onSubmit={event => {
       event.preventDefault()
       const data = new FormData(event.currentTarget)
@@ -115,11 +114,11 @@ export function CourseForm({ course, demo, busy, error, onSave, onClose, onDelet
   </Dialog>
 }
 
-export function TaskForm({ task, demo, busy, error, onSave, onClose, onDelete }: {
-  task?: Task; demo: boolean; busy: boolean; error: string; onSave: (task: Task) => Promise<boolean>; onClose: () => void; onDelete?: () => Promise<boolean>
+export function TaskForm({ task, busy, error, onSave, onClose, onDelete }: {
+  task?: Task; busy: boolean; error: string; onSave: (task: Task) => Promise<boolean>; onClose: () => void; onDelete?: () => Promise<boolean>
 }) {
   const [validation, setValidation] = useState('')
-  return <Dialog title={task ? 'Editar tarea' : 'Nueva tarea'} subtitle="Da seguimiento a las actividades del equipo." onClose={onClose} busy={busy} demo={demo}>
+  return <Dialog title={task ? 'Editar tarea' : 'Nueva tarea'} subtitle="Da seguimiento a las actividades del equipo." onClose={onClose} busy={busy}>
     <form onSubmit={event => {
       event.preventDefault()
       const data = new FormData(event.currentTarget)
@@ -146,8 +145,8 @@ export function TaskForm({ task, demo, busy, error, onSave, onClose, onDelete }:
   </Dialog>
 }
 
-export function ReportForm({ workspace, demo, onClose, onDownload, initial }: {
-  workspace: Workspace; demo: boolean; onClose?: () => void; onDownload: () => void; initial: ReportFilters
+export function ReportForm({ workspace, onClose, onDownload, initial }: {
+  workspace: Workspace; onClose?: () => void; onDownload: () => void; initial: ReportFilters
 }) {
   const [filters, setFilters] = useState(initial)
   const [busy, setBusy] = useState(false)
@@ -159,7 +158,7 @@ export function ReportForm({ workspace, demo, onClose, onDownload, initial }: {
     setBusy(true)
     setError('')
     try {
-      await downloadReport(workspace, filters, demo)
+      await downloadReport(workspace, filters)
       onDownload()
     } catch {
       setError('No se pudo generar el PDF. Vuelve a intentarlo.')
@@ -182,7 +181,7 @@ export function ReportForm({ workspace, demo, onClose, onDownload, initial }: {
           {workspace.courses.map(course => <option key={course.id} value={course.id}>{course.name}</option>)}
         </select></label>}
       </>}
-      <div className="report-summary span-all" aria-live="polite"><FileText size={20} /><div><strong>{count} {tasks ? (count === 1 ? 'tarea pendiente' : 'tareas pendientes') : (count === 1 ? 'cinepolito' : 'cinepolitos')}</strong><p>{demo ? 'El PDF llevará la marca «Datos de ejemplo».' : 'Registros incluidos con los filtros seleccionados.'}</p></div></div>
+      <div className="report-summary span-all" aria-live="polite"><FileText size={20} /><div><strong>{count} {tasks ? (count === 1 ? 'tarea pendiente' : 'tareas pendientes') : (count === 1 ? 'cinepolito' : 'cinepolitos')}</strong><p>Registros incluidos con los filtros seleccionados.</p></div></div>
       {error && <p className="form-error span-all" role="alert">{error}</p>}
     </div>
     <footer className="dialog-actions"><div className="action-end">

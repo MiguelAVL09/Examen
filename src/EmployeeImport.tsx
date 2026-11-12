@@ -5,8 +5,8 @@ import { normalize } from './tracker'
 import type { Cinepolito } from './tracker'
 import type { EmployeeRow } from './employeePdf'
 
-export function EmployeeImport({ people, busy, demo, error, onClose, onImport }: {
-  people: Cinepolito[]; busy: boolean; demo: boolean; error: string; onClose: () => void;
+export function EmployeeImport({ people, busy, error, onClose, onImport }: {
+  people: Cinepolito[]; busy: boolean; error: string; onClose: () => void;
   onImport: (rows: EmployeeRow[], area: string) => Promise<boolean>
 }) {
   const [fileName, setFileName] = useState('')
@@ -45,7 +45,7 @@ export function EmployeeImport({ people, busy, demo, error, onClose, onImport }:
     }
   }
 
-  return <Dialog title="Importar cinepolitos desde PDF" subtitle="Sube una lista con un ID por renglón o una tabla con la columna «ID de empleado»." onClose={onClose} busy={reading || busy} demo={demo}>
+  return <Dialog title="Importar cinepolitos desde PDF" subtitle="Sube una lista con un ID por renglón o una tabla con la columna «ID de empleado»." onClose={onClose} busy={reading || busy}>
     <form onSubmit={event => {
       event.preventDefault()
       if (selected.length) void onImport(selected, area.trim())

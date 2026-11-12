@@ -42,8 +42,6 @@
 .expert-app .workspace-icon { flex: 0 0 32px; height: 32px; background: #223251; color: #b6c9ff; border-radius: 8px; display: grid; place-items: center; }
 .expert-app .workspace-indicator strong { color: #eaf0ff; display: block; font-size: 12px; }
 .expert-app .workspace-indicator small { display: block; font-size: 10px; margin-top: 2px; }
-.expert-app .switch-mode { color: #bfcefc; border: 0; background: transparent; margin-top: 12px; padding: 5px 0; display: flex; align-items: center; justify-content: space-between; width: 100%; text-align: left; font-size: 12px; font-weight: 700; }
-.expert-app .switch-mode:hover { color: white; }
 .expert-app .main-shell { margin-left: var(--sidebar); }
 .expert-app .topbar {
   min-height: 64px; background: #fff; border-bottom: 1px solid var(--border); padding: 0 32px;
@@ -53,11 +51,6 @@
 .expert-app .breadcrumb strong { color: var(--ink); font-weight: 750; }
 .expert-app .top-date svg { color: #526589; }
 .expert-app .top-meta { gap: 16px; }
-.expert-app .demo-badge {
-  display: inline-flex; align-items: center; gap: 6px; border: 1px solid #e8d5a6; border-radius: 6px;
-  background: #fff5dc; color: #684608; padding: 5px 8px; font-size: 11px; font-weight: 750;
-}
-.expert-app .demo-badge:hover { background: #ffedbb; }
 .expert-app .back-button {
   display: inline-flex; align-items: center; gap: 6px; padding: 5px 8px; min-height: 34px; border-radius: 7px;
   color: #425478; font-size: 12px; font-weight: 750; white-space: nowrap;
@@ -218,7 +211,6 @@
 .expert-app .course-choice select { margin: 0 !important; }
 .expert-app .form-hint { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .expert-app .form-error,.expert-app  .storage-error { background: #fcebee; color: #912535; padding: 9px 10px; border-radius: 7px; font-size: 13px; }
-.expert-app .demo-note { background: #fff5dc; color: #684608; padding: 8px 20px; font-size: 12px; }
 .expert-app .import-body { display: grid; gap: 11px; }
 .expert-app .import-file { display: grid; gap: 5px; font-size: 13px; font-weight: 750; }
 .expert-app .import-file input { font-weight: 500; }
@@ -283,7 +275,6 @@
 @media (max-width: 475px) {
   .expert-app .breadcrumb > span,.expert-app  .breadcrumb > svg { display: none; }
   .expert-app .top-date { gap: 5px; font-size: 11px; }
-  .expert-app .top-meta:has(.demo-badge) .top-date { display: none; }
   .expert-app .back-button span { display: none; }
   .expert-app .hero::before { inset-inline-start: 12%; background: linear-gradient(90deg,#0e1d43 0%,#0e1d43a8 100%), url('/expertos-film.webp') right center / cover no-repeat; }
   .expert-app .hero h2 { max-width: 225px; }

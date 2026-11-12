@@ -9,7 +9,7 @@ import { CourseForm, PersonForm, ReportForm, TaskForm } from './TrackerDialogs'
 import { EmployeeImport } from './EmployeeImport'
 import type { EmployeeRow } from './employeePdf'
 import {
-  calendarDate, createDemoWorkspace, emptyWorkspace, filterPeople, formatDate, formatUpdate,
+  calendarDate, emptyWorkspace, filterPeople, formatDate, formatUpdate,
   getProgress, getStatus, normalize, pendingTasks, readWorkspace, statusLabels, storageKey,
 } from './tracker'
 import type { Cinepolito, Course, PeopleStatus, Task, Workspace } from './tracker'
@@ -47,10 +47,9 @@ function upsert<T extends { id: string }>(items: T[], record: T) {
 
 function readInitial() {
   try {
-    const mode = localStorage.getItem('cinepolis-expertos.mode')
-    return { data: readWorkspace(), error: '', demo: mode === 'demo' || (mode !== 'real' && !localStorage.getItem(storageKey)) }
+    return { data: readWorkspace(), error: '' }
   } catch {
-    return { data: emptyWorkspace, error: 'No se pudieron leer los registros guardados en este navegador.', demo: false }
+    return { data: emptyWorkspace, error: 'No se pudieron leer los registros guardados en este navegador.' }
   }
 }
 
@@ -108,8 +107,6 @@ function PeopleTable({ people, onEdit }: { people: Cinepolito[]; onEdit: (person
 export default function ExpertDashboard({ onBack }: { onBack: () => void }) {
   const [initial] = useState(readInitial)
   const [stored, setStored] = useState(initial.data)
-  const [demoData, setDemoData] = useState(createDemoWorkspace)
-  const [demo, setDemo] = useState(initial.demo)
   const [page, setPage] = useState(getPage)
   const [menu, setMenu] = useState(false)
   const [editor, setEditor] = useState<Editor | null>(null)
@@ -123,7 +120,7 @@ export default function ExpertDashboard({ onBack }: { onBack: () => void }) {
   const [courseFilter, setCourseFilter] = useState('')
   const [query, setQuery] = useState('')
   const [taskFilter, setTaskFilter] = useState<TaskFilter>('open')
-  const workspace = demo ? demoData : stored
+  const workspace = stored
   const openTasks = pendingTasks(workspace.tasks)
   const pending = filterPeople(workspace.people, 'pending').length
   const current = filterPeople(workspace.people, 'complete').length
@@ -193,22 +190,6 @@ export default function ExpertDashboard({ onBack }: { onBack: () => void }) {
     setEditor(next)
   }
 
-  function switchMode() {
-    if (committing.current) return
-    const next = !demo
-    setDemo(next)
-    setQuery('')
-    setStatus('all')
-    setArea('')
-    setCourseFilter('')
-    setTaskFilter('open')
-    try {
-      localStorage.setItem('cinepolis-expertos.mode', next ? 'demo' : 'real')
-    } catch {
-      setStorageError('El navegador no permite guardar los registros. Revisa la configuración de almacenamiento.')
-    }
-  }
-
   async function commit(transform: (latest: Workspace) => Workspace, message: string | (() => string)) {
     if (committing.current) return false
     committing.current = true
@@ -216,16 +197,12 @@ export default function ExpertDashboard({ onBack }: { onBack: () => void }) {
     setFormError('')
     try {
       function write() {
-        const latest = demo ? demoData : readWorkspace()
-        const next = { ...transform(latest), updatedAt: new Date().toISOString() }
-        if (demo) setDemoData(next)
-        else {
-          localStorage.setItem(storageKey, JSON.stringify(next))
-          setStored(next)
-          setStorageError('')
-        }
+        const next = { ...transform(readWorkspace()), updatedAt: new Date().toISOString() }
+        localStorage.setItem(storageKey, JSON.stringify(next))
+        setStored(next)
+        setStorageError('')
       }
-      if (!demo && navigator.locks) await navigator.locks.request(storageKey, write)
+      if (navigator.locks) await navigator.locks.request(storageKey, write)
       else write()
       setEditor(null)
       setNotice(typeof message === 'string' ? message : message())
@@ -329,9 +306,8 @@ export default function ExpertDashboard({ onBack }: { onBack: () => void }) {
       </nav>
       <div className="sidebar-bottom">
         <div className="workspace-indicator"><span className="workspace-icon"><Database size={17} /></span>
-          <div><strong>{demo ? 'Vista de ejemplo' : 'Datos del equipo'}</strong><small>{demo ? 'Registros ficticios' : 'Guardado en este navegador'}</small></div>
+          <div><strong>Datos del equipo</strong><small>Guardado en este navegador</small></div>
         </div>
-        {!demo && <button className="switch-mode" onClick={switchMode} disabled={busy}>Ver datos de ejemplo<ArrowRight size={15} /></button>}
       </div>
     </aside>
 
@@ -342,7 +318,6 @@ export default function ExpertDashboard({ onBack }: { onBack: () => void }) {
           <span>Espacio de trabajo</span><ChevronRight size={14} /><strong>{pages.find(item => item.id === page)?.label}</strong>
         </div>
         <div className="top-meta">
-          {demo && <button className="demo-badge" type="button" onClick={switchMode} disabled={busy} title="Salir de la vista de ejemplo">Usar datos reales <ArrowRight size={14} /></button>}
           <div className="top-date"><CalendarDays size={16} /><span>{formatDate(calendarDate(), true)}</span></div>
           <button className="back-button" onClick={onBack} aria-label="Volver a encuestas" title="Volver a encuestas" disabled={busy}><ArrowLeft size={16} /><span>Volver a encuestas</span></button>
         </div>
@@ -362,7 +337,7 @@ export default function ExpertDashboard({ onBack }: { onBack: () => void }) {
           </div>
         </header>
 
-        {!demo && storageError && <p className="storage-error" role="alert">{storageError}</p>}
+        {storageError && <p className="storage-error" role="alert">{storageError}</p>}
 
         {page === 'resumen' && <>
           <section className="hero" aria-label="Learning Center">
@@ -450,25 +425,25 @@ export default function ExpertDashboard({ onBack }: { onBack: () => void }) {
           })}
         </div> : <div className="panel"><SectionEmpty icon={BookOpen} title="Aún no hay cursos" description="Agrega un curso para asignarlo a los cinepolitos." /></div>)}
 
-        {page === 'reportes' && <ReportForm key={demo ? 'demo' : 'real'} workspace={workspace} demo={demo} initial={reportFilters} onDownload={() => setNotice('PDF generado.')} />}
+        {page === 'reportes' && <ReportForm workspace={workspace} initial={reportFilters} onDownload={() => setNotice('PDF generado.')} />}
 
-        <footer className="page-footer"><span>Cinépolis Expertos</span><span><Clock3 size={14} />{workspace.updatedAt ? 'Actualizado ' + formatUpdate(workspace.updatedAt) : demo ? 'Datos de ejemplo' : 'Sin registros actualizados'}</span></footer>
+        <footer className="page-footer"><span>Cinépolis Expertos</span><span><Clock3 size={14} />{workspace.updatedAt ? 'Actualizado ' + formatUpdate(workspace.updatedAt) : 'Sin registros actualizados'}</span></footer>
       </main>
     </div>
 
     {notice && <div className="toast" role="status"><CheckCircle2 size={19} /> {notice}</div>}
 
-    {editor?.kind === 'person' && <PersonForm person={editor.record} workspace={workspace} demo={demo} busy={busy} error={formError}
+    {editor?.kind === 'person' && <PersonForm person={editor.record} workspace={workspace} busy={busy} error={formError}
       onClose={closeEditor} onSave={savePerson} onDelete={editor.record && (() => commit(latest => ({
         ...latest, people: latest.people.filter(person => person.id !== editor.record!.id),
       }), 'Cinepolito eliminado.'))} />}
-    {editor?.kind === 'course' && <CourseForm course={editor.record} demo={demo} busy={busy} error={formError} onClose={closeEditor} onSave={saveCourse}
+    {editor?.kind === 'course' && <CourseForm course={editor.record} busy={busy} error={formError} onClose={closeEditor} onSave={saveCourse}
       onDelete={editor.record && (() => removeCourse(editor.record!.id))} />}
-    {editor?.kind === 'task' && <TaskForm task={editor.record} demo={demo} busy={busy} error={formError} onClose={closeEditor}
+    {editor?.kind === 'task' && <TaskForm task={editor.record} busy={busy} error={formError} onClose={closeEditor}
       onSave={task => commit(latest => ({ ...latest, tasks: upsert(latest.tasks, task) }), 'Tarea guardada.')}
       onDelete={editor.record && (() => commit(latest => ({ ...latest, tasks: latest.tasks.filter(task => task.id !== editor.record!.id) }), 'Tarea eliminada.'))} />}
-    {editor?.kind === 'import' && <EmployeeImport people={workspace.people} demo={demo} busy={busy} error={formError} onClose={closeEditor} onImport={importPeople} />}
-    {editor?.kind === 'report' && <ReportForm workspace={workspace} demo={demo} initial={reportFilters} onClose={closeEditor} onDownload={() => {
+    {editor?.kind === 'import' && <EmployeeImport people={workspace.people} busy={busy} error={formError} onClose={closeEditor} onImport={importPeople} />}
+    {editor?.kind === 'report' && <ReportForm workspace={workspace} initial={reportFilters} onClose={closeEditor} onDownload={() => {
       closeEditor()
       setNotice('PDF generado.')
     }} />}

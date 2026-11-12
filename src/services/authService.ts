@@ -1,8 +1,16 @@
 import type { UserAccount, UserRole, UserSession } from '../types/quiz';
 import { generateUUID } from './quizService';
+import { readWorkspace, storageKey } from '../tracker';
+import type { Cinepolito, Workspace } from '../tracker';
 
 const USERS_STORAGE_KEY = 'cinepolis_users_secure_v1';
 const SESSION_STORAGE_KEY = 'cinepolis_auth_session_v1';
+const DIRECTORY_ARCHIVE_KEY = 'cinepolis-directory.archive.v1';
+
+interface DirectoryArchive {
+  accounts: UserAccount[];
+  people: Cinepolito[];
+}
 
 // Hash seguro SHA-256 con Salt mediante Web Crypto API
 async function hashText(text: string, salt: string, preserveCase = false): Promise<string> {
@@ -78,29 +86,7 @@ class AuthService {
         isActive: true,
       };
 
-      // Cuenta de colaborador demostrativa para pruebas inmediatas
-      const demoSalt = generateSalt();
-      const demoPassHash = await hashText('Cinepolis123', demoSalt);
-      const demoAnswerHash = await hashText('Diana', demoSalt);
-
-      const demoUser: UserAccount = {
-        id: 'user-demo-cinepolis',
-        email: 'colaborador@cinepolis.com',
-        nickname: 'Cinepolito Diana',
-        name: 'Carlos Mendoza',
-        employeeNumber: 'COL-1042',
-        role: 'user',
-        branch: 'Cinépolis Diana',
-        department: 'Dulcería',
-        passwordHash: demoPassHash,
-        salt: demoSalt,
-        securityQuestion: '¿Cuál es tu sucursal favorita?',
-        securityAnswerHash: demoAnswerHash,
-        createdAt: '2026-01-15T00:00:00.000Z',
-        isActive: true,
-      };
-
-      this.usersCache.push(defaultAdmin, demoUser);
+      this.usersCache.push(defaultAdmin);
       this.saveUsersToStorage();
     }
 
@@ -318,6 +304,81 @@ class AuthService {
   // ============================================================================
   async getUsers(): Promise<UserAccount[]> {
     return this.withAccounts(() => [...this.usersCache]);
+  }
+
+  hasDirectoryArchive() {
+    return localStorage.getItem(DIRECTORY_ARCHIVE_KEY) !== null;
+  }
+
+  async archiveDirectory(keepEmployeeId: string) {
+    return this.changeDirectory(keepEmployeeId);
+  }
+
+  async restoreDirectory() {
+    return this.changeDirectory(null);
+  }
+
+  private changeDirectory(keepEmployeeId: string | null) {
+    return this.withAccounts(async () => {
+      const run = () => {
+        const admin = this.getCurrentUser();
+        if (admin?.role !== 'admin') throw new Error('Inicia sesión como administrador.');
+        const previousArchive = localStorage.getItem(DIRECTORY_ARCHIVE_KEY);
+        const workspace = readWorkspace();
+        const previousAccountCount = this.usersCache.length;
+        let accounts: UserAccount[];
+        let people: Cinepolito[];
+        let archive: DirectoryArchive | null;
+
+        if (keepEmployeeId !== null) {
+          if (previousArchive) throw new Error('Ya hay una limpieza archivada en este navegador.');
+          const { user, error } = this.findByEmployeeId(keepEmployeeId);
+          if (!user) throw new Error(error);
+          if (user.id === admin.id) throw new Error('Ingresa el ID del cinepolito que quieres conservar junto con tu cuenta.');
+          accounts = [admin, user];
+          const keep = new Set(accounts.map(account => employeeKey(account.employeeNumber)).filter(Boolean));
+          people = workspace.people.filter(person => keep.has(employeeKey(person.number)));
+          archive = {
+            accounts: this.usersCache.filter(account => account.id !== admin.id && account.id !== user.id),
+            people: workspace.people.filter(person => !keep.has(employeeKey(person.number))),
+          };
+          if (!archive.accounts.length && !archive.people.length) return { accounts: 0, people: 0 };
+        } else {
+          if (!previousArchive) throw new Error('No hay una limpieza archivada.');
+          const saved: DirectoryArchive = JSON.parse(previousArchive);
+          if (saved.accounts.some(account => this.usersCache.some(current => current.id === account.id ||
+            (employeeKey(account.employeeNumber) && employeeKey(account.employeeNumber) === employeeKey(current.employeeNumber)))) ||
+            saved.people.some(person => workspace.people.some(current => current.id === person.id ||
+              (employeeKey(person.number) && employeeKey(person.number) === employeeKey(current.number))))) {
+            throw new Error('Hay IDs que ya se volvieron a registrar. El archivo sigue guardado.');
+          }
+          accounts = [...this.usersCache, ...saved.accounts];
+          people = [...workspace.people, ...saved.people];
+          archive = null;
+        }
+
+        const nextWorkspace: Workspace = people.length === workspace.people.length ? workspace :
+          { ...workspace, people, updatedAt: new Date().toISOString() };
+        const oldWorkspace = localStorage.getItem(storageKey);
+        const oldAccounts = localStorage.getItem(USERS_STORAGE_KEY);
+        try {
+          if (archive) localStorage.setItem(DIRECTORY_ARCHIVE_KEY, JSON.stringify(archive));
+          if (nextWorkspace !== workspace) localStorage.setItem(storageKey, JSON.stringify(nextWorkspace));
+          localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(accounts));
+          if (!archive) localStorage.removeItem(DIRECTORY_ARCHIVE_KEY);
+          this.usersCache = accounts;
+        } catch {
+          if (oldAccounts === null) localStorage.removeItem(USERS_STORAGE_KEY);
+          else localStorage.setItem(USERS_STORAGE_KEY, oldAccounts);
+          if (oldWorkspace === null) localStorage.removeItem(storageKey);
+          else localStorage.setItem(storageKey, oldWorkspace);
+          if (!previousArchive) localStorage.removeItem(DIRECTORY_ARCHIVE_KEY);
+          throw new Error('El navegador no pudo completar la operación.');
+        }
+        return { accounts: Math.abs(accounts.length - previousAccountCount), people: Math.abs(people.length - workspace.people.length) };
+      };
+      return navigator.locks ? await navigator.locks.request(storageKey, run) : run();
+    });
   }
 
   async updateUser(userId: string, updates: Partial<UserAccount>): Promise<{ success: boolean; user?: UserAccount; error?: string }> {

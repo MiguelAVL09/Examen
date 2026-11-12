@@ -70,6 +70,7 @@ import { InteractiveMedal3D } from './CinemaEffects';
 import { KahootShapeIcon } from './KahootShapes';
 import { ShareQuizModal } from './ShareQuizModal';
 import { AdminCreateUserDialog } from './AdminCreateUserDialog';
+import { DirectoryArchiveDialog } from './DirectoryArchiveDialog';
 
 interface AdminViewProps {
   onBackToHome: () => void;
@@ -119,6 +120,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
   const [userQuizStatusFilter, setUserQuizStatusFilter] = useState<'all' | 'completed' | 'pending'>('all');
   const [editingUser, setEditingUser] = useState<UserAccount | null>(null);
   const [creatingUser, setCreatingUser] = useState(false);
+  const [directoryArchiveOpen, setDirectoryArchiveOpen] = useState(false);
   const [resettingUserPassword, setResettingUserPassword] = useState<{ id: string; name: string } | null>(null);
   const [newTempPassword, setNewTempPassword] = useState<string>('');
   const [passwordResetError, setPasswordResetError] = useState('');
@@ -2941,6 +2943,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
               <button type="button" onClick={() => setCreatingUser(true)} className="btn-cinepolis-gold flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black text-black">
                 <UserPlus className="w-4 h-4" /> Dar de alta usuario
               </button>
+              <button type="button" onClick={() => setDirectoryArchiveOpen(true)} className="rounded-xl border border-white/25 px-4 py-2 text-sm font-bold">
+                {authService.hasDirectoryArchive() ? 'Restaurar limpieza archivada' : 'Limpiar directorio y cuentas'}
+              </button>
             </div>
           </div>
 
@@ -2952,6 +2957,14 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
             setUserQuizStatusFilter('all');
             setUserActionMessage(`Cuenta de ${user.name} creada.`);
             setTimeout(() => setUserActionMessage(''), 4000);
+          }} />}
+          {directoryArchiveOpen && <DirectoryArchiveDialog onClose={() => setDirectoryArchiveOpen(false)} onDone={message => {
+            setDirectoryArchiveOpen(false);
+            setUserSearchQuery('');
+            setUserRoleFilter('all');
+            setUserQuizStatusFilter('all');
+            setUserActionMessage(message);
+            void authService.getUsers().then(setUsersList);
           }} />}
 
           {/* Filtros de Búsqueda de Usuarios */}

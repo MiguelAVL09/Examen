@@ -15,7 +15,7 @@ El botón **Menú**, arriba a la derecha, muestra los espacios de tu cuenta. El 
 
 En **Menú → Administración → Usuarios & Accesos**, un administrador puede usar **Dar de alta usuario** para crear una cuenta con un **ID de empleado único**, un rol y una contraseña inicial. Desde la ficha de cada cuenta puede editar sus datos y rol, asignar el ID a cuentas anteriores que lo tengan pendiente, restablecer la contraseña, suspenderla o reactivarla. El registro por cuenta propia crea cuentas de colaborador.
 
-En el panel de expertos, selecciona **Usar datos reales** para empezar a capturar los registros del equipo. Los cambios en la vista de ejemplo se restablecen al recargar.
+El panel de expertos muestra los registros del equipo guardados en el navegador. Desde **Administración → Usuarios & Accesos**, **Limpiar directorio y cuentas** permite conservar la cuenta administradora y un ID elegido. La limpieza se puede restaurar desde el mismo navegador.
 
 ## Registrar y consultar avances
 
