@@ -5,8 +5,6 @@ import {
   Award,
   BookOpen,
   CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
   Flame,
   RotateCcw,
   Sparkles,
@@ -20,11 +18,10 @@ import {
   MessageCircle,
   Send,
 } from 'lucide-react';
-import type { Participant, ParticipantAnswer, Question, Quiz } from '../types/quiz';
+import type { Participant, ParticipantAnswer, Quiz } from '../types/quiz';
 import { DEFAULT_EXPLANATIONS } from '../services/quizService';
 import { exportDiplomaPDF } from '../utils/pdfExport';
 import { haptic } from '../utils/security';
-import { canPracticeQuiz } from '../utils/quizKind';
 
 // ============================================================================
 // 1. ANIMACIÓN DE APERTURA DE TELÓN DE CINE (Curtains Reveal)
@@ -665,163 +662,5 @@ export const CinemaTicketResult: React.FC<CinemaTicketResultProps> = ({
         )}
       </AnimatePresence>
     </motion.div>
-  );
-};
-
-// ============================================================================
-// 5. MODO PRÁCTICA / "CINE-FLASHCARDS" (Sin afectar el ranking oficial)
-// ============================================================================
-interface FlashcardsModalProps {
-  quiz: Quiz;
-  onClose: () => void;
-  onStartOfficial: () => void;
-}
-
-export const FlashcardsModal: React.FC<FlashcardsModalProps> = ({
-  quiz,
-  onClose,
-  onStartOfficial,
-}) => {
-  const questions: Question[] = quiz.questions || [];
-  const [idx, setIdx] = useState(0);
-  const [flipped, setFlipped] = useState(false);
-
-  const current = questions[idx];
-  if (!current || !canPracticeQuiz(quiz)) return null;
-
-  const correctOption = current.options.find(o => o.isCorrect);
-  const explanation = current.explanation || DEFAULT_EXPLANATIONS[current.id];
-
-  const go = (delta: number) => {
-    haptic(15);
-    setFlipped(false);
-    setIdx(prev => (prev + delta + questions.length) % questions.length);
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.94 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="cinepolis-glass rounded-3xl p-6 sm:p-8 max-w-xl w-full space-y-5 border-2 border-amber-400/40"
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-white/10 pb-3">
-          <div className="flex items-center gap-2.5">
-            <span className="p-2 rounded-xl bg-amber-400/20 text-amber-300">
-              <BookOpen className="w-5 h-5" />
-            </span>
-            <div>
-              <h3 className="text-lg font-black text-white uppercase tracking-wide">
-                Cine-Flashcards de Estudio
-              </h3>
-              <p className="text-[11px] text-white/60">
-                Modo práctica libre • No cuenta como intento ni afecta el ranking
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/70 hover:text-white"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Progreso */}
-        <div className="flex items-center justify-between text-xs font-bold text-white/70">
-          <span>
-            Tarjeta <strong className="text-amber-300">{idx + 1}</strong> de {questions.length}
-          </span>
-          <span className="text-amber-300/90">Toca la tarjeta para voltear ↻</span>
-        </div>
-
-        {/* Tarjeta giratoria */}
-        <motion.div
-          key={`${current.id}-${flipped ? 'back' : 'front'}`}
-          initial={{ rotateY: 90, opacity: 0 }}
-          animate={{ rotateY: 0, opacity: 1 }}
-          transition={{ duration: 0.25 }}
-          onClick={() => {
-            haptic(20);
-            setFlipped(f => !f);
-          }}
-          className={`min-h-[250px] p-6 rounded-2xl border-2 cursor-pointer select-none flex flex-col justify-between transition ${
-            flipped
-              ? 'bg-gradient-to-br from-emerald-950/80 to-slate-900 border-emerald-400/60'
-              : 'bg-gradient-to-br from-blue-950/70 to-slate-950 border-amber-400/40'
-          }`}
-        >
-          {!flipped ? (
-            <>
-              <span className="px-3 py-1 rounded-full bg-amber-400/20 text-amber-300 text-[10px] font-black uppercase tracking-widest self-start">
-                Pregunta #{idx + 1}
-              </span>
-              <p className="text-lg sm:text-xl font-black text-white text-center my-4 leading-snug">
-                {current.questionText}
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-white/75">
-                {current.options.map((o, i) => (
-                  <div key={o.id} className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 truncate">
-                    <strong className="text-amber-300 mr-1.5">{String.fromCharCode(65 + i)}.</strong>
-                    {o.text}
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : (
-            <>
-              <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-black uppercase tracking-widest self-start">
-                ✓ Respuesta Oficial Cinépolis
-              </span>
-              <div className="my-3 text-center">
-                <p className="text-xl sm:text-2xl font-black text-emerald-300">
-                  {correctOption?.text || 'Ver respuesta'}
-                </p>
-              </div>
-              {explanation && (
-                <div className="p-3.5 rounded-xl bg-black/40 border border-white/10 text-xs text-amber-100 leading-relaxed">
-                  <strong className="text-amber-300 block mb-0.5">💡 ¿Por qué es la correcta?</strong>
-                  {explanation}
-                </div>
-              )}
-            </>
-          )}
-        </motion.div>
-
-        {/* Controles */}
-        <div className="flex items-center justify-between gap-3 pt-1">
-          <button
-            type="button"
-            onClick={() => go(-1)}
-            className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center gap-1.5"
-          >
-            <ChevronLeft className="w-4 h-4" />
-            <span>Anterior</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              onClose();
-              onStartOfficial();
-            }}
-            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-300 hover:to-yellow-400 text-black font-black text-xs uppercase tracking-wider shadow-lg"
-          >
-            ¡Listo, Ir al Examen Oficial!
-          </button>
-
-          <button
-            type="button"
-            onClick={() => go(1)}
-            className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center gap-1.5"
-          >
-            <span>Siguiente</span>
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
-      </motion.div>
-    </div>
   );
 };

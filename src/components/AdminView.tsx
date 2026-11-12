@@ -2510,7 +2510,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
                   </span>
                 ) : (
                   <span>
-                    ✨ <strong>Intentos Ilimitados:</strong> Los colaboradores pueden presentar este cuestionario las veces que deseen para práctica, aprendizaje continuo o encuestas de clima laboral.
+                    ✨ <strong>Intentos Ilimitados:</strong> Los colaboradores pueden responder este cuestionario más de una vez.
                   </span>
                 )}
               </div>

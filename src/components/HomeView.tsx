@@ -12,7 +12,6 @@ import {
   Share2,
   User,
   Lock,
-  BookOpen,
   Briefcase,
   ShieldCheck,
   CheckCircle2,
@@ -21,9 +20,8 @@ import {
 import type { Quiz, Participant, UserAccount } from '../types/quiz';
 import { quizService, DEFAULT_DEPARTMENTS } from '../services/quizService';
 import { ShareQuizModal } from './ShareQuizModal';
-import { FlashcardsModal } from './CinemaEffects';
 import { SurveyStartDialog } from './SurveyStartDialog';
-import { canPracticeQuiz, isSurveyQuiz } from '../utils/quizKind';
+import { isSurveyQuiz } from '../utils/quizKind';
 
 interface HomeViewProps {
   quizzes: Quiz[];
@@ -69,7 +67,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
   const [selectedQuiz, setSelectedQuiz] = useState<Quiz | null>(null);
   const [sharingQuiz, setSharingQuiz] = useState<Quiz | null>(null);
-  const [flashcardsQuiz, setFlashcardsQuiz] = useState<Quiz | null>(null);
   const [verifiedParticipant, setVerifiedParticipant] = useState<Participant | null>(null);
   const [isJoinModalOpen, setIsJoinModalOpen] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
@@ -193,14 +190,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-            {canPracticeQuiz(invitedQuiz) && <button
-              type="button"
-              onClick={() => setFlashcardsQuiz(invitedQuiz)}
-              className="flex-1 md:flex-none px-5 py-3.5 bg-black/15 hover:bg-black/25 text-black font-black uppercase text-xs rounded-2xl transition flex items-center justify-center gap-2 border border-black/20"
-            >
-              <BookOpen className="w-4 h-4" />
-              <span>Modo Práctica</span>
-            </button>}
             <button
               onClick={() => handleLaunchSolo(invitedQuiz)}
               className="flex-1 md:flex-none px-7 py-3.5 bg-[#0b0f19] hover:bg-[#151c2e] text-amber-300 font-black uppercase text-xs sm:text-sm rounded-2xl shadow-xl active:scale-95 transition flex items-center justify-center gap-2 border border-amber-400/40"
@@ -259,8 +248,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
       </section>
 
       <section className="quiz-section" aria-labelledby="evaluations-heading">
-        <h2 id="evaluations-heading"><Gamepad2 size={27} aria-hidden="true" /> Evaluaciones y prácticas</h2>
-        <p className="quiz-section-intro">Elige una evaluación o practica antes de comenzar.</p>
+        <h2 id="evaluations-heading"><Gamepad2 size={27} aria-hidden="true" /> Evaluaciones</h2>
+        <p className="quiz-section-intro">Elige la evaluación que te indicaron.</p>
 
         {/* Quizzes Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -326,16 +315,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   <span>Iniciar evaluación</span>
                 </button>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  {canPracticeQuiz(quiz) && <button
-                    onClick={() => setFlashcardsQuiz(quiz)}
-                    className="min-h-11 py-2 px-2 rounded-xl btn-cinepolis-glass font-bold text-sm flex items-center justify-center gap-1.5"
-                    title="Estudiar preguntas sin afectar el ranking"
-                  >
-                    <BookOpen className="w-4 h-4 shrink-0 text-amber-300" />
-                    <span>Practicar</span>
-                  </button>}
-
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <button
                     onClick={() => onHostGame(quiz)}
                     className="min-h-11 py-2 px-2 rounded-xl btn-cinepolis-glass font-bold text-sm flex items-center justify-center gap-1.5"
@@ -516,19 +496,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
                     </select>
                   </div>
 
-                  {/* Botón de Modo Práctica (Cine-Flashcards) antes del examen */}
-                  {canPracticeQuiz(selectedQuiz) && <button
-                    type="button"
-                    onClick={() => {
-                      setIsJoinModalOpen(false);
-                      setFlashcardsQuiz(selectedQuiz);
-                    }}
-                    className="w-full py-2.5 px-4 rounded-2xl btn-cinepolis-glass text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition"
-                  >
-                    <BookOpen className="w-4 h-4 text-amber-300" />
-                    <span>Repasar con Cine-Flashcards (Sin registro de intento)</span>
-                  </button>}
-
                   {/* Botones de Acción */}
                   <div className="flex gap-3 pt-2">
                     <button
@@ -559,19 +526,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
         <ShareQuizModal
           quiz={sharingQuiz}
           onClose={() => setSharingQuiz(null)}
-        />
-      )}
-
-      {/* Cine-Flashcards Study Modal */}
-      {flashcardsQuiz && canPracticeQuiz(flashcardsQuiz) && (
-        <FlashcardsModal
-          quiz={flashcardsQuiz}
-          onClose={() => setFlashcardsQuiz(null)}
-          onStartOfficial={() => {
-            const q = flashcardsQuiz;
-            setFlashcardsQuiz(null);
-            handleLaunchSolo(q);
-          }}
         />
       )}
 
