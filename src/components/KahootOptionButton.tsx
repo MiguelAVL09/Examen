@@ -69,7 +69,7 @@ export const KahootOptionButton: React.FC<OptionButtonProps> = ({
         </div>
 
         {/* Option Text */}
-        <span className="text-sm sm:text-base md:text-xl lg:text-2xl font-extrabold tracking-wide drop-shadow-sm leading-snug break-words">
+        <span className="text-base md:text-xl lg:text-2xl font-extrabold tracking-wide drop-shadow-sm leading-snug break-words">
           {option.text}
         </span>
       </div>

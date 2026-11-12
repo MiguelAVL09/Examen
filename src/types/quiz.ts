@@ -111,11 +111,11 @@ export interface QuizSession {
 // ============================================================================
 // USUARIOS, AUTENTICACIÓN Y SEGURIDAD
 // ============================================================================
-export type UserRole = 'admin' | 'user';
+export type UserRole = 'admin' | 'expert' | 'user';
 
 export interface UserAccount {
   id: string;
-  email: string;
+  email?: string; // Compatibilidad con cuentas anteriores.
   nickname: string;
   name: string;
   fullName?: string;

@@ -5,13 +5,17 @@ const USERS_STORAGE_KEY = 'cinepolis_users_secure_v1';
 const SESSION_STORAGE_KEY = 'cinepolis_auth_session_v1';
 
 // Hash seguro SHA-256 con Salt mediante Web Crypto API
-async function hashText(text: string, salt: string): Promise<string> {
+async function hashText(text: string, salt: string, preserveCase = false): Promise<string> {
   const enc = new TextEncoder();
-  const normalized = text.trim().toLowerCase();
+  const normalized = preserveCase ? text.trim() : text.trim().toLowerCase();
   const data = enc.encode(`${salt}:${normalized}:cinepolis_pepper_2026`);
   const hashBuffer = await crypto.subtle.digest('SHA-256', data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function hashPassword(password: string, salt: string) {
+  return 'v2:' + await hashText(password, salt, true);
 }
 
 function generateSalt(): string {
@@ -21,15 +25,22 @@ function generateSalt(): string {
 }
 
 export interface RegisterDTO {
-  email: string;
   name: string;
-  nickname: string;
-  employeeNumber?: string;
-  branch?: string;
+  employeeNumber: string;
   department: string;
   password: string;
   securityQuestion?: string;
   securityAnswer?: string;
+}
+
+type AccountResult = { success: boolean; user?: UserAccount; error?: string };
+
+function employeeKey(value?: string) {
+  return typeof value === 'string' ? value.trim().normalize('NFKC').toUpperCase() : '';
+}
+
+function validEmployeeId(value: string) {
+  return /^[\p{L}\p{N}][\p{L}\p{N}._/-]{0,29}$/u.test(value);
 }
 
 class AuthService {
@@ -37,16 +48,11 @@ class AuthService {
   private initialized = false;
 
   private async initializeDefaults(): Promise<void> {
+    const stored = localStorage.getItem(USERS_STORAGE_KEY);
+    const accounts: unknown = stored ? JSON.parse(stored) : [];
+    if (!Array.isArray(accounts)) throw new Error('No se pudo leer el directorio de cuentas.');
+    this.usersCache = accounts;
     if (this.initialized) return;
-
-    try {
-      const stored = localStorage.getItem(USERS_STORAGE_KEY);
-      if (stored) {
-        this.usersCache = JSON.parse(stored);
-      }
-    } catch {
-      this.usersCache = [];
-    }
 
     // Verificar si existe la cuenta de Administrador por defecto
     const hasAdmin = this.usersCache.some(u => u.role === 'admin' || u.email === 'admin@cinepolis.com');
@@ -101,80 +107,109 @@ class AuthService {
     this.initialized = true;
   }
 
-  private saveUsersToStorage(): void {
+  private async withAccounts<T>(work: () => T | Promise<T>): Promise<T> {
+    const run = async () => {
+      await this.initializeDefaults();
+      return work();
+    };
+    return navigator.locks ? await navigator.locks.request(USERS_STORAGE_KEY, run) : run();
+  }
+
+  private saveUsersToStorage(): boolean {
     try {
       localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(this.usersCache));
+      return true;
     } catch (err) {
       console.warn('Error al guardar usuarios en almacenamiento seguro:', err);
+      return false;
     }
   }
 
-  async login(identifier: string, password: string): Promise<{ success: boolean; user?: UserAccount; error?: string }> {
-    await this.initializeDefaults();
-    const cleanId = identifier.trim().toLowerCase();
-
-    const user = this.usersCache.find(
-      u =>
-        u.email.toLowerCase() === cleanId ||
-        u.nickname.toLowerCase() === cleanId ||
-        (u.employeeNumber && u.employeeNumber.toLowerCase() === cleanId)
-    );
-
-    if (!user) {
-      return { success: false, error: 'Usuario o correo no encontrado en el sistema.' };
-    }
-
-    if (!user.isActive) {
-      return { success: false, error: 'Esta cuenta ha sido desactivada por el administrador.' };
-    }
-
-    const calculatedHash = await hashText(password, user.salt);
-    if (calculatedHash !== user.passwordHash) {
-      return { success: false, error: 'Contraseña incorrecta. Verifica tus datos o usa la recuperación.' };
-    }
-
-    // Actualizar última sesión
-    user.lastLogin = new Date().toISOString();
-    this.saveUsersToStorage();
-
-    // Guardar sesión en sessionStorage
+  private saveSession(user: UserAccount) {
     const session: UserSession = {
       user: { ...user },
       token: `sess_${generateUUID()}_${Date.now()}`,
-      expiresAt: Date.now() + 12 * 60 * 60 * 1000, // 12 horas
+      expiresAt: Date.now() + 12 * 60 * 60 * 1000,
     };
-
-    try {
-      sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
-      // Si es admin, también habilitar el acceso al panel
-      if (user.role === 'admin') {
-        sessionStorage.setItem('kahoot_admin_auth', 'true');
-      }
-    } catch {}
-
-    return { success: true, user };
+    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+    if (user.role === 'admin') sessionStorage.setItem('kahoot_admin_auth', 'true');
+    else sessionStorage.removeItem('kahoot_admin_auth');
   }
 
-  async register(data: RegisterDTO): Promise<{ success: boolean; user?: UserAccount; error?: string }> {
-    await this.initializeDefaults();
+  private findByEmployeeId(employeeNumber: string) {
+    const key = employeeKey(employeeNumber);
+    const matches = key ? this.usersCache.filter(user => employeeKey(user.employeeNumber) === key) : [];
+    if (matches.length === 1) return { user: matches[0] };
+    return { error: matches.length > 1 ? 'Este ID está repetido en cuentas anteriores. Pide al administrador que lo revise.' : 'No encontramos una cuenta con ese ID de empleado.' };
+  }
 
-    if (!data.email.trim() || !data.email.includes('@')) {
-      return { success: false, error: 'Por favor ingresa un correo electrónico válido.' };
+  private employeeIdTaken(employeeNumber: string, excludedId?: string) {
+    const key = employeeKey(employeeNumber);
+    return this.usersCache.some(account => account.id !== excludedId && employeeKey(account.employeeNumber) === key);
+  }
+
+  async login(identifier: string, password: string): Promise<{ success: boolean; user?: UserAccount; error?: string }> {
+    return this.withAccounts(async () => {
+      const { user: candidate, error } = this.findByEmployeeId(identifier);
+      if (!candidate) return { success: false, error };
+
+      if (!candidate.isActive) {
+        return { success: false, error: 'Esta cuenta ha sido desactivada por el administrador.' };
+      }
+
+      const calculatedHash = candidate.passwordHash.startsWith('v2:')
+        ? await hashPassword(password, candidate.salt)
+        : await hashText(password, candidate.salt);
+      await this.initializeDefaults();
+      const user = this.usersCache.find(account => account.id === candidate.id && employeeKey(account.employeeNumber) === employeeKey(identifier));
+      if (!user?.isActive) {
+        return { success: false, error: 'Esta cuenta ya no está activa.' };
+      }
+      if (calculatedHash !== user.passwordHash) {
+        return { success: false, error: 'Contraseña incorrecta. Verifica tus datos o usa la recuperación.' };
+      }
+
+      // Actualizar última sesión
+      user.lastLogin = new Date().toISOString();
+      this.saveUsersToStorage();
+
+      try {
+        this.saveSession(user);
+      } catch {
+        return { success: false, error: 'El navegador no pudo guardar la sesión.' };
+      }
+
+      return { success: true, user };
+    });
+  }
+
+  async register(data: RegisterDTO): Promise<AccountResult> {
+    const result = await this.createAccount(data, 'user', false);
+    if (result.user) {
+      try {
+        this.saveSession(result.user);
+      } catch {
+        return { success: false, error: 'La cuenta se creó. Inicia sesión para continuar.' };
+      }
     }
-    if (!data.nickname.trim()) {
-      return { success: false, error: 'Por favor ingresa un nombre o alias para el juego.' };
-    }
-    if (!data.password || data.password.length < 6) {
+    return result;
+  }
+
+  async createUserByAdmin(data: RegisterDTO, role: UserRole): Promise<AccountResult> {
+    return this.createAccount(data, role, true);
+  }
+
+  private async createAccount(data: RegisterDTO, role: UserRole, byAdmin: boolean): Promise<AccountResult> {
+    if (byAdmin && !this.isAdmin()) return { success: false, error: 'Inicia sesión como administrador para crear cuentas.' };
+    const employeeNumber = employeeKey(data.employeeNumber);
+    if (!validEmployeeId(employeeNumber)) return { success: false, error: 'Ingresa un ID de empleado válido, de hasta 30 caracteres y sin espacios.' };
+    if (!data.name.trim()) return { success: false, error: 'Ingresa el nombre completo.' };
+    if (data.password.trim().length < 6) {
       return { success: false, error: 'La contraseña debe tener al menos 6 caracteres por seguridad.' };
     }
 
-    const emailTaken = this.usersCache.some(u => u.email.toLowerCase() === data.email.trim().toLowerCase());
-    if (emailTaken) {
-      return { success: false, error: 'Este correo electrónico ya está registrado.' };
-    }
-
     const salt = generateSalt();
-    const passwordHash = await hashText(data.password, salt);
+    const passwordHash = await hashPassword(data.password, salt);
     let securityAnswerHash: string | undefined = undefined;
 
     if (data.securityAnswer && data.securityAnswer.trim()) {
@@ -183,35 +218,27 @@ class AuthService {
 
     const newUser: UserAccount = {
       id: generateUUID(),
-      email: data.email.trim().toLowerCase(),
-      nickname: data.nickname.trim(),
-      name: data.name.trim() || data.nickname.trim(),
-      employeeNumber: data.employeeNumber ? data.employeeNumber.trim() : undefined,
-      role: 'user',
-      department: data.department || 'Operaciones',
+      nickname: employeeNumber,
+      name: data.name.trim(),
+      employeeNumber,
+      role,
+      department: data.department.trim() || 'Operaciones',
       passwordHash,
       salt,
-      securityQuestion: data.securityQuestion || '¿Cuál es tu película favorita?',
+      securityQuestion: securityAnswerHash ? data.securityQuestion || '¿Cuál es tu película favorita?' : undefined,
       securityAnswerHash,
       createdAt: new Date().toISOString(),
-      lastLogin: new Date().toISOString(),
+      ...(byAdmin ? {} : { lastLogin: new Date().toISOString() }),
       isActive: true,
     };
 
-    this.usersCache.push(newUser);
-    this.saveUsersToStorage();
-
-    // Iniciar sesión automáticamente
-    const session: UserSession = {
-      user: { ...newUser },
-      token: `sess_${generateUUID()}_${Date.now()}`,
-      expiresAt: Date.now() + 12 * 60 * 60 * 1000,
-    };
-    try {
-      sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
-    } catch {}
-
-    return { success: true, user: newUser };
+    return this.withAccounts(() => {
+      if (byAdmin && !this.isAdmin()) return { success: false, error: 'La sesión de administrador ya no está activa.' };
+      if (this.employeeIdTaken(employeeNumber)) return { success: false, error: 'Ese ID de empleado ya está registrado.' };
+      this.usersCache.push(newUser);
+      if (!this.saveUsersToStorage()) return { success: false, error: 'El navegador no pudo guardar la cuenta.' };
+      return { success: true, user: newUser };
+    });
   }
 
   getCurrentUser(): UserAccount | null {
@@ -219,12 +246,14 @@ class AuthService {
       const stored = sessionStorage.getItem(SESSION_STORAGE_KEY);
       if (!stored) return null;
       const session: UserSession = JSON.parse(stored);
-      if (session.expiresAt && Date.now() > session.expiresAt) {
-        sessionStorage.removeItem(SESSION_STORAGE_KEY);
-        sessionStorage.removeItem('kahoot_admin_auth');
+      const accounts: UserAccount[] = JSON.parse(localStorage.getItem(USERS_STORAGE_KEY) ?? '[]');
+      const user = accounts.find(account => account.id === session.user.id);
+      if (!user?.isActive || user.passwordHash !== session.user.passwordHash || (session.expiresAt && Date.now() >= session.expiresAt)) {
+        this.logout();
         return null;
       }
-      return session.user;
+      if (user.role !== 'admin') sessionStorage.removeItem('kahoot_admin_auth');
+      return user;
     } catch {
       return null;
     }
@@ -243,24 +272,14 @@ class AuthService {
   }
 
   async getSecurityQuestion(identifier: string): Promise<{ success: boolean; question?: string; error?: string }> {
-    await this.initializeDefaults();
-    const cleanId = identifier.trim().toLowerCase();
-    const user = this.usersCache.find(
-      u =>
-        u.email.toLowerCase() === cleanId ||
-        u.nickname.toLowerCase() === cleanId ||
-        (u.employeeNumber && u.employeeNumber.toLowerCase() === cleanId)
-    );
-
-    if (!user) {
-      return { success: false, error: 'Usuario no encontrado en la base de datos.' };
-    }
-
-    if (!user.securityQuestion) {
-      return { success: false, error: 'El usuario no tiene configurada una pregunta de seguridad.' };
-    }
-
-    return { success: true, question: user.securityQuestion };
+    return this.withAccounts(() => {
+      const { user, error } = this.findByEmployeeId(identifier);
+      if (!user) return { success: false, error };
+      if (!user.isActive || !user.securityQuestion || !user.securityAnswerHash) {
+        return { success: false, error: 'Pide a un administrador que restablezca tu contraseña.' };
+      }
+      return { success: true, question: user.securityQuestion };
+    });
   }
 
   async recoverPasswordWithQuestion(
@@ -268,113 +287,124 @@ class AuthService {
     answer: string,
     newPassword: string
   ): Promise<{ success: boolean; message?: string; error?: string }> {
-    await this.initializeDefaults();
-    const cleanId = identifier.trim().toLowerCase();
-    const user = this.usersCache.find(
-      u =>
-        u.email.toLowerCase() === cleanId ||
-        u.nickname.toLowerCase() === cleanId ||
-        (u.employeeNumber && u.employeeNumber.toLowerCase() === cleanId)
-    );
+    return this.withAccounts(async () => {
+      const { user, error } = this.findByEmployeeId(identifier);
+      if (!user) return { success: false, error };
+      if (!user.isActive || !user.securityAnswerHash) return { success: false, error: 'Pide a un administrador que restablezca tu contraseña.' };
 
-    if (!user) {
-      return { success: false, error: 'Usuario no encontrado.' };
-    }
+      const calculatedAnswerHash = await hashText(answer, user.salt);
+      if (calculatedAnswerHash !== user.securityAnswerHash) {
+        return { success: false, error: 'La respuesta de seguridad es incorrecta. Inténtalo de nuevo.' };
+      }
 
-    if (!user.securityAnswerHash) {
-      return { success: false, error: 'No hay respuesta de seguridad registrada para esta cuenta.' };
-    }
+      if (!newPassword || newPassword.length < 6) {
+        return { success: false, error: 'La nueva contraseña debe tener al menos 6 caracteres.' };
+      }
 
-    const calculatedAnswerHash = await hashText(answer, user.salt);
-    if (calculatedAnswerHash !== user.securityAnswerHash) {
-      return { success: false, error: 'La respuesta de seguridad es incorrecta. Inténtalo de nuevo.' };
-    }
+      // Asignar nuevo salt y hash de contraseña
+      const newSalt = generateSalt();
+      user.salt = newSalt;
+      user.passwordHash = await hashPassword(newPassword, newSalt);
+      // Re-hashear también la respuesta con el nuevo salt
+      user.securityAnswerHash = await hashText(answer, newSalt);
 
-    if (!newPassword || newPassword.length < 6) {
-      return { success: false, error: 'La nueva contraseña debe tener al menos 6 caracteres.' };
-    }
-
-    // Asignar nuevo salt y hash de contraseña
-    const newSalt = generateSalt();
-    user.salt = newSalt;
-    user.passwordHash = await hashText(newPassword, newSalt);
-    // Re-hashear también la respuesta con el nuevo salt
-    user.securityAnswerHash = await hashText(answer, newSalt);
-
-    this.saveUsersToStorage();
-    return { success: true, message: '¡Contraseña restablecida con éxito! Ya puedes iniciar sesión.' };
+      if (!this.saveUsersToStorage()) return { success: false, error: 'El navegador no pudo guardar la contraseña.' };
+      return { success: true, message: '¡Contraseña restablecida con éxito! Ya puedes iniciar sesión.' };
+    });
   }
 
   // ============================================================================
   // ACCIONES ADMINISTRATIVAS SOBRE USUARIOS
   // ============================================================================
   async getUsers(): Promise<UserAccount[]> {
-    await this.initializeDefaults();
-    return [...this.usersCache];
+    return this.withAccounts(() => [...this.usersCache]);
   }
 
   async updateUser(userId: string, updates: Partial<UserAccount>): Promise<{ success: boolean; user?: UserAccount; error?: string }> {
-    await this.initializeDefaults();
-    const user = this.usersCache.find(u => u.id === userId);
-    if (!user) return { success: false, error: 'Usuario no encontrado.' };
+    return this.withAccounts(() => {
+      const current = this.getCurrentUser();
+      if (!current || (current.id !== userId && current.role !== 'admin')) {
+        return { success: false, error: 'Tu cuenta no tiene permiso para editar este usuario.' };
+      }
+      const user = this.usersCache.find(u => u.id === userId);
+      if (!user) return { success: false, error: 'Usuario no encontrado.' };
 
-    // Evitar que el admin principal se degrade a sí mismo
-    if (user.id === 'admin-cinepolis-master' && updates.role === 'user') {
-      return { success: false, error: 'No se puede revocar el rol del Administrador Maestro.' };
-    }
+      // Evitar que el admin principal se degrade a sí mismo
+      if (updates.role !== undefined && updates.role !== user.role) {
+        if (!this.isAdmin()) return { success: false, error: 'Solo un administrador puede cambiar el rol.' };
+        if (user.id === 'admin-cinepolis-master') {
+          return { success: false, error: 'No se puede revocar el rol del Administrador Maestro.' };
+        }
+      }
 
-    Object.assign(user, updates);
-    this.saveUsersToStorage();
+      if (updates.employeeNumber !== undefined) {
+        if (current.role !== 'admin') return { success: false, error: 'Solo un administrador puede cambiar el ID de empleado.' };
+        const employeeNumber = employeeKey(updates.employeeNumber);
+        if (!validEmployeeId(employeeNumber)) return { success: false, error: 'Ingresa un ID de empleado válido, de hasta 30 caracteres y sin espacios.' };
+        if (this.employeeIdTaken(employeeNumber, userId)) return { success: false, error: 'Ese ID de empleado ya está registrado.' };
+        updates = { ...updates, employeeNumber };
+      }
+      Object.assign(user, updates);
+      if (!this.saveUsersToStorage()) return { success: false, error: 'El navegador no pudo guardar los cambios.' };
+      if (current.id === userId) this.saveSession(user);
 
-    // Si es el usuario actual, actualizar la sesión
-    const current = this.getCurrentUser();
-    if (current && current.id === userId) {
-      const session: UserSession = {
-        user: { ...user },
-        token: `sess_${generateUUID()}_${Date.now()}`,
-        expiresAt: Date.now() + 12 * 60 * 60 * 1000,
-      };
-      sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
-    }
-
-    return { success: true, user };
+      return { success: true, user };
+    });
   }
 
   async resetUserPassword(userId: string, newPass: string): Promise<{ success: boolean; error?: string }> {
-    await this.initializeDefaults();
-    const user = this.usersCache.find(u => u.id === userId);
-    if (!user) return { success: false, error: 'Usuario no encontrado.' };
-
-    const newSalt = generateSalt();
-    user.salt = newSalt;
-    user.passwordHash = await hashText(newPass, newSalt);
-    this.saveUsersToStorage();
-    return { success: true };
+    return this.withAccounts(async () => {
+      const actor = this.getCurrentUser();
+      if (!actor || (actor.id !== userId && actor.role !== 'admin')) {
+        return { success: false, error: 'Tu cuenta no tiene permiso para cambiar esta contraseña.' };
+      }
+      if (newPass.trim().length < 6) return { success: false, error: 'Usa al menos 6 caracteres en la contraseña.' };
+      const user = this.usersCache.find(u => u.id === userId);
+      if (!user) return { success: false, error: 'Usuario no encontrado.' };
+      const passwordHash = await hashPassword(newPass, user.salt);
+      await this.initializeDefaults();
+      const current = this.getCurrentUser();
+      if (!current || current.id !== actor.id || (current.id !== userId && current.role !== 'admin')) {
+        return { success: false, error: 'Tu cuenta ya no tiene permiso para cambiar esta contraseña.' };
+      }
+      const latest = this.usersCache.find(account => account.id === userId);
+      if (!latest || latest.salt !== user.salt || latest.passwordHash !== user.passwordHash) {
+        return { success: false, error: 'La cuenta cambió durante la operación. Revisa sus datos e inténtalo de nuevo.' };
+      }
+      latest.passwordHash = passwordHash;
+      if (!this.saveUsersToStorage()) return { success: false, error: 'El navegador no pudo guardar la contraseña.' };
+      if (current.id === userId) this.saveSession(latest);
+      return { success: true };
+    });
   }
 
-  async toggleUserStatus(userId: string): Promise<{ success: boolean; isActive?: boolean }> {
-    await this.initializeDefaults();
-    const user = this.usersCache.find(u => u.id === userId);
-    if (!user) return { success: false };
-    if (user.id === 'admin-cinepolis-master') return { success: false };
+  async toggleUserStatus(userId: string): Promise<{ success: boolean; isActive?: boolean; error?: string }> {
+    return this.withAccounts(() => {
+      if (!this.isAdmin()) return { success: false, error: 'Solo un administrador puede cambiar el estado de la cuenta.' };
+      const user = this.usersCache.find(u => u.id === userId);
+      if (!user) return { success: false, error: 'Usuario no encontrado.' };
+      if (user.id === 'admin-cinepolis-master') return { success: false, error: 'El Administrador Maestro debe permanecer activo.' };
 
-    user.isActive = !user.isActive;
-    this.saveUsersToStorage();
-    return { success: true, isActive: user.isActive };
+      user.isActive = !user.isActive;
+      if (!this.saveUsersToStorage()) return { success: false, error: 'El navegador no pudo guardar el estado de la cuenta.' };
+      return { success: true, isActive: user.isActive };
+    });
   }
 
   async deleteUser(userId: string): Promise<{ success: boolean; error?: string }> {
-    await this.initializeDefaults();
-    if (userId === 'admin-cinepolis-master') {
-      return { success: false, error: 'No es posible eliminar al Administrador Maestro.' };
-    }
+    return this.withAccounts(() => {
+      if (!this.isAdmin()) return { success: false, error: 'Solo un administrador puede eliminar cuentas.' };
+      if (userId === 'admin-cinepolis-master') {
+        return { success: false, error: 'No es posible eliminar al Administrador Maestro.' };
+      }
 
-    const idx = this.usersCache.findIndex(u => u.id === userId);
-    if (idx === -1) return { success: false, error: 'Usuario no encontrado.' };
+      const idx = this.usersCache.findIndex(u => u.id === userId);
+      if (idx === -1) return { success: false, error: 'Usuario no encontrado.' };
 
-    this.usersCache.splice(idx, 1);
-    this.saveUsersToStorage();
-    return { success: true };
+      this.usersCache.splice(idx, 1);
+      if (!this.saveUsersToStorage()) return { success: false, error: 'El navegador no pudo eliminar la cuenta.' };
+      return { success: true };
+    });
   }
 }
 

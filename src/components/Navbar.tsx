@@ -1,156 +1,113 @@
-import React, { useState } from 'react';
-import { Volume2, VolumeX, Shield, Gamepad2, User, KeyRound, Smartphone } from 'lucide-react';
+import { useRef, useState } from 'react';
+import {
+  ChevronRight, ClipboardList, Gamepad2, GraduationCap, LogOut,
+  Menu, ShieldCheck, Smartphone, UserRound, Volume2, VolumeX, X,
+} from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { soundEffects } from '../utils/soundEffects';
 import type { UserAccount } from '../types/quiz';
 
+export type Destination = 'home' | 'expert' | 'admin' | 'kiosk';
+
 interface NavbarProps {
-  currentView: 'home' | 'game' | 'admin' | 'host' | 'kiosk';
-  onNavigate: (view: 'home' | 'admin' | 'host' | 'kiosk') => void;
-  currentUser: UserAccount | null;
-  onOpenAuth: () => void;
+  currentView: Destination | 'game' | 'host';
+  onNavigate: (view: Destination) => void;
+  currentUser: UserAccount;
+  onOpenSurveys: () => void;
   onOpenProfile: () => void;
   onOpenPinModal: () => void;
+  onLogout: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({
-  currentView,
-  onNavigate,
-  currentUser,
-  onOpenAuth,
-  onOpenProfile,
-  onOpenPinModal,
-}) => {
-  const [isMuted, setIsMuted] = useState<boolean>(soundEffects.getMuted());
+interface MenuItem {
+  label: string;
+  description: string;
+  icon: LucideIcon;
+  action: () => void;
+  current?: boolean;
+}
 
-  const handleToggleSound = () => {
-    const newState = soundEffects.toggleMute();
-    setIsMuted(newState);
-  };
+const roleLabel = { user: 'Colaborador', expert: 'Cinepolito Experto', admin: 'Administrador' };
 
-  const isAdminUser = currentUser?.role === 'admin' && currentUser?.isActive;
+export function Navbar({
+  currentView, onNavigate, currentUser, onOpenSurveys, onOpenProfile, onOpenPinModal, onLogout,
+}: NavbarProps) {
+  const [isMuted, setIsMuted] = useState(() => soundEffects.getMuted());
+  const [menuOpen, setMenuOpen] = useState(false);
+  const drawer = useRef<HTMLDialogElement>(null);
+  const role = currentUser.role;
+
+  function choose(action: () => void) {
+    drawer.current?.close();
+    action();
+  }
+
+  const items: MenuItem[] = [
+    { label: 'Encuestas y evaluaciones', description: 'Ve a las actividades disponibles', icon: ClipboardList, action: onOpenSurveys, current: currentView === 'home' },
+  ];
+  if (role === 'expert') {
+    items.push({ label: 'Panel de expertos', description: 'Consulta tareas y cursos de Learning Center', icon: GraduationCap, action: () => onNavigate('expert'), current: currentView === 'expert' });
+  }
+  if (role === 'admin') {
+    items.push(
+      { label: 'Administración', description: 'Gestiona encuestas, resultados y usuarios', icon: ShieldCheck, action: () => onNavigate('admin'), current: currentView === 'admin' },
+      { label: 'Modo kiosco', description: 'Abre la vista para una pantalla compartida', icon: Smartphone, action: () => onNavigate('kiosk') },
+    );
+  }
+  items.push({ label: 'Mi perfil', description: 'Consulta tus datos y resultados', icon: UserRound, action: onOpenProfile });
+  items.push({ label: 'Unirme con PIN', description: 'Entra a una actividad en vivo', icon: Gamepad2, action: onOpenPinModal });
 
   return (
-    <header className="sticky top-0 z-40 bg-[#070e22]/90 backdrop-blur-md border-b border-amber-400/20 shadow-xl">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 md:h-20 flex items-center justify-between">
-        {/* Brand Logo */}
-        <button
-          onClick={() => onNavigate('home')}
-          className="flex items-center gap-2 group transition-transform hover:scale-105 active:scale-95 text-left"
-        >
-          <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-tr from-amber-400 to-yellow-500 rounded-2xl shadow-lg flex items-center justify-center transform -rotate-3 group-hover:rotate-0 transition-transform">
-            <span className="text-black text-2xl md:text-3xl font-black tracking-tighter">
-              C!
-            </span>
-          </div>
-          <div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-xl md:text-2xl font-black tracking-wider text-white drop-shadow">
-                Cinépolis<span className="text-amber-400">PRO</span>
-              </span>
-              <span className="bg-gradient-to-r from-amber-400 to-yellow-500 text-black text-[9px] md:text-[10px] font-black uppercase px-2 py-0.5 rounded-full shadow-sm">
-                OFICIAL
-              </span>
-            </div>
-            <span className="hidden sm:block text-[10px] md:text-[11px] font-bold text-white/70 tracking-wide uppercase">
-              Evaluación y Capacitación Continua
-            </span>
-          </div>
+    <header className="quiz-header">
+      <div className="quiz-header-content">
+        <button type="button" onClick={() => onNavigate('home')} className="quiz-brand" aria-label="Cinépolis PRO, inicio">
+          <span className="quiz-brand-mark" aria-hidden="true">C!</span>
+          <span>Cinépolis <strong>PRO</strong></span>
         </button>
-
-        {/* Right Navigation & Controls */}
-        <div className="flex items-center gap-2 md:gap-3">
-          {/* Ingresar con PIN de Sala en Vivo (Botón superior discreto y limpio) */}
-          <button
-            onClick={onOpenPinModal}
-            className="px-3 md:px-4 py-2 rounded-xl btn-cinepolis-primary text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow"
-            title="Unirte a una partida grupal con código PIN"
-          >
-            <Gamepad2 className="w-4 h-4" />
-            <span className="hidden sm:inline">Ingresar PIN</span>
+        <div className="quiz-header-actions">
+          <button type="button" className="quiz-header-surveys" onClick={onOpenSurveys}><ClipboardList size={19} aria-hidden="true" /> Encuestas</button>
+          <button type="button" className="quiz-menu-button" aria-haspopup="dialog" aria-controls="account-menu" aria-expanded={menuOpen} onClick={() => {
+            drawer.current?.showModal();
+            setMenuOpen(true);
+          }}>
+            <Menu size={22} aria-hidden="true" /> <span>Menú</span>
           </button>
-
-          {/* Audio Mute/Unmute Toggle */}
-          <button
-            onClick={handleToggleSound}
-            aria-label={isMuted ? 'Activar sonido' : 'Silenciar sonido'}
-            className="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-white transition border border-white/10 flex items-center justify-center"
-            title={isMuted ? 'Activar efectos de sonido' : 'Silenciar efectos'}
-          >
-            {isMuted ? (
-              <VolumeX className="w-4 h-4 text-white/60" />
-            ) : (
-              <Volume2 className="w-4 h-4 text-amber-300 animate-pulse" />
-            )}
-          </button>
-
-          {/* Home Button if not on home */}
-          {currentView !== 'home' && (
-            <button
-              onClick={() => onNavigate('home')}
-              className="px-3.5 py-2 rounded-xl btn-cinepolis-glass text-xs font-bold transition"
-            >
-              Inicio
-            </button>
-          )}
-
-          {/* Botón de Acceso al Panel de Administrador:
-              ESTRICTAMENTE OCULTO para usuarios regulares o no identificados.
-              Solo se muestra si la sesión activa es de nivel 'admin'. */}
-          {isAdminUser && (
-            <>
-              <button
-                onClick={() => onNavigate('kiosk')}
-                className="flex items-center gap-1.5 px-3 md:px-3.5 py-2 rounded-xl bg-gradient-to-r from-cyan-600/90 to-blue-600/90 hover:from-cyan-500 hover:to-blue-500 text-white font-black text-xs uppercase tracking-wider transition border border-cyan-400/40 shadow active:scale-95"
-                title="Terminal Kiosco para Pantalla de Descanso del Cine"
-              >
-                <Smartphone className="w-4 h-4 text-cyan-200" />
-                <span className="hidden sm:inline">Kiosco</span>
-              </button>
-
-              <button
-                onClick={() => onNavigate('admin')}
-                className={`flex items-center gap-1.5 px-3.5 md:px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition ${
-                  currentView === 'admin'
-                    ? 'bg-amber-400 text-black shadow-lg ring-2 ring-white'
-                    : 'btn-cinepolis-gold'
-                }`}
-                title="Panel de Control y Métricas de Administrador"
-              >
-                <Shield className="w-4 h-4" />
-                <span>Panel de Control</span>
-              </button>
-            </>
-          )}
-
-          {/* Identificación de Usuario / Colaborador */}
-          {currentUser ? (
-            <button
-              onClick={onOpenProfile}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-black/40 hover:bg-white/10 border border-amber-400/40 text-xs font-bold transition shadow"
-              title="Mi Perfil, Evaluaciones y Certificados"
-            >
-              <span className="text-base">👤</span>
-              <div className="text-left hidden sm:block">
-                <span className="font-extrabold text-white text-xs block leading-tight max-w-[110px] truncate">
-                  {currentUser.name || currentUser.nickname}
-                </span>
-                <span className="text-[10px] text-amber-300 block leading-tight">
-                  {currentUser.role === 'admin' ? 'Administrador' : (currentUser.department || 'Colaborador')}
-                </span>
-              </div>
-            </button>
-          ) : (
-            <button
-              onClick={onOpenAuth}
-              className="px-3.5 md:px-4 py-2 rounded-xl btn-cinepolis-glass text-xs font-black uppercase tracking-wider flex items-center gap-1.5"
-              title="Iniciar sesión o registrarte como colaborador"
-            >
-              <KeyRound className="w-3.5 h-3.5 text-amber-300" />
-              <span>Ingresar</span>
-            </button>
-          )}
         </div>
       </div>
+
+      <dialog id="account-menu" ref={drawer} className="account-drawer" aria-labelledby="account-menu-title" onClose={() => setMenuOpen(false)} onClick={event => {
+        if (event.target === event.currentTarget) {
+          const { left, right, top, bottom } = event.currentTarget.getBoundingClientRect();
+          if (event.clientX < left || event.clientX > right || event.clientY < top || event.clientY > bottom) drawer.current?.close();
+        }
+      }}>
+        <div className="drawer-layout">
+          <div className="drawer-heading">
+            <h2 id="account-menu-title">Menú</h2>
+            <button type="button" aria-label="Cerrar menú" className="drawer-close" onClick={() => drawer.current?.close()}><X size={24} aria-hidden="true" /></button>
+          </div>
+          <div className="drawer-account">
+            <span className="drawer-avatar" aria-hidden="true">{(currentUser.name || currentUser.nickname || 'C').trim().charAt(0).toUpperCase()}</span>
+            <div><strong>{currentUser.name || currentUser.nickname}</strong><span>{roleLabel[role]}</span></div>
+          </div>
+          <nav className="drawer-nav" aria-label="Espacios disponibles">
+            {items.map(({ label, description, icon: Icon, action, current }) => (
+              <button type="button" key={label} className="drawer-item" aria-current={current ? 'page' : undefined} onClick={() => choose(action)}>
+                <span className="drawer-item-icon"><Icon size={22} aria-hidden="true" /></span>
+                <span><strong>{label}</strong><small>{description}</small></span>
+                <ChevronRight size={18} aria-hidden="true" />
+              </button>
+            ))}
+          </nav>
+          <div className="drawer-footer">
+            <button type="button" className="drawer-utility" aria-pressed={!isMuted} onClick={() => setIsMuted(soundEffects.toggleMute())}>
+              {isMuted ? <VolumeX size={20} aria-hidden="true" /> : <Volume2 size={20} aria-hidden="true" />}
+              <span>Sonido</span><small>{isMuted ? 'Desactivado' : 'Activado'}</small>
+            </button>
+            <button type="button" className="drawer-utility" onClick={() => choose(onLogout)}><LogOut size={20} aria-hidden="true" /> Cerrar sesión</button>
+          </div>
+        </div>
+      </dialog>
     </header>
   );
-};
+}

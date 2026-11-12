@@ -3,21 +3,32 @@ import type { Quiz, UserAccount } from './types/quiz';
 import { quizService } from './services/quizService';
 import { authService } from './services/authService';
 import { Navbar } from './components/Navbar';
+import type { Destination } from './components/Navbar';
+import { ExpertViewBoundary } from './components/ExpertViewBoundary';
 import { HomeView } from './components/HomeView';
 import { GamePlayView } from './components/GamePlayView';
 import { AdminView } from './components/AdminView';
 import { HostGameView } from './components/HostGameView';
 import { KioskView } from './components/KioskView';
-import { AuthModal } from './components/AuthModal';
+import { AuthScreen } from './components/AuthScreen';
 import { UserProfileModal } from './components/UserProfileModal';
 import { PinModal } from './components/PinModal';
+import { isSurveyQuiz } from './utils/quizKind';
+import { clearExpertLocation, expertHash, isExpertLocation } from './utils/expertLocation';
+import ExpertDashboard from './ExpertDashboard';
+import './QuizNavigation.css';
 
 export function App() {
-  const [currentView, setCurrentView] = useState<'home' | 'game' | 'admin' | 'host' | 'kiosk'>('home');
+  const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => authService.getCurrentUser());
+  const [currentView, setCurrentView] = useState<Destination | 'game' | 'host'>(() =>
+    currentUser?.role === 'expert' && isExpertLocation() ? 'expert' : 'home');
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [activeQuiz, setActiveQuiz] = useState<Quiz | null>(null);
   const [invitedQuiz, setInvitedQuiz] = useState<Quiz | null>(null);
-  const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => authService.getCurrentUser());
+  const isExpert = currentUser?.role === 'expert' && currentUser.isActive;
+  const isAdmin = currentUser?.role === 'admin' && currentUser.isActive;
+  const view = (currentView === 'expert' && !isExpert) ||
+    ((currentView === 'admin' || currentView === 'kiosk') && !isAdmin) ? 'home' : currentView;
 
   const [playerNickname, setPlayerNickname] = useState<string>(() => {
     const user = authService.getCurrentUser();
@@ -29,28 +40,80 @@ export function App() {
   });
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [quizLoadError, setQuizLoadError] = useState(false);
+  const [focusSurveys, setFocusSurveys] = useState(false);
 
-  // Modales globales de Autenticación, Perfil y PIN
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
   const [isPinModalOpen, setIsPinModalOpen] = useState<boolean>(false);
 
   // Load quizzes on launch
   const refreshQuizzes = async () => {
     setIsLoading(true);
+    setQuizLoadError(false);
     try {
       const data = await quizService.getQuizzes();
       setQuizzes(data);
     } catch (err) {
+      setQuizLoadError(true);
       console.error('Error cargando cuestionarios:', err);
     } finally {
       setIsLoading(false);
     }
   };
 
+  const accountId = currentUser?.id;
   useEffect(() => {
-    refreshQuizzes();
-  }, []);
+    if (accountId) void refreshQuizzes();
+  }, [accountId]);
+
+  useEffect(() => {
+    if (!isExpert) return;
+    function syncExpertLocation() {
+      if (isExpertLocation()) setCurrentView('expert');
+      else setCurrentView(previous => previous === 'expert' ? 'home' : previous);
+    }
+    window.addEventListener('hashchange', syncExpertLocation);
+    return () => window.removeEventListener('hashchange', syncExpertLocation);
+  }, [isExpert]);
+
+  useEffect(() => {
+    if (!focusSurveys || currentView !== 'home' || isLoading) return;
+    const section = document.getElementById('encuestas');
+    if (section) {
+      section.focus({ preventScroll: true });
+      section.scrollIntoView({ block: 'start', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    }
+    setFocusSurveys(false);
+  }, [focusSurveys, currentView, isLoading]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    function refreshSession() {
+      const user = authService.getCurrentUser();
+      if (!user) {
+        setCurrentView('home');
+        setIsProfileModalOpen(false);
+        setIsPinModalOpen(false);
+        clearExpertLocation();
+      } else if (currentUser?.role !== user.role) {
+        if (user.role !== 'expert') clearExpertLocation();
+        setCurrentView(previous => {
+          if (previous === 'expert' && user.role !== 'expert') return 'home';
+          if ((previous === 'admin' || previous === 'kiosk') && user.role !== 'admin') return 'home';
+          return previous;
+        });
+      }
+      setCurrentUser(previous => JSON.stringify(previous) === JSON.stringify(user) ? previous : user);
+    }
+    window.addEventListener('focus', refreshSession);
+    window.addEventListener('storage', refreshSession);
+    const timer = window.setInterval(refreshSession, 15000);
+    return () => {
+      window.removeEventListener('focus', refreshSession);
+      window.removeEventListener('storage', refreshSession);
+      window.clearInterval(timer);
+    };
+  }, [currentUser]);
 
   // Check URL query parameters for direct quiz links (e.g. ?quiz=<id>)
   useEffect(() => {
@@ -91,6 +154,7 @@ export function App() {
       window.history.replaceState({}, '', window.location.pathname);
     }
     setCurrentView('game');
+    window.scrollTo({ top: 0 });
   };
 
   // Handle Host Live Game
@@ -107,43 +171,79 @@ export function App() {
     }
   };
 
-  const handleNavigate = (view: 'home' | 'admin' | 'host' | 'kiosk') => {
-    if (view === 'admin' || view === 'kiosk') {
-      // Regla estricta: Solo los administradores autenticados pueden ver el panel de control o cambiar a modo Kiosco
-      if (!authService.isAdmin() && sessionStorage.getItem('kahoot_admin_auth') !== 'true') {
-        setIsAuthModalOpen(true);
-        return;
-      }
+  const handleNavigate = (view: Destination) => {
+    const session = authService.getCurrentUser();
+    if (!session) {
+      setCurrentUser(null);
+      setCurrentView('home');
+      clearExpertLocation();
+      return;
     }
+    if ((view === 'admin' || view === 'kiosk') && session.role !== 'admin') return;
+    if (view === 'expert' && session.role !== 'expert') return;
     if (view === 'home') {
-      refreshQuizzes();
+      if (currentView === 'admin' || currentView === 'kiosk') void refreshQuizzes();
+      clearExpertLocation();
     }
+    if (view === 'expert' && !isExpertLocation()) location.hash = expertHash;
     setCurrentView(view);
+    window.scrollTo({ top: 0 });
   };
 
+  const openSurveys = () => {
+    if (currentView !== 'home') handleNavigate('home');
+    setFocusSurveys(true);
+  };
+
+  const handleLogout = () => {
+    authService.logout();
+    setCurrentUser(null);
+    setIsProfileModalOpen(false);
+    setIsPinModalOpen(false);
+    setInvitedQuiz(null);
+    setActiveQuiz(null);
+    setFocusSurveys(false);
+    setCurrentView('home');
+    clearExpertLocation();
+    window.scrollTo({ top: 0 });
+  };
+
+  if (!currentUser) {
+    return <AuthScreen onAuthenticated={() => {
+      const user = authService.getCurrentUser();
+      if (!user) return false;
+      clearExpertLocation();
+      setIsLoading(true);
+      setCurrentUser(user);
+      setPlayerNickname(user.name || user.nickname);
+      setPlayerDepartment(user.department || undefined);
+      setCurrentView('home');
+      window.scrollTo({ top: 0 });
+      return true;
+    }} />;
+  }
+
   return (
-    <div className="min-h-screen bg-kahoot-pattern flex flex-col justify-between selection:bg-amber-400 selection:text-black">
-      {/* Sticky Navbar con botón de admin oculto para público */}
-      {currentView !== 'kiosk' && (
+    <div className="quiz-app min-h-screen bg-kahoot-pattern flex flex-col justify-between selection:bg-amber-400 selection:text-black">
+      {view !== 'kiosk' && (
         <Navbar
-          currentView={currentView}
+          currentView={view}
           currentUser={currentUser}
           onNavigate={handleNavigate}
-          onOpenAuth={() => setIsAuthModalOpen(true)}
-          onOpenProfile={() => {
-            if (currentUser) {
-              setIsProfileModalOpen(true);
-            } else {
-              setIsAuthModalOpen(true);
-            }
-          }}
+          onOpenSurveys={openSurveys}
+          onOpenProfile={() => setIsProfileModalOpen(true)}
           onOpenPinModal={() => setIsPinModalOpen(true)}
+          onLogout={handleLogout}
         />
       )}
 
       {/* Main Content Area */}
       <main className="flex-1">
-        {isLoading ? (
+        {view === 'expert' ? (
+          <ExpertViewBoundary onBack={openSurveys}>
+            <ExpertDashboard onBack={openSurveys} />
+          </ExpertViewBoundary>
+        ) : view === 'home' && isLoading ? (
           <div className="min-h-[60vh] flex flex-col items-center justify-center text-white">
             <div className="w-16 h-16 border-4 border-amber-400 border-t-transparent rounded-full animate-spin mb-4" />
             <span className="text-lg font-black uppercase tracking-wider text-amber-300">
@@ -152,8 +252,12 @@ export function App() {
           </div>
         ) : (
           <>
-            {currentView === 'home' && (
-              <HomeView
+            {view === 'home' && (
+              quizLoadError && quizzes.length === 0 ? <section className="quiz-message" role="alert">
+                <h1>No se pudieron cargar las actividades</h1>
+                <p>Intenta cargar las encuestas y evaluaciones otra vez.</p>
+                <button type="button" className="quiz-action quiz-action-primary" onClick={() => void refreshQuizzes()}>Volver a cargar</button>
+              </section> : <HomeView
                 quizzes={quizzes}
                 currentUser={currentUser}
                 invitedQuiz={invitedQuiz}
@@ -161,10 +265,11 @@ export function App() {
                 onStartQuiz={handleStartQuiz}
                 onHostGame={handleHostGame}
                 onOpenPinModal={() => setIsPinModalOpen(true)}
+                onOpenSurveys={openSurveys}
               />
             )}
 
-            {currentView === 'game' && activeQuiz && (
+            {view === 'game' && activeQuiz && (
               <GamePlayView
                 quiz={activeQuiz}
                 nickname={playerNickname}
@@ -180,6 +285,7 @@ export function App() {
                   }
                   refreshQuizzes();
                   setCurrentView('home');
+                  if (isSurveyQuiz(activeQuiz)) setFocusSurveys(true);
                 }}
                 onPlayAgain={() => {
                   const q = activeQuiz;
@@ -189,7 +295,7 @@ export function App() {
               />
             )}
 
-            {currentView === 'host' && activeQuiz && (
+            {view === 'host' && activeQuiz && (
               <HostGameView
                 quiz={activeQuiz}
                 onExit={() => {
@@ -207,17 +313,15 @@ export function App() {
               />
             )}
 
-            {currentView === 'admin' && (
+            {view === 'admin' && (
               <AdminView
-                onBackToHome={() => {
-                  refreshQuizzes();
-                  setCurrentView('home');
-                }}
-                onOpenKiosk={() => setCurrentView('kiosk')}
+                onBackToHome={() => handleNavigate('home')}
+                onOpenKiosk={() => handleNavigate('kiosk')}
+                onLogout={handleLogout}
               />
             )}
 
-            {currentView === 'kiosk' && (
+            {view === 'kiosk' && (
               <KioskView
                 quizzes={quizzes}
                 onStartQuiz={(quiz, nickname, avatar, _branch, department) => {
@@ -233,21 +337,6 @@ export function App() {
         )}
       </main>
 
-      {/* Modal de Autenticación (Login, Registro y Recuperación de Contraseña) */}
-      <AuthModal
-        isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
-        onAuthSuccess={user => {
-          setCurrentUser(user);
-          setPlayerNickname(user.name || user.nickname);
-          if (user.department) setPlayerDepartment(user.department);
-          // Si el usuario recién autenticado es admin, darle acceso directo al panel
-          if (user.role === 'admin') {
-            setCurrentView('admin');
-          }
-        }}
-      />
-
       {/* Modal de Portal / Perfil del Colaborador */}
       {currentUser && (
         <UserProfileModal
@@ -255,14 +344,7 @@ export function App() {
           user={currentUser}
           quizzes={quizzes}
           onClose={() => setIsProfileModalOpen(false)}
-          onLogout={() => {
-            authService.logout();
-            setCurrentUser(null);
-            setIsProfileModalOpen(false);
-            if (currentView === 'admin') {
-              setCurrentView('home');
-            }
-          }}
+          onLogout={handleLogout}
           onUpdateUser={updated => {
             setCurrentUser(updated);
             setPlayerNickname(updated.name || updated.nickname);
@@ -281,7 +363,7 @@ export function App() {
       />
 
       {/* Footer Profesional Sin Exposición de Tecnologías */}
-      {currentView !== 'kiosk' && (
+      {view !== 'kiosk' && view !== 'expert' && (
         <footer className="bg-black/50 border-t border-white/10 py-5 text-center text-xs text-white/50 font-semibold backdrop-blur-md">
           <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="flex items-center gap-2">

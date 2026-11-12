@@ -57,7 +57,7 @@ import {
   RotateCcw,
   Filter
 } from 'lucide-react';
-import type { Participant, Quiz, Question, QuestionType, UserAccount } from '../types/quiz';
+import type { Participant, Quiz, Question, QuestionType, UserAccount, UserRole } from '../types/quiz';
 import { quizService, generateUUID, DEFAULT_DEPARTMENTS, DEFAULT_EXPLANATIONS, type ExamSettings, type QuestionAnalytics, type DetailedParticipantAnswer } from '../services/quizService';
 import { isSupabaseConfigured } from '../services/supabaseClient';
 import { authService } from '../services/authService';
@@ -69,13 +69,15 @@ import { getHardwareHash, maskName } from '../utils/security';
 import { InteractiveMedal3D } from './CinemaEffects';
 import { KahootShapeIcon } from './KahootShapes';
 import { ShareQuizModal } from './ShareQuizModal';
+import { AdminCreateUserDialog } from './AdminCreateUserDialog';
 
 interface AdminViewProps {
   onBackToHome: () => void;
   onOpenKiosk?: () => void;
+  onLogout: () => void;
 }
 
-export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk }) => {
+export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk, onLogout }) => {
   // Authentication State: Si el usuario ya inició sesión con rol admin, se autentica directamente
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     return authService.isAdmin() || sessionStorage.getItem('kahoot_admin_auth') === 'true';
@@ -112,12 +114,15 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
   // Estados para Gestión de Usuarios & Accesos Cinépolis
   const [usersList, setUsersList] = useState<UserAccount[]>([]);
   const [userSearchQuery, setUserSearchQuery] = useState<string>('');
-  const [userRoleFilter, setUserRoleFilter] = useState<'all' | 'admin' | 'user'>('all');
+  const [userRoleFilter, setUserRoleFilter] = useState<'all' | UserRole>('all');
   const [userQuizFilter, setUserQuizFilter] = useState<string>('all');
   const [userQuizStatusFilter, setUserQuizStatusFilter] = useState<'all' | 'completed' | 'pending'>('all');
   const [editingUser, setEditingUser] = useState<UserAccount | null>(null);
+  const [creatingUser, setCreatingUser] = useState(false);
   const [resettingUserPassword, setResettingUserPassword] = useState<{ id: string; name: string } | null>(null);
   const [newTempPassword, setNewTempPassword] = useState<string>('');
+  const [passwordResetError, setPasswordResetError] = useState('');
+  const [resettingPassword, setResettingPassword] = useState(false);
   const [userActionMessage, setUserActionMessage] = useState<string>('');
   const [showTemplatesModal, setShowTemplatesModal] = useState<boolean>(false);
   const [quizKindFilter, setQuizKindFilter] = useState<'all' | 'exam' | 'simulator' | 'survey'>('all');
@@ -245,12 +250,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
     } else {
       setAuthError('Contraseña incorrecta. Por favor intenta de nuevo.');
     }
-  };
-
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    sessionStorage.removeItem('kahoot_admin_auth');
-    onBackToHome();
   };
 
   // Exportar y Respaldar Cuestionarios a archivo JSON
@@ -397,8 +396,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
     const res = await authService.updateUser(editingUser.id, {
       name: editingUser.name,
       fullName: editingUser.name,
-      email: editingUser.email,
-      employeeNumber: editingUser.employeeNumber,
+      employeeNumber: editingUser.employeeNumber || '',
       department: editingUser.department,
       role: editingUser.role,
     });
@@ -438,24 +436,30 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
       const updated = await authService.getUsers();
       setUsersList(updated);
       setTimeout(() => setUserActionMessage(''), 4000);
+    } else {
+      alert(res.error || 'No se pudo cambiar el estado de la cuenta.');
     }
   };
 
   const handleResetUserPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!resettingUserPassword || !newTempPassword.trim()) return;
-    if (newTempPassword.length < 6) {
-      alert('La contraseña temporal debe tener al menos 6 caracteres.');
-      return;
-    }
-    const res = await authService.resetUserPassword(resettingUserPassword.id, newTempPassword.trim());
-    if (res.success) {
-      setUserActionMessage(`¡Contraseña de ${resettingUserPassword.name} restablecida exitosamente!`);
+    if (!resettingUserPassword || resettingPassword) return;
+    setPasswordResetError('');
+    setResettingPassword(true);
+    try {
+      const res = await authService.resetUserPassword(resettingUserPassword.id, newTempPassword.trim());
+      if (!res.success) {
+        setPasswordResetError(res.error || 'No se pudo restablecer la contraseña.');
+        return;
+      }
+      setUserActionMessage(`Contraseña de ${resettingUserPassword.name} actualizada.`);
       setResettingUserPassword(null);
       setNewTempPassword('');
       setTimeout(() => setUserActionMessage(''), 4000);
-    } else {
-      alert(res.error || 'Error al restablecer contraseña');
+    } catch {
+      setPasswordResetError('No se pudo restablecer la contraseña. Vuelve a intentarlo.');
+    } finally {
+      setResettingPassword(false);
     }
   };
 
@@ -860,7 +864,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
             <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
           </button>
           <button
-            onClick={handleLogout}
+            onClick={onLogout}
             className="px-4 py-2.5 bg-red-600/30 hover:bg-red-600/50 text-red-200 border border-red-500/40 font-bold rounded-xl text-sm transition active:scale-95"
           >
             Cerrar Sesión
@@ -2924,16 +2928,31 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
                 </h2>
               </div>
               <p className="text-xs text-white/70 mt-1">
-                Administra cuentas registradas, cambia permisos entre Administrador y Colaborador, restablece contraseñas y habilita nuevos intentos.
+                Da de alta cuentas, asigna roles, restablece contraseñas y controla el acceso.
               </p>
             </div>
 
-            {userActionMessage && (
-              <span className="text-xs font-bold text-emerald-400 bg-emerald-500/20 px-3.5 py-2 rounded-xl border border-emerald-500/30 animate-pulse">
-                ✓ {userActionMessage}
-              </span>
-            )}
+            <div className="flex flex-wrap items-center gap-2.5">
+              {userActionMessage && (
+                <span role="status" className="text-xs font-bold text-emerald-400 bg-emerald-500/20 px-3.5 py-2 rounded-xl border border-emerald-500/30">
+                  ✓ {userActionMessage}
+                </span>
+              )}
+              <button type="button" onClick={() => setCreatingUser(true)} className="btn-cinepolis-gold flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black text-black">
+                <UserPlus className="w-4 h-4" /> Dar de alta usuario
+              </button>
+            </div>
           </div>
+
+          {creatingUser && <AdminCreateUserDialog onClose={() => setCreatingUser(false)} onCreated={user => {
+            setUsersList(previous => [...previous, user]);
+            setCreatingUser(false);
+            setUserSearchQuery('');
+            setUserRoleFilter('all');
+            setUserQuizStatusFilter('all');
+            setUserActionMessage(`Cuenta de ${user.name} creada.`);
+            setTimeout(() => setUserActionMessage(''), 4000);
+          }} />}
 
           {/* Filtros de Búsqueda de Usuarios */}
           <div className="bg-kahoot-purple-dark/80 p-4 rounded-2xl border border-white/10 shadow-lg flex flex-col lg:flex-row items-center justify-between gap-3">
@@ -2941,7 +2960,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
               <Search className="w-4 h-4 text-white/40 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="Buscar por nombre, correo, # de empleado, cine o área..."
+                placeholder="Buscar por nombre, ID de empleado o área…"
                 value={userSearchQuery}
                 onChange={e => setUserSearchQuery(e.target.value)}
                 className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-black/40 border border-white/20 text-white placeholder-white/40 text-xs sm:text-sm font-semibold focus:outline-none focus:border-amber-400"
@@ -2993,12 +3012,13 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
               <div className="relative">
                 <select
                   value={userRoleFilter}
-                  onChange={e => setUserRoleFilter(e.target.value as any)}
+                  onChange={e => setUserRoleFilter(e.target.value as 'all' | UserRole)}
                   className="px-3.5 py-2.5 pr-8 rounded-xl bg-black/40 border border-white/20 text-white font-bold text-xs appearance-none focus:outline-none focus:border-amber-400"
                 >
                   <option value="all">Todos los Roles</option>
                   <option value="admin">Solo Administradores</option>
                   <option value="user">Solo Colaboradores</option>
+                  <option value="expert">Solo Cinepolitos Expertos</option>
                 </select>
                 <ChevronDown className="w-3.5 h-3.5 text-white/60 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
@@ -3041,7 +3061,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
                 const displayName = (u.name || u.fullName || '').toLowerCase();
                 return (
                   displayName.includes(q) ||
-                  u.email.toLowerCase().includes(q) ||
                   u.nickname.toLowerCase().includes(q) ||
                   (u.employeeNumber && u.employeeNumber.toLowerCase().includes(q)) ||
                   (u.department && u.department.toLowerCase().includes(q))
@@ -3090,7 +3109,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
                           </span>
                         ) : (
                           <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-500/20 text-blue-300 border border-blue-500/30">
-                            🍿 Colaborador
+                            {u.role === 'expert' ? '🎓 Cinepolito Experto' : '🍿 Colaborador'}
                           </span>
                         )}
                         {u.isActive ? (
@@ -3117,8 +3136,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
                       </div>
 
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-white/60 mt-1.5 font-medium">
-                        <span>📧 {u.email}</span>
-                        {u.employeeNumber && <span>🎫 #{u.employeeNumber}</span>}
+                        <span>{u.employeeNumber ? 'ID de empleado ' + u.employeeNumber : 'Sin ID de empleado'}</span>
                         {u.department && <span>🍿 {u.department}</span>}
                       </div>
                     </div>
@@ -3135,7 +3153,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
                       <span>Editar</span>
                     </button>
 
-                    <button
+                    {u.role !== 'expert' && <button
                       type="button"
                       onClick={() => handleToggleUserRole(u)}
                       disabled={u.id === 'admin-cinepolis-master'}
@@ -3144,11 +3162,14 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
                     >
                       <Shield className="w-3.5 h-3.5" />
                       <span>{u.role === 'admin' ? 'Hacer Colaborador' : 'Hacer Admin'}</span>
-                    </button>
+                    </button>}
 
                     <button
                       type="button"
-                      onClick={() => setResettingUserPassword({ id: u.id, name: u.fullName })}
+                      onClick={() => {
+                        setPasswordResetError('');
+                        setResettingUserPassword({ id: u.id, name: u.name || u.fullName || u.nickname });
+                      }}
                       className="px-3 py-1.5 rounded-xl bg-amber-400/20 hover:bg-amber-400/30 text-amber-300 border border-amber-400/30 font-bold text-xs flex items-center gap-1.5 transition active:scale-95"
                       title="Restablecer contraseña de esta cuenta"
                     >
@@ -4060,32 +4081,18 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
                   />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs uppercase font-bold text-white/70 block mb-1">
-                      Correo Electrónico *
-                    </label>
-                    <input
-                      type="email"
-                      required
-                      value={editingUser.email}
-                      onChange={e => setEditingUser({ ...editingUser, email: e.target.value })}
-                      className="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/20 text-white font-semibold text-sm focus:outline-none focus:border-amber-400"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-xs uppercase font-bold text-white/70 block mb-1">
-                      # de Empleado / Nómina
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Ej. EMP-0482"
-                      value={editingUser.employeeNumber || ''}
-                      onChange={e => setEditingUser({ ...editingUser, employeeNumber: e.target.value })}
-                      className="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/20 text-white font-semibold text-sm focus:outline-none focus:border-amber-400"
-                    />
-                  </div>
+                <div>
+                  <label htmlFor="edit-employee-id" className="text-xs uppercase font-bold text-white/70 block mb-1">ID de empleado</label>
+                  <input
+                    id="edit-employee-id"
+                    type="text"
+                    required
+                    maxLength={30}
+                    placeholder="Ej. EMP-0482"
+                    value={editingUser.employeeNumber || ''}
+                    onChange={e => setEditingUser({ ...editingUser, employeeNumber: e.target.value })}
+                    className="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/20 text-white font-semibold text-sm focus:outline-none focus:border-amber-400"
+                  />
                 </div>
 
                 <div>
@@ -4102,16 +4109,18 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
                 </div>
 
                 <div>
-                  <label className="text-xs uppercase font-bold text-white/70 block mb-1">
+                  <label htmlFor="edit-user-role" className="text-xs uppercase font-bold text-white/70 block mb-1">
                     Rol en la Plataforma
                   </label>
                   <select
+                    id="edit-user-role"
                     value={editingUser.role}
                     disabled={editingUser.id === 'admin-cinepolis-master'}
-                    onChange={e => setEditingUser({ ...editingUser, role: e.target.value as any })}
+                    onChange={e => setEditingUser({ ...editingUser, role: e.target.value as UserRole })}
                     className="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/20 text-white font-semibold text-sm focus:outline-none focus:border-amber-400 disabled:opacity-50"
                   >
                     <option value="user">Colaborador (Evaluaciones y Diplomas)</option>
+                    <option value="expert">Cinepolito Experto (Panel de Seguimiento)</option>
                     <option value="admin">Administrador (Acceso al Panel de Control)</option>
                   </select>
                 </div>
@@ -4162,6 +4171,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
                   </h3>
                 </div>
                 <button
+                  disabled={resettingPassword}
+                  aria-label="Cerrar cambio de contraseña"
                   onClick={() => {
                     setResettingUserPassword(null);
                     setNewTempPassword('');
@@ -4173,28 +4184,33 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
               </div>
 
               <p className="text-xs text-white/70">
-                Asigna una contraseña temporal para <strong>{resettingUserPassword.name}</strong>. El colaborador podrá usarla inmediatamente para acceder y luego cambiarla en su perfil.
+                Define una nueva contraseña para <strong>{resettingUserPassword.name}</strong>. La persona tendrá que volver a iniciar sesión.
               </p>
 
               <form onSubmit={handleResetUserPassword} className="space-y-4">
                 <div>
-                  <label className="text-xs uppercase font-bold text-white/70 block mb-1">
-                    Nueva Contraseña Temporal (mínimo 6 caracteres) *
+                  <label htmlFor="admin-reset-password" className="text-xs uppercase font-bold text-white/70 block mb-1">
+                    Nueva contraseña (mínimo 6 caracteres)
                   </label>
                   <input
+                    id="admin-reset-password"
                     type="password"
                     required
                     minLength={6}
+                    autoComplete="new-password"
+                    disabled={resettingPassword}
                     placeholder="••••••••"
                     value={newTempPassword}
                     onChange={e => setNewTempPassword(e.target.value)}
                     className="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/20 text-white font-mono text-sm focus:outline-none focus:border-amber-400"
                   />
                 </div>
+                {passwordResetError && <p className="rounded-lg bg-red-950/70 p-2 text-sm text-red-200" role="alert">{passwordResetError}</p>}
 
                 <div className="flex items-center justify-end gap-2.5 pt-2">
                   <button
                     type="button"
+                    disabled={resettingPassword}
                     onClick={() => {
                       setResettingUserPassword(null);
                       setNewTempPassword('');
@@ -4205,9 +4221,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk 
                   </button>
                   <button
                     type="submit"
+                    disabled={resettingPassword}
                     className="btn-cinepolis-gold px-5 py-2 text-black font-black text-xs rounded-xl"
                   >
-                    Aplicar Nueva Contraseña
+                    {resettingPassword ? 'Guardando…' : 'Aplicar nueva contraseña'}
                   </button>
                 </div>
               </form>

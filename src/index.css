@@ -3,8 +3,10 @@
 @tailwind utilities;
 
 @layer base {
-  body {
-    @apply bg-kahoot-purple-deepest text-white min-h-screen font-sans antialiased selection:bg-kahoot-yellow selection:text-black overflow-x-hidden;
+  body:has(.quiz-app) {
+    @apply bg-kahoot-purple-deepest text-white min-h-screen antialiased selection:bg-kahoot-yellow selection:text-black overflow-x-hidden;
+    font-family: 'Montserrat', system-ui, sans-serif;
+    touch-action: manipulation;
     background:
       radial-gradient(ellipse at 50% 0%, rgba(255, 184, 0, 0.14) 0%, transparent 55%),
       radial-gradient(ellipse at 15% 25%, rgba(19, 104, 206, 0.22) 0%, transparent 50%),

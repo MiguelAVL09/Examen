@@ -9,6 +9,7 @@ import { CurtainsReveal, FilmStripProgress, CinemaTicketResult } from './CinemaE
 import { soundEffects } from '../utils/soundEffects';
 import { quizService, generateUUID, UUID_REGEX, DEFAULT_EXPLANATIONS } from '../services/quizService';
 import { getDeviceFingerprint, shuffleQuizQuestions, haptic } from '../utils/security';
+import { isSurveyQuiz } from '../utils/quizKind';
 import {
   Flame,
   CheckCircle,
@@ -43,6 +44,7 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
   onExit,
   onPlayAgain,
 }) => {
+  const isSurvey = isSurveyQuiz(quiz);
   // Anti-copia vecinal: barajar el orden de preguntas y opciones para cada participante
   const activeQuestions: Question[] = useMemo(() => {
     if (quiz.shuffleQuestions === false) return quiz.questions;
@@ -54,6 +56,7 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
   const [showFeedback, setShowFeedback] = useState<boolean>(false);
   const [isGameOver, setIsGameOver] = useState<boolean>(false);
   const [completedParticipant, setCompletedParticipant] = useState<Participant | null>(null);
+  const [surveySaveStatus, setSurveySaveStatus] = useState<'saving' | 'saved' | 'error'>('saving');
 
   // Anti-cheat: detección de cambios de pestaña / minimizar ventana
   const [tabSwitches, setTabSwitches] = useState<number>(0);
@@ -88,7 +91,7 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
 
   // Monitoreo de cambios de pestaña o salida de la aplicación durante el examen
   useEffect(() => {
-    if (isGameOver) return;
+    if (isGameOver || isSurvey) return;
     const handleVisibility = () => {
       if (document.hidden) {
         hiddenSinceRef.current = Date.now();
@@ -102,7 +105,7 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
     };
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, [isGameOver]);
+  }, [isGameOver, isSurvey]);
 
   // Initialize or reset question states
   useEffect(() => {
@@ -290,6 +293,7 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
   }, [isQuestionActive, showFeedback, currentQuestion, handleSelectOption]);
 
   const handleNextQuestion = () => {
+    if (isSurvey) window.scrollTo({ top: 0 });
     if (currentQuestionIndex + 1 < totalQuestions) {
       setCurrentQuestionIndex(prev => prev + 1);
     } else {
@@ -341,7 +345,9 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
     try {
       await quizService.saveParticipantResult(participantData);
       localStorage.setItem(`cinepolis_completed_${quiz.id}`, 'true');
+      if (isSurvey) setSurveySaveStatus('saved');
     } catch (err) {
+      if (isSurvey) setSurveySaveStatus('error');
       console.warn('Error saving participant result:', err);
     }
   };
@@ -401,7 +407,7 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
           </span>
         </div>
 
-        {streak > 1 && (
+        {!isSurvey && streak > 1 && (
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: [1, 1.15, 1] }}
@@ -413,7 +419,7 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
           </motion.div>
         )}
 
-        <div className="flex items-center gap-2 sm:gap-3">
+        {!isSurvey && <div className="flex items-center gap-2 sm:gap-3">
           <div className={`flex items-center gap-1.5 sm:gap-2 bg-black/40 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl border transition-all ${streak >= 2 ? 'border-amber-400/70 combo-golden-glow' : 'border-white/10'}`}>
             <span className="text-lg sm:text-xl">{avatar}</span>
             <span className="font-extrabold text-xs sm:text-sm md:text-base text-white max-w-[80px] sm:max-w-[120px] truncate">
@@ -423,7 +429,7 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
           <div className={`bg-kahoot-yellow px-2.5 sm:px-4 py-1 sm:py-1.5 rounded-lg sm:rounded-xl shadow-md text-black font-black text-xs sm:text-sm md:text-lg transition-all ${streak >= 2 ? 'combo-golden-glow' : ''}`}>
             {totalScore.toLocaleString()} <span className="text-[10px] sm:text-xs uppercase">pts</span>
           </div>
-        </div>
+        </div>}
       </div>
 
       {!isGameOver ? (
@@ -457,7 +463,7 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
               />
             </div>
 
-            <h2 className="text-base sm:text-xl md:text-2xl lg:text-3xl font-black tracking-tight text-gray-900 max-w-4xl leading-snug px-1">
+            <h2 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-black tracking-tight text-gray-900 max-w-4xl leading-snug px-1">
               {currentQuestion.questionText}
             </h2>
 
@@ -552,7 +558,7 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
               <div className="bg-blue-500/15 border border-blue-400/30 rounded-2xl p-3 text-left flex items-center gap-2.5">
                 <span className="p-1.5 bg-blue-500/30 text-blue-200 rounded-xl text-base">🛡️</span>
                 <span className="text-xs text-blue-200 font-bold">
-                  Respuesta anónima y confidencial. Selecciona la opción que mejor represente tu experiencia.
+                  {quiz.isAnonymousSurvey && 'La encuesta es anónima. '}Selecciona la opción que mejor represente tu experiencia.
                 </span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-4">
@@ -718,7 +724,7 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
               <div className="bg-blue-500/15 border border-blue-400/30 rounded-2xl p-3 text-left flex items-center gap-2.5">
                 <span className="p-1.5 bg-blue-500/30 text-blue-200 rounded-xl text-base">🛡️</span>
                 <span className="text-xs text-blue-200 font-bold">
-                  Respuesta anónima y confidencial. Selecciona la opción que mejor represente tu experiencia.
+                  {quiz.isAnonymousSurvey && 'La encuesta es anónima. '}Selecciona la opción que mejor represente tu experiencia.
                 </span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-4">
@@ -778,13 +784,13 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
               >
                 <div
                   className={`w-full max-w-md rounded-2xl sm:rounded-3xl p-5 sm:p-8 text-center text-white shadow-2xl border-2 sm:border-4 my-auto ${
-                    lastAnswerCorrect
+                    isSurvey ? 'bg-[#15264a] border-blue-300' : lastAnswerCorrect
                       ? 'bg-gradient-to-b from-green-600 to-green-800 border-green-400'
                       : 'bg-gradient-to-b from-red-600 to-red-800 border-red-400'
                   }`}
                 >
                   <div className="w-14 h-14 sm:w-20 sm:h-20 mx-auto mb-3 sm:mb-4 rounded-full bg-white/20 flex items-center justify-center shadow-inner">
-                    {lastAnswerCorrect ? (
+                    {isSurvey || lastAnswerCorrect ? (
                       <CheckCircle className="w-9 h-9 sm:w-12 sm:h-12 text-white stroke-[2.5]" />
                     ) : (
                       <XCircle className="w-9 h-9 sm:w-12 sm:h-12 text-white stroke-[2.5]" />
@@ -792,10 +798,10 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
                   </div>
 
                   <h3 className="text-2xl sm:text-3xl font-black uppercase tracking-tight mb-1 sm:mb-2">
-                    {lastAnswerCorrect ? '¡Correcto!' : '¡Incorrecto!'}
+                    {isSurvey ? 'Continúa con la encuesta' : lastAnswerCorrect ? '¡Correcto!' : '¡Incorrecto!'}
                   </h3>
 
-                  {lastAnswerCorrect ? (
+                  {!isSurvey && (lastAnswerCorrect ? (
                     <div className="space-y-1 sm:space-y-2 mb-4 sm:mb-6">
                       <div className="text-3xl sm:text-4xl font-black text-amber-300">
                         +{lastPointsAwarded.toLocaleString()}{' '}
@@ -843,10 +849,10 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
                         </div>
                       )}
                     </div>
-                  )}
+                  ))}
 
                   {/* Consecuencia del Simulador de Casos */}
-                  {currentScenarioFeedback && (
+                  {!isSurvey && currentScenarioFeedback && (
                     <div className="mb-4 p-3.5 sm:p-4 rounded-2xl bg-black/40 border border-amber-400/40 text-left space-y-1">
                       <div className="flex items-center gap-1.5 text-[10px] sm:text-xs font-black uppercase tracking-wider text-amber-300">
                         <Film className="w-3.5 h-3.5 shrink-0" />
@@ -859,7 +865,7 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
                   )}
 
                   {/* Ficha Formativa Inmediata ("¿Por qué es la correcta?") */}
-                  {(currentQuestion.explanation || DEFAULT_EXPLANATIONS[currentQuestion.id]) && (
+                  {!isSurvey && (currentQuestion.explanation || DEFAULT_EXPLANATIONS[currentQuestion.id]) && (
                     <div className="mb-4 sm:mb-6 p-3.5 rounded-2xl bg-black/35 border border-amber-300/30 text-left">
                       <div className="flex items-center gap-1.5 text-[10px] sm:text-xs font-black uppercase tracking-wider text-amber-300 mb-1">
                         <BookOpen className="w-3.5 h-3.5 shrink-0" />
@@ -873,10 +879,11 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
 
                   <button
                     onClick={handleNextQuestion}
+                    autoFocus={isSurvey}
                     className="w-full py-3.5 sm:py-4 rounded-xl sm:rounded-2xl bg-white text-gray-900 font-black text-base sm:text-lg uppercase tracking-wider shadow-xl hover:bg-gray-100 active:scale-95 transition flex items-center justify-center gap-2 min-h-[48px]"
                   >
                     <span>
-                      {currentQuestionIndex + 1 < totalQuestions ? 'Siguiente Pregunta' : 'Ver Boleto de Resultados'}
+                      {currentQuestionIndex + 1 < totalQuestions ? 'Siguiente pregunta' : isSurvey ? 'Enviar encuesta' : 'Ver Boleto de Resultados'}
                     </span>
                     <ArrowRight className="w-5 h-5" />
                   </button>
@@ -885,6 +892,15 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
             )}
           </AnimatePresence>
         </motion.div>
+      ) : isSurvey ? (
+        <section className="quiz-message">
+          <h1 role={surveySaveStatus === 'error' ? 'alert' : 'status'}>{
+            surveySaveStatus === 'saving' ? 'Guardando tus respuestas…' :
+              surveySaveStatus === 'saved' ? 'Encuesta completada' : 'No se pudo guardar la encuesta'
+          }</h1>
+          <p>{surveySaveStatus === 'saved' ? 'Gracias por responder.' : surveySaveStatus === 'error' ? 'Puedes volver a las encuestas e intentarlo de nuevo.' : quiz.title}</p>
+          <button type="button" className="quiz-action quiz-action-primary" onClick={onExit} disabled={surveySaveStatus === 'saving'}>Volver a encuestas</button>
+        </section>
       ) : (
         /* Game Over Screen - Tarjeta estilo Boleto de Cine con QR, Medalla 3D, Diploma PDF y Ficha Formativa */
         <CinemaTicketResult

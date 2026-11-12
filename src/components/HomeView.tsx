@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
+  ArrowRight,
+  ClipboardList,
   Play,
   Users,
   Sparkles,
@@ -11,19 +13,17 @@ import {
   User,
   Lock,
   BookOpen,
-  Building2,
   Briefcase,
   ShieldCheck,
-  Award,
   CheckCircle2,
-  FileCheck2,
   RotateCcw
 } from 'lucide-react';
 import type { Quiz, Participant, UserAccount } from '../types/quiz';
 import { quizService, DEFAULT_DEPARTMENTS } from '../services/quizService';
-import { KahootShapeIcon } from './KahootShapes';
 import { ShareQuizModal } from './ShareQuizModal';
 import { FlashcardsModal } from './CinemaEffects';
+import { SurveyStartDialog } from './SurveyStartDialog';
+import { isSurveyQuiz } from '../utils/quizKind';
 
 interface HomeViewProps {
   quizzes: Quiz[];
@@ -33,6 +33,7 @@ interface HomeViewProps {
   onStartQuiz: (quiz: Quiz, nickname: string, avatar: string, branch?: string, department?: string) => void;
   onHostGame: (quiz: Quiz) => void;
   onOpenPinModal: () => void;
+  onOpenSurveys: () => void;
 }
 
 const AVATAR_OPTIONS = ['🦊', '🦁', '🐼', '🚀', '⚡', '👑', '🦄', '🎮', '🐯', '🔥', '🤖', '🦖', '🌟', '🎯', '🍿', '🎬'];
@@ -51,6 +52,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onStartQuiz,
   onHostGame,
   onOpenPinModal,
+  onOpenSurveys,
 }) => {
   const [nickname, setNickname] = useState<string>(() => {
     return currentUser?.name || currentUser?.nickname || localStorage.getItem('kahoot_player_nickname') || '';
@@ -137,44 +139,34 @@ export const HomeView: React.FC<HomeViewProps> = ({
     setIsJoinModalOpen(true);
   };
 
-  return (
-    <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 space-y-12 overflow-hidden">
-      {/* Animated Floating Geometric Particles */}
-      <motion.div
-        animate={{ y: [-10, 15, -10], rotate: [0, 15, 0] }}
-        transition={{ repeat: Infinity, duration: 6, ease: 'easeInOut' }}
-        className="absolute top-10 left-6 text-red-500/20 pointer-events-none -z-10"
-      >
-        <KahootShapeIcon shape="triangle" size={60} />
-      </motion.div>
-      <motion.div
-        animate={{ y: [10, -20, 10], rotate: [0, -20, 0] }}
-        transition={{ repeat: Infinity, duration: 7, ease: 'easeInOut' }}
-        className="absolute top-28 right-10 text-blue-500/20 pointer-events-none -z-10"
-      >
-        <KahootShapeIcon shape="diamond" size={68} />
-      </motion.div>
-      <motion.div
-        animate={{ y: [-15, 15, -15], rotate: [0, 25, 0] }}
-        transition={{ repeat: Infinity, duration: 8, ease: 'easeInOut' }}
-        className="absolute bottom-20 left-12 text-yellow-500/20 pointer-events-none -z-10"
-      >
-        <KahootShapeIcon shape="circle" size={54} />
-      </motion.div>
-      <motion.div
-        animate={{ y: [15, -15, 15], rotate: [0, -15, 0] }}
-        transition={{ repeat: Infinity, duration: 6.5, ease: 'easeInOut' }}
-        className="absolute bottom-12 right-20 text-green-500/20 pointer-events-none -z-10"
-      >
-        <KahootShapeIcon shape="square" size={58} />
-      </motion.div>
+  async function startActivity(quiz: Quiz, name: string) {
+    if (!name) return 'Escribe tu nombre y apellido para continuar.';
+    if (!quiz.questions.length) return 'Esta actividad todavía no tiene preguntas.';
+    const access = quizService.isExamAccessible(quiz);
+    if (!access.accessible) return access.reason || 'Esta actividad está cerrada.';
+    try {
+      const attempt = await quizService.checkParticipantCanAttempt(quiz, name);
+      if (!attempt.canAttempt) return attempt.reason || 'Alcanzaste el límite de intentos para esta actividad.';
+      if (!quiz.isAnonymousSurvey) handleSaveProfile(name, selectedAvatar, undefined, department);
+      setIsJoinModalOpen(false);
+      onStartQuiz(quiz, name, selectedAvatar, undefined, department || undefined);
+    } catch {
+      return 'No se pudo abrir la actividad. Intenta nuevamente.';
+    }
+  }
 
+  const surveys = quizzes.filter(quiz => isSurveyQuiz(quiz) && quiz.questions.length > 0 && quizService.isExamAccessible(quiz).accessible);
+  const evaluations = quizzes.filter(quiz => !isSurveyQuiz(quiz));
+  const invitedSurvey = invitedQuiz && isSurveyQuiz(invitedQuiz);
+
+  return (
+    <div className="quiz-home">
       {/* Invitation Hero Banner if user opened direct link ?quiz=... */}
       {invitedQuiz && (
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: -20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          className="bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 rounded-3xl p-6 sm:p-8 text-black shadow-[0_16px_40px_rgba(255,184,0,0.35)] relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6 border-2 border-white/60"
+          className="mb-5 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 rounded-3xl p-6 sm:p-8 text-black shadow-[0_16px_40px_rgba(255,184,0,0.35)] relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6 border-2 border-white/60"
         >
           <div className="flex items-center gap-4 sm:gap-6">
             <img
@@ -185,7 +177,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="bg-black text-amber-300 text-[10px] sm:text-xs font-black uppercase px-3 py-1 rounded-full tracking-wider shadow">
-                  🎉 ¡Invitación a Evaluación!
+                  {invitedSurvey ? 'Invitación a encuesta' : 'Invitación a evaluación'}
                 </span>
                 <span className="bg-white/80 text-black text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-full">
                   {invitedQuiz.category || 'General'}
@@ -195,26 +187,26 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 {invitedQuiz.title}
               </h2>
               <p className="text-xs sm:text-sm font-bold text-black/80 mt-1">
-                {invitedQuiz.questions?.length || 0} preguntas preparadas • ¿Listo para certificarte?
+                {invitedQuiz.questions.length} {invitedQuiz.questions.length === 1 ? 'pregunta' : 'preguntas'}
               </p>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-            <button
+            {!invitedSurvey && <button
               type="button"
               onClick={() => setFlashcardsQuiz(invitedQuiz)}
               className="flex-1 md:flex-none px-5 py-3.5 bg-black/15 hover:bg-black/25 text-black font-black uppercase text-xs rounded-2xl transition flex items-center justify-center gap-2 border border-black/20"
             >
               <BookOpen className="w-4 h-4" />
               <span>Modo Práctica</span>
-            </button>
+            </button>}
             <button
               onClick={() => handleLaunchSolo(invitedQuiz)}
               className="flex-1 md:flex-none px-7 py-3.5 bg-[#0b0f19] hover:bg-[#151c2e] text-amber-300 font-black uppercase text-xs sm:text-sm rounded-2xl shadow-xl active:scale-95 transition flex items-center justify-center gap-2 border border-amber-400/40"
             >
               <Play className="w-4 h-4 fill-current" />
-              <span>¡Comenzar Evaluación!</span>
+              <span>{invitedSurvey ? 'Responder encuesta' : 'Comenzar evaluación'}</span>
             </button>
             {onClearInvitation && (
               <button
@@ -229,72 +221,50 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </motion.div>
       )}
 
-      {/* Hero Section: Limpio, Ejecutivo y enfocado en Cinépolis */}
-      <div className="relative text-center max-w-4xl mx-auto pt-2 pb-6">
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-        >
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-400/10 border border-amber-400/30 text-xs md:text-sm font-black text-amber-300 uppercase tracking-widest mb-6 shadow-md backdrop-blur-md">
-            <Sparkles className="w-4 h-4" />
-            <span>Plataforma Oficial de Evaluación y Capacitación</span>
-          </div>
-
-          <h1 className="text-4xl sm:text-6xl md:text-7xl font-black text-white tracking-tight uppercase leading-none drop-shadow-2xl">
-            Aprende, Evalúa <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500">
-              Y Certifícate en Cinépolis
-            </span>
-          </h1>
-
-          <p className="mt-6 text-base sm:text-xl text-white/80 max-w-2xl mx-auto font-medium leading-relaxed">
-            Evaluaciones dinámicas, retroalimentación formativa inmediata, constancias oficiales con código QR y analíticas de aprendizaje de alto nivel.
-          </p>
-
-          {/* Quick Actions Bar */}
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <button
-              onClick={() => {
-                if (quizzes.length > 0) {
-                  const target = quizzes.find(q => q.id === 'f3f7aa07-4389-4769-a162-3fb8b989bfc0') || quizzes[0];
-                  handleLaunchSolo(target);
-                }
-              }}
-              className="px-8 py-4 rounded-2xl btn-cinepolis-gold text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-2 shadow-2xl"
-            >
-              <Play className="w-4 h-4 fill-current" />
-              <span>Comenzar Evaluación Oficial</span>
-            </button>
-
-            <button
-              onClick={onOpenPinModal}
-              className="px-6 py-4 rounded-2xl btn-cinepolis-glass text-xs sm:text-sm font-bold uppercase tracking-wider flex items-center gap-2"
-            >
-              <Gamepad2 className="w-4 h-4 text-amber-300" />
-              <span>Unirse con PIN de Sala</span>
-            </button>
-          </div>
-        </motion.div>
-      </div>
-
-      {/* Available Quizzes Showcase */}
-      <div>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-          <div>
-            <h2 className="text-2xl md:text-3xl font-black uppercase text-white tracking-tight flex items-center gap-2.5">
-              <Gamepad2 className="w-7 h-7 text-amber-400" />
-              <span>Cuestionarios Disponibles ({quizzes.length})</span>
-            </h2>
-            <p className="text-white/70 text-sm font-semibold">
-              Elige tu módulo de evaluación o realiza un repaso previo sin afectar tu historial.
-            </p>
-          </div>
+      <section className="quiz-hero" aria-labelledby="quiz-home-heading">
+        <h1 id="quiz-home-heading">Encuestas y evaluaciones</h1>
+        <p>Elige una actividad para comenzar. Al terminar una encuesta, verás la confirmación de envío.</p>
+        <div className="quiz-hero-actions">
+          <button type="button" className="quiz-action quiz-action-primary" onClick={onOpenSurveys}>
+            <ClipboardList size={21} aria-hidden="true" /> Ver encuestas <ArrowRight size={18} aria-hidden="true" />
+          </button>
+          <button type="button" className="quiz-action" onClick={onOpenPinModal}>
+            <Gamepad2 size={20} aria-hidden="true" /> Unirme con PIN
+          </button>
         </div>
+      </section>
+
+      <section id="encuestas" className="quiz-section" tabIndex={-1} aria-labelledby="surveys-heading">
+        <h2 id="surveys-heading"><ClipboardList size={27} aria-hidden="true" /> Encuestas disponibles</h2>
+        {surveys.length ? (
+          <>
+            <p className="quiz-section-intro">Busca la encuesta que te indicaron y selecciona «Responder encuesta».</p>
+            <div className="survey-list">
+              {surveys.map(quiz => (
+                <article key={quiz.id} className="survey-card">
+                  <span className="survey-card-icon"><ClipboardList size={25} aria-hidden="true" /></span>
+                  <div>
+                    <h3>{quiz.title}</h3>
+                    {quiz.description && <p>{quiz.description}</p>}
+                    <small>{quiz.questions.length} {quiz.questions.length === 1 ? 'pregunta' : 'preguntas'}{quiz.isAnonymousSurvey && ' · Anónima'}</small>
+                  </div>
+                  <button type="button" className="quiz-action quiz-action-primary" onClick={() => handleLaunchSolo(quiz)} aria-label={'Responder encuesta: ' + quiz.title}>
+                    Responder encuesta <ArrowRight size={18} aria-hidden="true" />
+                  </button>
+                </article>
+              ))}
+            </div>
+          </>
+        ) : <p className="survey-empty">Por ahora no hay encuestas abiertas. Cuando se publique una, aparecerá aquí.</p>}
+      </section>
+
+      <section className="quiz-section" aria-labelledby="evaluations-heading">
+        <h2 id="evaluations-heading"><Gamepad2 size={27} aria-hidden="true" /> Evaluaciones y prácticas</h2>
+        <p className="quiz-section-intro">Elige una evaluación o practica antes de comenzar.</p>
 
         {/* Quizzes Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {quizzes.map((quiz, index) => (
+          {evaluations.map((quiz, index) => (
             <motion.div
               key={quiz.id}
               initial={{ opacity: 0, y: 20 }}
@@ -317,7 +287,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   
                   <span className="absolute top-3 right-3 px-3 py-1 bg-[#13234d]/90 backdrop-blur-md rounded-full text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5 shadow border border-white/10">
                     <Clock className="w-3.5 h-3.5 text-amber-300" />
-                    {quiz.questions.length} Preguntas
+                    {quiz.questions.length} {quiz.questions.length === 1 ? 'pregunta' : 'preguntas'}
                   </span>
                 </div>
 
@@ -350,37 +320,37 @@ export const HomeView: React.FC<HomeViewProps> = ({
               <div className="p-6 pt-0 space-y-2.5">
                 <button
                   onClick={() => handleLaunchSolo(quiz)}
-                  className="w-full py-3.5 px-4 rounded-2xl btn-cinepolis-gold text-xs md:text-sm font-black uppercase tracking-wider shadow-lg flex items-center justify-center gap-2"
+                  className="quiz-action quiz-action-primary w-full"
                 >
                   <Play className="w-4 h-4 fill-current" />
-                  <span>Jugar Ahora (Desafío)</span>
+                  <span>Iniciar evaluación</span>
                 </button>
 
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <button
                     onClick={() => setFlashcardsQuiz(quiz)}
-                    className="py-2.5 px-2 rounded-xl btn-cinepolis-glass font-bold uppercase tracking-wider text-[11px] flex items-center justify-center gap-1"
+                    className="min-h-11 py-2 px-2 rounded-xl btn-cinepolis-glass font-bold text-sm flex items-center justify-center gap-1.5"
                     title="Estudiar preguntas sin afectar el ranking"
                   >
-                    <BookOpen className="w-3.5 h-3.5 text-amber-300" />
-                    <span>Práctica</span>
+                    <BookOpen className="w-4 h-4 shrink-0 text-amber-300" />
+                    <span>Practicar</span>
                   </button>
 
                   <button
                     onClick={() => onHostGame(quiz)}
-                    className="py-2.5 px-2 rounded-xl btn-cinepolis-glass font-bold uppercase tracking-wider text-[11px] flex items-center justify-center gap-1"
+                    className="min-h-11 py-2 px-2 rounded-xl btn-cinepolis-glass font-bold text-sm flex items-center justify-center gap-1.5"
                     title="Crear una sala multijugador para el equipo"
                   >
-                    <Users className="w-3.5 h-3.5 text-blue-300" />
-                    <span>Sala</span>
+                    <Users className="w-4 h-4 shrink-0 text-blue-300" />
+                    <span>Crear sala</span>
                   </button>
 
                   <button
                     onClick={() => setSharingQuiz(quiz)}
-                    className="py-2.5 px-2 rounded-xl btn-cinepolis-glass text-amber-300 font-bold uppercase tracking-wider text-[11px] flex items-center justify-center gap-1"
+                    className="min-h-11 py-2 px-2 rounded-xl btn-cinepolis-glass text-amber-300 font-bold text-sm flex items-center justify-center gap-1.5"
                     title="Compartir enlace o código QR de este cuestionario"
                   >
-                    <Share2 className="w-3.5 h-3.5" />
+                    <Share2 className="w-4 h-4 shrink-0" />
                     <span>Compartir</span>
                   </button>
                 </div>
@@ -388,55 +358,15 @@ export const HomeView: React.FC<HomeViewProps> = ({
             </motion.div>
           ))}
         </div>
-      </div>
+        {!evaluations.length && <p className="survey-empty">Por ahora no hay evaluaciones disponibles.</p>}
+      </section>
 
-      {/* Feature Highlights Grid: Profesional y Seguro */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-8 border-t border-white/10">
-        <div className="bg-black/30 p-6 rounded-3xl border border-white/10 flex items-start gap-4">
-          <div className="p-3 bg-red-500/20 text-red-400 rounded-2xl flex-shrink-0">
-            <KahootShapeIcon shape="triangle" size={28} />
-          </div>
-          <div>
-            <h4 className="text-base font-black uppercase text-white mb-1">
-              Evaluación y Retroalimentación
-            </h4>
-            <p className="text-xs text-white/70 leading-relaxed font-semibold">
-              Cápsula formativa oficial en cada reactivo que explica el por qué de la respuesta correcta de acuerdo a políticas Cinépolis.
-            </p>
-          </div>
-        </div>
-
-        <div className="bg-black/30 p-6 rounded-3xl border border-white/10 flex items-start gap-4">
-          <div className="p-3 bg-blue-500/20 text-blue-400 rounded-2xl flex-shrink-0">
-            <KahootShapeIcon shape="diamond" size={28} />
-          </div>
-          <div>
-            <h4 className="text-base font-black uppercase text-white mb-1">
-              Seguridad y Blindaje Anti-Fraude
-            </h4>
-            <p className="text-xs text-white/70 leading-relaxed font-semibold">
-              Aleatorización anti-copia de opciones, detección de cambios de pestaña y registro de huella digital del dispositivo.
-            </p>
-          </div>
-        </div>
-
-        <div className="bg-black/30 p-6 rounded-3xl border border-white/10 flex items-start gap-4">
-          <div className="p-3 bg-amber-500/20 text-amber-300 rounded-2xl flex-shrink-0">
-            <Award className="w-7 h-7" />
-          </div>
-          <div>
-            <h4 className="text-base font-black uppercase text-white mb-1">
-              Certificación Oficial en PDF
-            </h4>
-            <p className="text-xs text-white/70 leading-relaxed font-semibold">
-              Boletos estilo cine con código QR de verificación y diplomas descargables al obtener 80% o más de aciertos.
-            </p>
-          </div>
-        </div>
-      </div>
-
+      {isJoinModalOpen && selectedQuiz && isSurveyQuiz(selectedQuiz) && (
+        <SurveyStartDialog key={selectedQuiz.id} quiz={selectedQuiz} user={currentUser} initialName={nickname}
+          onClose={() => setIsJoinModalOpen(false)} onStart={name => startActivity(selectedQuiz, name)} />
+      )}
       {/* Nickname / Colaborador Modal before Solo Play */}
-      {isJoinModalOpen && selectedQuiz && (
+      {isJoinModalOpen && selectedQuiz && !isSurveyQuiz(selectedQuiz) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
           <motion.div
             initial={{ scale: 0.9, opacity: 0, y: 20 }}
@@ -500,32 +430,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
               return (
                 <form
-                  onSubmit={async e => {
-                    e.preventDefault();
-                    if (!nickname.trim()) {
-                      setErrorMessage('Por favor escribe tu nombre para identificarte en el registro.');
-                      return;
-                    }
-
-                    // 1. Validar acceso al examen
-                    const freshAccessCheck = quizService.isExamAccessible(selectedQuiz);
-                    if (!freshAccessCheck.accessible) {
-                      setErrorMessage(freshAccessCheck.reason || 'Esta evaluación está cerrada.');
-                      return;
-                    }
-
-                    // 2. Validar límite individual de intentos para este cuestionario
-                    const attemptCheck = await quizService.checkParticipantCanAttempt(selectedQuiz, nickname.trim());
-                    if (!attemptCheck.canAttempt) {
-                      setErrorMessage(
-                        attemptCheck.reason || 'Has alcanzado el límite de intentos permitidos para esta evaluación.'
-                      );
-                      return;
-                    }
-
-                    handleSaveProfile(nickname.trim(), selectedAvatar, undefined, department);
-                    setIsJoinModalOpen(false);
-                    onStartQuiz(selectedQuiz, nickname.trim(), selectedAvatar, undefined, department || undefined);
+                  onSubmit={async event => {
+                    event.preventDefault();
+                    setErrorMessage(await startActivity(selectedQuiz, nickname.trim()) || '');
                   }}
                   className="space-y-4"
                 >

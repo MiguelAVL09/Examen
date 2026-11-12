@@ -48,6 +48,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [department, setDepartment] = useState(user.department || '');
   const [newPassword, setNewPassword] = useState('');
   const [saveMsg, setSaveMsg] = useState('');
+  const [saveError, setSaveError] = useState('');
 
   const normalizeName = (s: string) =>
     (s || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
@@ -56,12 +57,10 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     if (isOpen) {
       setIsLoadingAttempts(true);
       quizService.getRankings().then(all => {
-        const userNorm = normalizeName(user.nickname);
-        const emailNorm = normalizeName(user.email);
-        const filtered = all.filter(p => {
-          const pNorm = normalizeName(p.nickname);
-          return pNorm === userNorm || pNorm.includes(userNorm) || (p.nickname && p.nickname.toLowerCase() === emailNorm);
-        }).sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime());
+        const identities = new Set([user.nickname, user.name, user.fullName, user.employeeNumber, user.email]
+          .map(value => normalizeName(value || '')).filter(Boolean));
+        const filtered = all.filter(p => identities.has(normalizeName(p.nickname)))
+          .sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime());
         setMyAttempts(filtered);
         setIsLoadingAttempts(false);
       });
@@ -73,22 +72,34 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaveMsg('');
+    setSaveError('');
+    if (newPassword && newPassword.trim().length < 6) {
+      setSaveError('Usa al menos 6 caracteres en la contraseña.');
+      return;
+    }
     const updates: Partial<UserAccount> = {
       name: name.trim(),
       department: department.trim(),
     };
 
     const res = await authService.updateUser(user.id, updates);
-    if (newPassword && newPassword.length >= 6) {
-      await authService.resetUserPassword(user.id, newPassword);
+    if (!res.success || !res.user) {
+      setSaveError(res.error || 'No se pudieron guardar los cambios.');
+      return;
     }
 
-    if (res.success && res.user) {
-      onUpdateUser(res.user);
-      setSaveMsg('¡Datos actualizados con éxito!');
-      setNewPassword('');
-      setTimeout(() => setSaveMsg(''), 3000);
+    if (newPassword) {
+      const reset = await authService.resetUserPassword(user.id, newPassword);
+      if (!reset.success) {
+        onUpdateUser(res.user);
+        setSaveError(reset.error || 'No se pudo cambiar la contraseña.');
+        return;
+      }
     }
+    onUpdateUser(authService.getCurrentUser() ?? res.user);
+    setSaveMsg('¡Datos actualizados con éxito!');
+    setNewPassword('');
+    setTimeout(() => setSaveMsg(''), 3000);
   };
 
   const passedAttempts = myAttempts.filter(a => a.accuracyPercentage >= 80);
@@ -115,11 +126,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   {user.name || user.nickname}
                 </h3>
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/40 font-black uppercase">
-                  {user.role === 'admin' ? '⭐ Administrador' : 'Colaborador Cinépolis'}
+                  {user.role === 'admin' ? '⭐ Administrador' : user.role === 'expert' ? 'Cinepolito Experto' : 'Colaborador Cinépolis'}
                 </span>
               </div>
               <p className="text-xs text-white/50 font-medium">
-                {user.email} {user.employeeNumber ? `• No. ${user.employeeNumber}` : ''}
+                {user.employeeNumber ? 'ID de empleado ' + user.employeeNumber : 'Sin ID de empleado'}
               </p>
               <div className="flex items-center gap-2 mt-1 text-[11px] text-amber-300 font-bold">
                 <span>🍿 Área: {user.department || 'Operaciones'}</span>
@@ -326,6 +337,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         {/* TAB 3: EDITAR PERFIL */}
         {activeTab === 'profile' && (
           <form onSubmit={handleSaveProfile} className="space-y-4">
+            {saveError && <p role="alert" className="rounded-xl bg-red-950/70 p-3 text-xs font-semibold text-red-200">{saveError}</p>}
             {saveMsg && (
               <div className="p-3 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-200 text-xs font-semibold flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
