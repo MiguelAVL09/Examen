@@ -532,9 +532,7 @@ const initializeLocalQuizzes = (): Quiz[] => {
 
       
       // Si el cuestionario de Cinépolis en local tiene menos preguntas que DEFAULT_QUIZZES, actualizarlo
-      const cineIdx = parsed.findIndex(
-        q => (q.title && q.title.toLowerCase().includes('cinepolis')) || q.id === DEFAULT_QUIZZES[0].id
-      );
+      const cineIdx = parsed.findIndex(q => q.id === DEFAULT_QUIZZES[0].id);
       if (cineIdx >= 0 && (parsed[cineIdx].questions?.length || 0) < DEFAULT_QUIZZES[0].questions.length) {
         parsed[cineIdx].questions = DEFAULT_QUIZZES[0].questions;
         localStorage.setItem(LOCAL_STORAGE_QUIZZES_KEY, JSON.stringify(parsed));
@@ -610,7 +608,7 @@ export const quizService = {
                   correctOrder: ques.correct_order || undefined,
                   acceptedAnswers: ques.accepted_answers || undefined,
                   explanation: ques.explanation || DEFAULT_EXPLANATIONS[ques.id] || undefined,
-                  options: (ques.question_options || []).map((opt: any) => ({
+                  options: (ques.question_options || []).sort((a: any, b: any) => a.order_index - b.order_index).map((opt: any) => ({
                     id: opt.id,
                     text: opt.option_text,
                     isCorrect: opt.is_correct,
@@ -626,9 +624,7 @@ export const quizService = {
           // Fusión inteligente: nunca permitir que datos remotos obsoletos
           // sobreescriban una versión local que tenga más preguntas
           const merged = remoteQuizzes.map(remoteQ => {
-            const matchingLocal = localQuizzes.find(
-              lq => lq.id === remoteQ.id || (lq.title && lq.title.trim().toLowerCase() === remoteQ.title.trim().toLowerCase())
-            );
+            const matchingLocal = localQuizzes.find(lq => lq.id === remoteQ.id);
             if (matchingLocal && (matchingLocal.questions?.length || 0) > (remoteQ.questions?.length || 0)) {
               return matchingLocal;
             }
@@ -664,9 +660,8 @@ export const quizService = {
 
     // 1. Guardar primero en LocalStorage para garantizar que NUNCA se pierdan los datos
     const current = initializeLocalQuizzes();
-    const idx = current.findIndex(
-      q => q.id === quizToSave.id || (q.title && q.title.trim().toLowerCase() === quizToSave.title.trim().toLowerCase())
-    );
+    const existingIdIndex = current.findIndex(q => q.id === quizToSave.id);
+    const idx = existingIdIndex >= 0 ? existingIdIndex : current.findIndex(q => q.title?.trim().toLowerCase() === quizToSave.title.trim().toLowerCase());
     let updatedQuizzes: Quiz[];
     if (idx >= 0) {
       updatedQuizzes = [...current];

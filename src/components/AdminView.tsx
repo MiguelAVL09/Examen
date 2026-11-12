@@ -1042,7 +1042,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
             >
               <option value="all">🌐 Todos los Cuestionarios ({quizzes.length})</option>
               {quizzes.map(q => {
-                const prefix = q.isAnonymousSurvey
+                const prefix = isSurveyQuiz(q)
                   ? '🛡️ [Encuesta] '
                   : q.quizKind === 'simulator'
                   ? '🎭 [Simulador] '
@@ -1142,7 +1142,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
                   >
                     <option value="all">🌐 Todos los Cuestionarios ({quizzes.length})</option>
                     {quizzes.map(q => {
-                      const prefix = q.isAnonymousSurvey
+                      const prefix = isSurveyQuiz(q)
                         ? '🛡️ [Encuesta] '
                         : q.quizKind === 'simulator'
                         ? '🎭 [Simulador] '
@@ -1967,7 +1967,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
                       title="Seleccionar cuestionario o encuesta a analizar"
                     >
                       {quizzes.map(q => {
-                        const prefix = q.isAnonymousSurvey
+                        const prefix = isSurveyQuiz(q)
                           ? '🛡️ [Encuesta] '
                           : q.quizKind === 'simulator'
                           ? '🎭 [Simulador] '
@@ -2315,7 +2315,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
                 className="w-full px-4 py-3 pr-9 rounded-xl bg-slate-900 border border-white/20 text-white font-bold text-xs sm:text-sm appearance-none focus:outline-none focus:border-amber-400"
               >
                 {quizzes.map(q => {
-                  const prefix = q.isAnonymousSurvey
+                  const prefix = isSurveyQuiz(q)
                     ? '🛡️ [Encuesta] '
                     : q.quizKind === 'simulator'
                     ? '🎭 [Simulador] '
@@ -2812,7 +2812,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
                 }`}
               >
                 <span>⭐ Exámenes</span>
-                <span className="opacity-70 text-[10px]">({quizzes.filter(q => !q.isAnonymousSurvey && q.quizKind !== 'simulator').length})</span>
+                <span className="opacity-70 text-[10px]">({quizzes.filter(q => !isSurveyQuiz(q) && q.quizKind !== 'simulator').length})</span>
               </button>
               <button
                 type="button"
@@ -2836,16 +2836,16 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
                 }`}
               >
                 <span>🛡️ Encuestas</span>
-                <span className="opacity-70 text-[10px]">({quizzes.filter(q => q.isAnonymousSurvey).length})</span>
+                <span className="opacity-70 text-[10px]">({quizzes.filter(isSurveyQuiz).length})</span>
               </button>
             </div>
 
             <div className="text-xs text-white/50">
               Mostrando {
                 quizzes.filter(q => {
-                  if (quizKindFilter === 'survey') return q.isAnonymousSurvey === true;
+                  if (quizKindFilter === 'survey') return isSurveyQuiz(q);
                   if (quizKindFilter === 'simulator') return q.quizKind === 'simulator';
-                  if (quizKindFilter === 'exam') return !q.isAnonymousSurvey && q.quizKind !== 'simulator';
+                  if (quizKindFilter === 'exam') return !isSurveyQuiz(q) && q.quizKind !== 'simulator';
                   return true;
                 }).length
               } de {quizzes.length} cuestionarios
@@ -2856,9 +2856,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {quizzes
               .filter(q => {
-                if (quizKindFilter === 'survey') return q.isAnonymousSurvey === true;
+                if (quizKindFilter === 'survey') return isSurveyQuiz(q);
                 if (quizKindFilter === 'simulator') return q.quizKind === 'simulator';
-                if (quizKindFilter === 'exam') return !q.isAnonymousSurvey && q.quizKind !== 'simulator';
+                if (quizKindFilter === 'exam') return !isSurveyQuiz(q) && q.quizKind !== 'simulator';
                 return true;
               })
               .map(quiz => (

@@ -294,7 +294,7 @@ export function App() {
   };
 
   const openSurveys = () => {
-    if (currentView === 'expert') void refreshQuizzes();
+    if (currentView === 'home' || currentView === 'expert') void refreshQuizzes();
     if (currentView !== 'home') handleNavigate('home');
     setFocusSurveys(true);
   };

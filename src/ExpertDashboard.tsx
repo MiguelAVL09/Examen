@@ -7,6 +7,7 @@ import {
 import type { LucideIcon } from 'lucide-react'
 import { CourseForm, PersonForm, ReportForm, TaskForm } from './TrackerDialogs'
 import { SurveyStartDialog } from './components/SurveyStartDialog'
+import { ExpertSurveyEditor } from './components/ExpertSurveyEditor'
 import { EmployeeImport } from './EmployeeImport'
 import type { EmployeeRow } from './employeePdf'
 import { authService, cloudEmployeeAccess, USERS_STORAGE_KEY } from './services/authService'
@@ -24,7 +25,7 @@ import { expertHash } from './utils/expertLocation'
 import './ExpertDashboard.css'
 
 type Page = 'resumen' | 'tareas' | 'cinepolitos' | 'cursos' | 'reportes'
-type Editor = { kind: 'person'; record?: Cinepolito } | { kind: 'course'; record?: Course } | { kind: 'task'; record?: Task } | { kind: 'report' } | { kind: 'import' }
+type Editor = { kind: 'person'; record?: Cinepolito } | { kind: 'course'; record?: Course } | { kind: 'task'; record?: Task } | { kind: 'report' } | { kind: 'import' } | { kind: 'survey' }
 type TaskFilter = 'all' | 'open' | 'done'
 const pages: { id: Page; label: string; icon: LucideIcon }[] = [
   { id: 'resumen', label: 'Resumen', icon: LayoutDashboard },
@@ -436,7 +437,10 @@ export default function ExpertDashboard({ quizzes, quizLoadError, onReloadQuizze
               <button className="button secondary" onClick={() => openEditor({ kind: 'import' })}><FileUp size={16} /> Importar PDF</button>
               <button className="button primary" onClick={() => openEditor({ kind: 'person' })}><Plus size={17} /> Agregar cinepolito</button>
             </>}
-            {page === 'cursos' && <button className="button primary" onClick={() => openEditor({ kind: 'course' })}><Plus size={17} /> Agregar curso</button>}
+            {page === 'cursos' && <>
+              <button className="button secondary" onClick={() => openEditor({ kind: 'course' })}><Plus size={17} /> Agregar curso</button>
+              <button className="button primary" onClick={() => openEditor({ kind: 'survey' })}><Plus size={17} /> Crear encuesta</button>
+            </>}
             {page === 'tareas' && <button className="button primary" onClick={() => openEditor({ kind: 'task' })}><Plus size={17} /> Nueva tarea</button>}
           </div>
         </header>
@@ -553,6 +557,11 @@ export default function ExpertDashboard({ quizzes, quizLoadError, onReloadQuizze
 
     {selectedSurvey && <SurveyStartDialog key={selectedSurvey.id} quiz={selectedSurvey} user={user} initialName={user.name || user.nickname}
       onClose={() => setSelectedSurveyId(null)} onStart={name => onStartSurvey(selectedSurvey, name)} />}
+    {editor?.kind === 'survey' && <ExpertSurveyEditor onClose={closeEditor} onPublished={() => {
+      closeEditor()
+      setNotice('Encuesta publicada en Kahoot.')
+      void onReloadQuizzes()
+    }} />}
 
     {editor?.kind === 'person' && <PersonForm person={editor.record} workspace={workspace} busy={busy} error={formError}
       onClose={closeEditor} onSave={savePerson} onDelete={editor.record && !editor.record.accountId ? () => removePerson(editor.record!.id) : undefined} />}
