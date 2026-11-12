@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import type { Quiz, Participant, UserAccount } from '../types/quiz';
 import { quizService, DEFAULT_DEPARTMENTS } from '../services/quizService';
+import { getActivityStartError } from '../services/activityAccess';
 import { ShareQuizModal } from './ShareQuizModal';
 import { SurveyStartDialog } from './SurveyStartDialog';
 import { isSurveyQuiz } from '../utils/quizKind';
@@ -142,13 +143,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
   };
 
   async function startActivity(quiz: Quiz, name: string) {
-    if (!name) return 'Escribe tu nombre y apellido para continuar.';
-    if (!quiz.questions.length) return 'Esta actividad todavía no tiene preguntas.';
-    const access = quizService.isExamAccessible(quiz);
-    if (!access.accessible) return access.reason || 'Esta actividad está cerrada.';
+    const error = await getActivityStartError(quiz, name);
+    if (error) return error;
     try {
-      const attempt = await quizService.checkParticipantCanAttempt(quiz, name);
-      if (!attempt.canAttempt) return attempt.reason || 'Alcanzaste el límite de intentos para esta actividad.';
       if (!quiz.isAnonymousSurvey) handleSaveProfile(name, selectedAvatar, undefined, department);
       setIsJoinModalOpen(false);
       onStartQuiz(quiz, name, selectedAvatar, undefined, department || undefined);

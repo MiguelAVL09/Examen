@@ -65,7 +65,7 @@ export function PersonForm({ person, workspace, busy, error, onSave, onClose, on
     void onSave({
       id: person?.id ?? crypto.randomUUID(), accountId: person?.accountId,
       name: name.trim(), number: employeeNumber, area: existingArea ?? area.trim(),
-      progress: Object.fromEntries(workspace.courses.filter(course => !course.survey && Object.hasOwn(progress, course.id)).map(course => [course.id, progress[course.id]])),
+      progress: Object.fromEntries(workspace.courses.filter(course => !course.surveyQuizId && Object.hasOwn(progress, course.id)).map(course => [course.id, progress[course.id]])),
     })
   }
   return <Dialog title={person ? 'Editar cinepolito' : 'Agregar cinepolito'} subtitle={person?.accountId
@@ -79,7 +79,7 @@ export function PersonForm({ person, workspace, busy, error, onSave, onClose, on
         <datalist id="areas">{[...new Set(workspace.people.map(item => item.area))].sort().map(item => <option key={item} value={item} />)}</datalist>
         <fieldset className="span-all course-fieldset">
           <legend>Cursos y encuestas</legend>
-          {workspace.courses.length ? workspace.courses.map(course => course.survey ? <div className="course-choice" key={course.id}>
+          {workspace.courses.length ? workspace.courses.map(course => course.surveyQuizId ? <div className="course-choice" key={course.id}>
             <span>{course.name}</span>
             <span>{currentProgress?.[course.id] ? 'Completada en Kahoot' : 'Pendiente en Kahoot'}</span>
           </div> : <label className="course-choice" key={course.id}>

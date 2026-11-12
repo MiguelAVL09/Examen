@@ -6,9 +6,11 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { CourseForm, PersonForm, ReportForm, TaskForm } from './TrackerDialogs'
+import { SurveyStartDialog } from './components/SurveyStartDialog'
 import { EmployeeImport } from './EmployeeImport'
 import type { EmployeeRow } from './employeePdf'
 import { authService, cloudEmployeeAccess, USERS_STORAGE_KEY } from './services/authService'
+import { quizService } from './services/quizService'
 import { hasLocalWorkspaceToTransfer, readSharedWorkspace, transferLocalWorkspace, updateSharedWorkspace } from './services/sharedWorkspace'
 import { loadSurveyCompletions, readSurveyCompletions, surveyCompletionKey } from './services/surveyCompletion'
 import {
@@ -17,7 +19,7 @@ import {
 } from './tracker'
 import type { Cinepolito, Course, PeopleStatus, Task, Workspace } from './tracker'
 import type { ReportFilters } from './trackerReport'
-import type { Quiz } from './types/quiz'
+import type { Quiz, UserAccount } from './types/quiz'
 import { expertHash } from './utils/expertLocation'
 import './ExpertDashboard.css'
 
@@ -116,8 +118,9 @@ function PeopleTable({ people, onEdit }: { people: Cinepolito[]; onEdit: (person
   </div>
 }
 
-export default function ExpertDashboard({ quizzes, quizLoadError, onReloadQuizzes, onBack }: {
-  quizzes: Quiz[]; quizLoadError: boolean; onReloadQuizzes: () => Promise<void>; onBack: () => void
+export default function ExpertDashboard({ quizzes, quizLoadError, onReloadQuizzes, onBack, user, onStartSurvey }: {
+  quizzes: Quiz[]; quizLoadError: boolean; onReloadQuizzes: () => Promise<void>; onBack: () => void;
+  user: UserAccount; onStartSurvey: (quiz: Quiz, name: string) => Promise<string | undefined>
 }) {
   const [initial] = useState(readInitial)
   const [stored, setStored] = useState(initial.data)
@@ -126,6 +129,7 @@ export default function ExpertDashboard({ quizzes, quizLoadError, onReloadQuizze
   const [page, setPage] = useState(getPage)
   const [menu, setMenu] = useState(false)
   const [editor, setEditor] = useState<Editor | null>(null)
+  const [selectedSurveyId, setSelectedSurveyId] = useState<string | null>(null)
   const [formError, setFormError] = useState('')
   const [notice, setNotice] = useState('')
   const [storageError, setStorageError] = useState(initial.error)
@@ -140,6 +144,7 @@ export default function ExpertDashboard({ quizzes, quizLoadError, onReloadQuizze
   const directory = useMemo(() => getDirectoryPeople(stored.people, synced.accounts), [stored.people, synced.accounts])
   const workspace = useMemo(() => getTrainingWorkspace(stored, directory, quizzes, synced.completions),
     [stored, directory, quizzes, synced.completions])
+  const selectedSurvey = quizzes.find(quiz => quiz.id === selectedSurveyId)
   const openTasks = pendingTasks(workspace.tasks)
   const pending = filterPeople(workspace.people, 'pending').length
   const current = filterPeople(workspace.people, 'complete').length
@@ -418,7 +423,7 @@ export default function ExpertDashboard({ quizzes, quizLoadError, onReloadQuizze
         </div>
         <div className="top-meta">
           <div className="top-date"><CalendarDays size={16} /><span>{formatDate(calendarDate(), true)}</span></div>
-          <button className="back-button" onClick={onBack} aria-label="Volver a encuestas" title="Volver a encuestas" disabled={busy}><ArrowLeft size={16} /><span>Volver a encuestas</span></button>
+          <button className="back-button" onClick={onBack} disabled={busy}><ArrowLeft size={16} aria-hidden="true" /><span>Encuestas de Kahoot</span></button>
         </div>
       </header>
 
@@ -522,12 +527,17 @@ export default function ExpertDashboard({ quizzes, quizLoadError, onReloadQuizze
           {workspace.courses.map(course => {
             const coursePeople = filterPeople(workspace.people, 'all', '', course.id)
             const done = coursePeople.filter(person => person.progress[course.id]).length
+            const survey = course.surveyQuizId ? quizzes.find(quiz => quiz.id === course.surveyQuizId) : undefined
+            const canAnswer = survey && survey.questions.length > 0 && quizService.isExamAccessible(survey).accessible
             return <article className="panel course-card" key={course.id}>
-              <div className="course-head"><span className="tile-icon blue"><BookOpen size={22} /></span>{course.survey
+              <div className="course-head"><span className="tile-icon blue"><BookOpen size={22} /></span>{course.surveyQuizId
                 ? <small>Encuesta de Kahoot</small>
                 : <button className="icon-button" aria-label={'Editar ' + course.name} onClick={() => openEditor({ kind: 'course', record: course })}><Pencil size={17} /></button>}</div>
               <h2>{course.name}</h2>{course.description && <p>{course.description}</p>}
               <div className="course-progress"><progress aria-label={'Avance de ' + course.name} max={100} value={coursePeople.length ? done / coursePeople.length * 100 : 0} /><small>{done} de {coursePeople.length} cinepolitos lo completaron</small></div>
+              {survey && (canAnswer
+                ? <button type="button" className="button primary" disabled={busy} onClick={() => setSelectedSurveyId(survey.id)} aria-label={'Responder encuesta: ' + course.name}>Responder encuesta <ArrowRight size={15} aria-hidden="true" /></button>
+                : <small className="survey-unavailable">{survey.questions.length ? 'Encuesta cerrada' : 'Encuesta sin preguntas'}</small>)}
               <button className="text-button" onClick={() => showPeople('pending', course.id)}>Ver pendientes ({coursePeople.length - done}) <ArrowRight size={15} /></button>
             </article>
           })}
@@ -540,6 +550,9 @@ export default function ExpertDashboard({ quizzes, quizLoadError, onReloadQuizze
     </div>
 
     {notice && <div className="toast" role="status"><CheckCircle2 size={19} /> {notice}</div>}
+
+    {selectedSurvey && <SurveyStartDialog key={selectedSurvey.id} quiz={selectedSurvey} user={user} initialName={user.name || user.nickname}
+      onClose={() => setSelectedSurveyId(null)} onStart={name => onStartSurvey(selectedSurvey, name)} />}
 
     {editor?.kind === 'person' && <PersonForm person={editor.record} workspace={workspace} busy={busy} error={formError}
       onClose={closeEditor} onSave={savePerson} onDelete={editor.record && !editor.record.accountId ? () => removePerson(editor.record!.id) : undefined} />}

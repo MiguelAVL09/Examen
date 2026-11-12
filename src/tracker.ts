@@ -17,7 +17,7 @@ export interface Course {
   id: string
   name: string
   description: string
-  survey?: true
+  surveyQuizId?: string
 }
 
 export type DirectoryAccount = Pick<UserAccount, 'id' | 'employeeNumber' | 'name' | 'fullName' | 'nickname' | 'department'>
@@ -80,7 +80,7 @@ export function getDirectoryPeople(people: Cinepolito[], accounts: DirectoryAcco
 
 export function getTrainingWorkspace(workspace: Workspace, people: Cinepolito[], quizzes: Quiz[], completions: Record<string, string[]>): Workspace {
   const surveys = quizzes.filter(isSurveyQuiz).map(quiz => ({
-    course: { id: `survey:${quiz.id}`, name: quiz.title, description: quiz.description, survey: true as const },
+    course: { id: `survey:${quiz.id}`, name: quiz.title, description: quiz.description, surveyQuizId: quiz.id },
     completed: new Set(completions[quiz.id]),
   }))
 

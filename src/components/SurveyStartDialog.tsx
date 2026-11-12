@@ -44,6 +44,8 @@ export function SurveyStartDialog({ quiz, user, initialName, onClose, onStart }:
         setBusy(true);
         try {
           setError(await onStart(user ? user.name || user.nickname : name.trim() || (quiz.isAnonymousSurvey ? 'Participante' : '')) || '');
+        } catch {
+          setError('No se pudo abrir la encuesta. Intenta nuevamente.');
         } finally {
           setBusy(false);
         }

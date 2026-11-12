@@ -3,6 +3,7 @@ import { App as NativeApp } from '@capacitor/app';
 import type { Quiz, UserAccount } from './types/quiz';
 import { LOCAL_STORAGE_QUIZZES_KEY, quizService } from './services/quizService';
 import { authService, cloudEmployeeAccess, USERS_STORAGE_KEY } from './services/authService';
+import { getActivityStartError } from './services/activityAccess';
 import { Navbar } from './components/Navbar';
 import type { Destination } from './components/Navbar';
 import { ExpertViewBoundary } from './components/ExpertViewBoundary';
@@ -27,6 +28,7 @@ export function App() {
     currentUser?.role === 'expert' && isExpertLocation() ? 'expert' : 'home');
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [activeQuiz, setActiveQuiz] = useState<Quiz | null>(null);
+  const [returnToExpertCourses, setReturnToExpertCourses] = useState(false);
   const [invitedQuiz, setInvitedQuiz] = useState<Quiz | null>(null);
   const [linkSearch, setLinkSearch] = useState(() => window.location.search);
   const isExpert = currentUser?.role === 'expert' && currentUser.isActive;
@@ -215,9 +217,11 @@ export function App() {
     nickname: string,
     avatar: string,
     _branch?: string,
-    department?: string
+    department?: string,
+    fromExpertCourses = false
   ) => {
     setActiveQuiz(quiz);
+    setReturnToExpertCourses(fromExpertCourses);
     setPlayerNickname(nickname);
     setPlayerAvatar(avatar);
     setPlayerDepartment(department || currentUser?.department);
@@ -226,6 +230,32 @@ export function App() {
     setCurrentView('game');
     window.scrollTo({ top: 0 });
   };
+
+  async function startExpertSurvey(quiz: Quiz, name: string) {
+    if (!isSurveyQuiz(quiz)) return 'Esta actividad no es una encuesta.';
+    const error = await getActivityStartError(quiz, name);
+    if (error) return error;
+    const user = authService.getCurrentUser();
+    if (!user?.isActive || user.role !== 'expert' || user.id !== accountId) return 'Vuelve a iniciar sesión como Cinepolito Experto.';
+    handleStartQuiz(quiz, name, localStorage.getItem('kahoot_player_avatar') || playerAvatar, undefined, user.department, true);
+  }
+
+  function exitSoloActivity(markCompleted: boolean) {
+    if (markCompleted && activeQuiz) sessionStorage.setItem('kahoot_completed_quiz', activeQuiz.id);
+    setInvitedQuiz(null);
+    setActiveQuiz(null);
+    setReturnToExpertCourses(false);
+    clearActivityLink();
+    void refreshQuizzes();
+    if (returnToExpertCourses && authService.getCurrentUser()?.role === 'expert') {
+      history.replaceState({}, '', location.pathname + expertHash + '/cursos');
+      setCurrentView('expert');
+      window.scrollTo({ top: 0 });
+    } else {
+      setCurrentView('home');
+      if (activeQuiz && isSurveyQuiz(activeQuiz)) setFocusSurveys(true);
+    }
+  }
 
   // Handle Host Live Game
   const handleHostGame = (quiz: Quiz) => {
@@ -255,12 +285,16 @@ export function App() {
       if (currentView === 'admin' || currentView === 'kiosk') void refreshQuizzes();
       clearExpertLocation();
     }
-    if (view === 'expert' && !isExpertLocation()) location.hash = expertHash;
+    if (view === 'expert') {
+      void refreshQuizzes();
+      if (!isExpertLocation()) location.hash = expertHash;
+    }
     setCurrentView(view);
     window.scrollTo({ top: 0 });
   };
 
   const openSurveys = () => {
+    if (currentView === 'expert') void refreshQuizzes();
     if (currentView !== 'home') handleNavigate('home');
     setFocusSurveys(true);
   };
@@ -278,12 +312,16 @@ export function App() {
         location.hash = expertHash + '/resumen';
       } else if (view !== 'home') {
         if ((view === 'game' || view === 'host') && !window.confirm('¿Salir de la actividad en curso?')) return;
+        if (view === 'game') {
+          exitSoloActivity(false);
+          return;
+        }
         setActiveQuiz(null);
         handleNavigate('home');
       } else void NativeApp.minimizeApp();
     });
     return () => { void listener.then(handle => handle.remove()); };
-  }, [view, isPinModalOpen, isProfileModalOpen]);
+  }, [view, isPinModalOpen, isProfileModalOpen, activeQuiz, returnToExpertCourses]);
 
   const handleLogout = () => {
     void authService.logout();
@@ -292,6 +330,7 @@ export function App() {
     setIsPinModalOpen(false);
     setInvitedQuiz(null);
     setActiveQuiz(null);
+    setReturnToExpertCourses(false);
     setFocusSurveys(false);
     setCurrentView('home');
     clearExpertLocation();
@@ -340,7 +379,8 @@ export function App() {
       <main className="flex-1">
         {view === 'expert' ? (
           <ExpertViewBoundary onBack={openSurveys}>
-            <ExpertDashboard quizzes={quizzes} quizLoadError={quizLoadError} onReloadQuizzes={refreshQuizzes} onBack={openSurveys} />
+            <ExpertDashboard quizzes={quizzes} quizLoadError={quizLoadError} onReloadQuizzes={refreshQuizzes} onBack={openSurveys}
+              user={currentUser} onStartSurvey={startExpertSurvey} />
           </ExpertViewBoundary>
         ) : view === 'home' && isLoading ? (
           <div className="min-h-[60vh] flex flex-col items-center justify-center text-white">
@@ -377,18 +417,8 @@ export function App() {
                 nickname={playerNickname}
                 avatar={playerAvatar}
                 department={playerDepartment}
-                onExit={() => {
-                  setInvitedQuiz(null);
-                  if (activeQuiz) {
-                    sessionStorage.setItem('kahoot_completed_quiz', activeQuiz.id);
-                  }
-                  if (typeof window !== 'undefined' && window.history) {
-                    window.history.replaceState({}, '', window.location.pathname);
-                  }
-                  refreshQuizzes();
-                  setCurrentView('home');
-                  if (isSurveyQuiz(activeQuiz)) setFocusSurveys(true);
-                }}
+                surveyExitLabel={returnToExpertCourses ? 'Volver a cursos' : undefined}
+                onExit={() => exitSoloActivity(true)}
                 onPlayAgain={() => {
                   const q = activeQuiz;
                   setActiveQuiz(null);

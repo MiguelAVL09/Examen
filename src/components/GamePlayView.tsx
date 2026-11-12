@@ -33,6 +33,7 @@ interface GamePlayViewProps {
   avatar: string;
   branch?: string;
   department?: string;
+  surveyExitLabel?: string;
   onExit: () => void;
   onPlayAgain: () => void;
 }
@@ -44,6 +45,7 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
   avatar,
   branch,
   department,
+  surveyExitLabel = 'Volver a encuestas',
   onExit,
   onPlayAgain,
 }) => {
@@ -893,7 +895,7 @@ export const GamePlayView: React.FC<GamePlayViewProps> = ({
           }</h1>
           <p>{surveySaveStatus === 'saved' ? 'Gracias por responder.' : surveySaveStatus === 'error' ? 'Puedes reintentar el guardado sin responder de nuevo.' : quiz.title}</p>
           {surveySaveStatus === 'error' && completedParticipant && <button type="button" className="quiz-action quiz-action-primary" onClick={() => void saveResult(completedParticipant)}>Reintentar guardado</button>}
-          <button type="button" className="quiz-action quiz-action-primary" onClick={onExit} disabled={surveySaveStatus === 'saving'}>Volver a encuestas</button>
+          <button type="button" className="quiz-action quiz-action-primary" onClick={onExit} disabled={surveySaveStatus === 'saving'}>{surveyExitLabel}</button>
         </section>
       ) : (
         /* Game Over Screen - Tarjeta estilo Boleto de Cine con QR, Medalla 3D, Diploma PDF y Ficha Formativa */

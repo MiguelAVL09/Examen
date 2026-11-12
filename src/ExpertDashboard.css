@@ -185,6 +185,7 @@
 .expert-app .course-card p,.expert-app  .course-progress small { font-size: 13px; color: var(--muted); line-height: 1.45; }
 .expert-app .course-progress { margin-top: auto; padding-top: 9px; }
 .expert-app .course-progress small { display: block; margin-top: 6px; font-size: 12px; }
+.expert-app .survey-unavailable { color: var(--muted); }
 .expert-app .course-card .text-button { align-self: flex-start; }
 .expert-app .empty { display: grid; justify-items: center; gap: 7px; text-align: center; padding: 24px 12px; }
 .expert-app .empty strong { font-size: 14px; }
@@ -274,8 +275,7 @@
 }
 @media (max-width: 475px) {
   .expert-app .breadcrumb > span,.expert-app  .breadcrumb > svg { display: none; }
-  .expert-app .top-date { gap: 5px; font-size: 11px; }
-  .expert-app .back-button span { display: none; }
+  .expert-app .top-date { display: none; }
   .expert-app .hero::before { inset-inline-start: 12%; background: linear-gradient(90deg,#0e1d43 0%,#0e1d43a8 100%), url('/expertos-film.webp') right center / cover no-repeat; }
   .expert-app .hero h2 { max-width: 225px; }
   .expert-app .hero p { max-width: 235px; }
