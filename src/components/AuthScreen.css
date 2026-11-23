@@ -315,6 +315,7 @@
 @media (max-width: 850px) {
   .auth-page {
     grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
   }
   .auth-stage {
     min-height: auto;
