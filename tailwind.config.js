@@ -9,11 +9,11 @@ export default {
       colors: {
         kahoot: {
           purple: {
-            DEFAULT: '#46178f',
-            dark: '#34116d',
-            darker: '#250850',
-            deepest: '#14032e',
-            light: '#652ca8',
+            DEFAULT: '#193258',
+            dark: '#122440',
+            darker: '#0e1d35',
+            deepest: '#0b1830',
+            light: '#315783',
           },
           red: {
             DEFAULT: '#e21b3c',
@@ -50,5 +50,6 @@ export default {
       }
     },
   },
+  future: { hoverOnlyWhenSupported: true },
   plugins: [],
 }

@@ -2,19 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  body:has(.quiz-app) {
-    @apply bg-kahoot-purple-deepest text-white min-h-screen antialiased selection:bg-kahoot-yellow selection:text-black overflow-x-hidden;
-    font-family: 'Montserrat', system-ui, sans-serif;
-    touch-action: manipulation;
-    background:
-      radial-gradient(ellipse at 50% 0%, rgba(255, 184, 0, 0.14) 0%, transparent 55%),
-      radial-gradient(ellipse at 15% 25%, rgba(19, 104, 206, 0.22) 0%, transparent 50%),
-      radial-gradient(ellipse at 85% 75%, rgba(30, 58, 138, 0.28) 0%, transparent 55%),
-      radial-gradient(circle at 50% 25%, #0f1f4b 0%, #09122c 55%, #040917 100%);
-  }
-}
-
 /* Kahoot 3D Button Shadows */
 .kahoot-btn-red {
   background-color: #e21b3c;
@@ -53,12 +40,12 @@
 }
 
 .kahoot-btn-purple {
-  background-color: #652ca8;
-  box-shadow: 0 6px 0 #34116d, 0 10px 20px rgba(101, 44, 168, 0.4);
+  background-color: #315783;
+  box-shadow: 0 6px 0 #142f51;
 }
 .kahoot-btn-purple:active {
   transform: translateY(4px);
-  box-shadow: 0 2px 0 #34116d, 0 4px 10px rgba(101, 44, 168, 0.3);
+  box-shadow: 0 2px 0 #142f51;
 }
 
 /* Floating background particles + sutil textura de sala de cine */
@@ -96,135 +83,4 @@
 
 .combo-golden-glow {
   animation: goldenGlow 1.3s infinite ease-in-out;
-}
-
-/* ============================================================================
-   BOTONES PREMIUM CINÉPOLIS CON ANIMACIONES DE ALTO IMPACTO
-   ============================================================================ */
-@keyframes shimmerSweep {
-  0% { transform: translateX(-100%) rotate(25deg); }
-  100% { transform: translateX(200%) rotate(25deg); }
-}
-
-.btn-cinepolis-gold {
-  position: relative;
-  overflow: hidden;
-  background: linear-gradient(135deg, #ffd700 0%, #ffaa00 50%, #e68a00 100%);
-  color: #0b0f19;
-  font-weight: 900;
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  box-shadow: 0 8px 24px -4px rgba(255, 170, 0, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.8);
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-  touch-action: manipulation;
-}
-
-.btn-cinepolis-gold::after {
-  content: '';
-  position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: linear-gradient(
-    60deg,
-    transparent 35%,
-    rgba(255, 255, 255, 0.6) 50%,
-    transparent 65%
-  );
-  transform: translateX(-100%) rotate(25deg);
-  pointer-events: none;
-}
-
-.btn-cinepolis-gold:hover {
-  transform: translateY(-2px) scale(1.02);
-  box-shadow: 0 12px 32px -4px rgba(255, 184, 0, 0.65), inset 0 1px 2px rgba(255, 255, 255, 0.9);
-}
-
-.btn-cinepolis-gold:hover::after {
-  animation: shimmerSweep 1.2s infinite ease-in-out;
-}
-
-.btn-cinepolis-gold:active {
-  transform: translateY(1px) scale(0.97);
-  box-shadow: 0 4px 12px rgba(255, 170, 0, 0.4);
-}
-
-.btn-cinepolis-primary {
-  position: relative;
-  overflow: hidden;
-  background: linear-gradient(135deg, #1d4ed8 0%, #1e3a8a 100%);
-  color: #ffffff;
-  font-weight: 800;
-  border: 1px solid rgba(147, 197, 253, 0.35);
-  box-shadow: 0 8px 24px -4px rgba(29, 78, 216, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.25);
-  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
-  touch-action: manipulation;
-}
-
-.btn-cinepolis-primary:hover {
-  transform: translateY(-2px) scale(1.02);
-  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-  border-color: rgba(255, 215, 0, 0.6);
-  box-shadow: 0 12px 30px -4px rgba(37, 99, 235, 0.6), 0 0 16px rgba(255, 215, 0, 0.25);
-}
-
-.btn-cinepolis-primary:active {
-  transform: translateY(1px) scale(0.97);
-}
-
-.btn-cinepolis-glass {
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(12px);
-  color: #f1f5f9;
-  font-weight: 700;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  touch-action: manipulation;
-}
-
-.btn-cinepolis-glass:hover {
-  background: rgba(255, 255, 255, 0.16);
-  border-color: rgba(255, 215, 0, 0.45);
-  color: #ffffff;
-  transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35), 0 0 12px rgba(255, 215, 0, 0.2);
-}
-
-.btn-cinepolis-glass:active {
-  transform: translateY(1px) scale(0.98);
-}
-
-.btn-cinepolis-danger {
-  background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
-  color: #ffffff;
-  font-weight: 800;
-  border: 1px solid rgba(254, 202, 202, 0.3);
-  box-shadow: 0 6px 20px -3px rgba(220, 38, 38, 0.45);
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.btn-cinepolis-danger:hover {
-  transform: translateY(-1px) scale(1.02);
-  box-shadow: 0 10px 26px -3px rgba(220, 38, 38, 0.65);
-}
-
-.btn-cinepolis-danger:active {
-  transform: translateY(1px) scale(0.97);
-}
-
-/* Custom scrollbars */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-::-webkit-scrollbar-track {
-  background: #1e0938;
-}
-::-webkit-scrollbar-thumb {
-  background: #652ca8;
-  border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #ffa602;
 }

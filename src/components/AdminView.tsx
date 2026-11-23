@@ -811,7 +811,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 min-h-[calc(100vh-80px)]">
+    <div className="admin-workspace max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 min-h-[calc(100vh-80px)]">
       {/* Top Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
@@ -820,11 +820,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
               <Shield className="w-6 h-6" />
             </span>
             <h1 className="text-3xl md:text-4xl font-black text-white tracking-tight uppercase">
-              Control de Administrador
+              Administración
             </h1>
           </div>
           <p className="text-white/70 font-semibold mt-1">
-            Visualización de rankings privados, gestor de cuestionarios y respaldo seguro de tus preguntas creadas.
+            Gestiona actividades, consulta resultados y administra los accesos de tu equipo.
           </p>
           <div className="flex items-center gap-2 mt-2.5">
             {isSupabaseConfigured() ? (

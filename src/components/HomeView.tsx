@@ -2,11 +2,15 @@
 import { motion } from 'framer-motion';
 import {
   ArrowRight,
+  BookOpen,
+  CalendarDays,
+  ChevronRight,
+  Plus,
+  Search,
+  X,
   ClipboardList,
   Play,
   Users,
-  Sparkles,
-  Clock,
   Gamepad2,
   Dices,
   Share2,
@@ -15,7 +19,6 @@ import {
   Briefcase,
   ShieldCheck,
   CheckCircle2,
-  RotateCcw
 } from 'lucide-react';
 import type { Quiz, Participant, UserAccount } from '../types/quiz';
 import { quizService, DEFAULT_DEPARTMENTS } from '../services/quizService';
@@ -79,6 +82,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const [verifiedParticipant, setVerifiedParticipant] = useState<Participant | null>(null);
   const [isJoinModalOpen, setIsJoinModalOpen] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const [search, setSearch] = useState('');
 
   // Sincronizar datos si el usuario inicia o cambia sesión
   useEffect(() => {
@@ -161,9 +165,21 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const surveys = quizzes.filter(quiz => isSurveyQuiz(quiz) && quiz.questions.length > 0 && quizService.isExamAccessible(quiz).accessible);
   const evaluations = quizzes.filter(quiz => !isSurveyQuiz(quiz));
   const invitedSurvey = invitedQuiz && isSurveyQuiz(invitedQuiz);
+  const query = search.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('es-MX');
+  const matchesSearch = (quiz: Quiz) => [quiz.title, quiz.description, quiz.category].join(' ')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('es-MX').includes(query);
+  const matchingSurveys = surveys.filter(matchesSearch);
+  const matchingEvaluations = evaluations.filter(matchesSearch);
+  const firstName = (currentUser?.name || currentUser?.nickname || 'Cinepolito').trim().split(/\s+/)[0];
+  const today = new Intl.DateTimeFormat('es-MX', { day: 'numeric', month: 'long' }).format(new Date());
 
   return (
     <div className="quiz-home">
+      <div className="workspace-welcome">
+        <div><span className="workspace-breadcrumb">Mi espacio <ChevronRight size={13} aria-hidden="true" /> Kahoot</span>
+          <p>Hola, {firstName}<span>Qué gusto tenerte aquí.</span></p></div>
+        <span className="workspace-date"><CalendarDays size={16} aria-hidden="true" />{today}</span>
+      </div>
       {/* Invitation Hero Banner if user opened direct link ?quiz=... */}
       {invitedQuiz && (
         <motion.div
@@ -216,139 +232,89 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </motion.div>
       )}
 
-      <section className="quiz-hero" aria-labelledby="quiz-home-heading">
-        <h1 id="quiz-home-heading">Encuestas y evaluaciones</h1>
-        <p>Elige una actividad para comenzar. Al terminar una encuesta, verás la confirmación de envío.</p>
-        <div className="quiz-hero-actions">
-          <button type="button" className="quiz-action quiz-action-primary" onClick={onOpenSurveys}>
-            <ClipboardList size={21} aria-hidden="true" /> Ver encuestas <ArrowRight size={18} aria-hidden="true" />
-          </button>
-          <button type="button" className="quiz-action" onClick={onOpenPinModal}>
-            <Gamepad2 size={20} aria-hidden="true" /> Unirme con PIN
-          </button>
+      <section className="quiz-hero" aria-labelledby="quiz-home-heading" data-enter>
+        <div className="quiz-hero-content">
+          <span className="section-eyebrow">Capacitación Cinépolis</span>
+          <h1 id="quiz-home-heading">Encuestas y<br />evaluaciones</h1>
+          <p>Comparte tu opinión, pon a prueba lo que sabes y continúa tu desarrollo.</p>
+          <div className="quiz-hero-actions">
+            <button type="button" className="quiz-action quiz-action-primary" onClick={() => { setSearch(''); onOpenSurveys(); }}>
+              Ver encuestas <ArrowRight size={18} aria-hidden="true" />
+            </button>
+            <button type="button" className="quiz-action" onClick={onOpenPinModal}>
+              <Gamepad2 size={19} aria-hidden="true" /> Unirme con PIN
+            </button>
+          </div>
         </div>
+        <div className="quiz-hero-art" aria-hidden="true"><img src="/expertos-film.webp" alt="" fetchPriority="high" width="1100" height="733" /></div>
       </section>
 
+      <div className="activity-toolbar">
+        <div><span className="section-eyebrow">Tu aprendizaje</span><h2>Actividades disponibles</h2></div>
+        <label className="activity-search">
+          <Search size={19} aria-hidden="true" /><span className="sr-only">Buscar actividades</span>
+          <input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar una actividad…" />
+          {search && <button type="button" aria-label="Limpiar búsqueda" onClick={() => setSearch('')}><X size={17} aria-hidden="true" /></button>}
+        </label>
+      </div>
+      {search && <p className="activity-search-summary" role="status">{matchingSurveys.length + matchingEvaluations.length} actividades coinciden con tu búsqueda.</p>}
+
       <section id="encuestas" className="quiz-section" tabIndex={-1} aria-labelledby="surveys-heading">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 id="surveys-heading"><ClipboardList size={27} aria-hidden="true" /> Encuestas disponibles</h2>
-          {onCreateSurvey && <button type="button" className="quiz-action quiz-action-primary" onClick={onCreateSurvey}>Crear encuesta</button>}
+        <div className="activity-section-heading">
+          <div><h2 id="surveys-heading">Encuestas <span>{surveys.length}</span></h2><p>Tu opinión ayuda a mejorar nuestro equipo.</p></div>
+          {onCreateSurvey && <button type="button" className="quiz-action quiz-action-primary" onClick={onCreateSurvey}><Plus size={18} aria-hidden="true" />Crear encuesta</button>}
         </div>
-        {publishedSurveyTitle && <p role="status" className="my-3 rounded-xl bg-emerald-950/60 px-4 py-3 text-sm text-emerald-100">Encuesta publicada. {publishedSurveyTitle}</p>}
-        {surveys.length ? (
-          <>
-            <p className="quiz-section-intro">Busca la encuesta que te indicaron y selecciona «Responder encuesta».</p>
-            <div className="survey-list">
-              {surveys.map(quiz => (
-                <article key={quiz.id} className="survey-card">
-                  <span className="survey-card-icon"><ClipboardList size={25} aria-hidden="true" /></span>
-                  <div>
-                    <h3>{quiz.title}</h3>
-                    {quiz.description && <p>{quiz.description}</p>}
-                    <small>{quiz.questions.length} {quiz.questions.length === 1 ? 'pregunta' : 'preguntas'}{quiz.isAnonymousSurvey && ' · Anónima'}</small>
-                  </div>
-                  <button type="button" className="quiz-action quiz-action-primary" onClick={() => handleLaunchSolo(quiz)} aria-label={'Responder encuesta: ' + quiz.title}>
-                    Responder encuesta <ArrowRight size={18} aria-hidden="true" />
+        {publishedSurveyTitle && <p role="status" className="survey-published"><CheckCircle2 size={19} aria-hidden="true" />Encuesta publicada. {publishedSurveyTitle}</p>}
+        {matchingSurveys.length ? (
+          <div className="survey-list">
+            {matchingSurveys.map(quiz => (
+              <article key={quiz.id} className="survey-card">
+                <div className="survey-card-top"><span className="survey-card-icon"><ClipboardList size={22} aria-hidden="true" /></span>
+                  <span className="activity-badge">{quiz.isAnonymousSurvey ? 'Anónima' : 'Encuesta'}</span></div>
+                <div className="survey-card-copy"><h3>{quiz.title}</h3>{quiz.description && <p>{quiz.description}</p>}</div>
+                <div className="survey-card-footer">
+                  <span><ClipboardList size={15} aria-hidden="true" />{quiz.questions.length} {quiz.questions.length === 1 ? 'pregunta' : 'preguntas'}</span>
+                  <button type="button" className="activity-text-action" onClick={() => handleLaunchSolo(quiz)} aria-label={'Responder encuesta: ' + quiz.title}>
+                    Responder encuesta <ArrowRight size={17} aria-hidden="true" />
                   </button>
-                </article>
-              ))}
-            </div>
-          </>
-        ) : <p className="survey-empty">Por ahora no hay encuestas abiertas. Cuando se publique una, aparecerá aquí.</p>}
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : <div className="survey-empty"><ClipboardList size={25} aria-hidden="true" /><p>{search ? 'No encontramos encuestas con esa búsqueda.' : 'Por ahora no hay encuestas abiertas. Cuando se publique una, aparecerá aquí.'}</p></div>}
       </section>
 
       <section className="quiz-section" aria-labelledby="evaluations-heading">
-        <h2 id="evaluations-heading"><Gamepad2 size={27} aria-hidden="true" /> Evaluaciones</h2>
-        <p className="quiz-section-intro">Elige la evaluación que te indicaron.</p>
-
-        {/* Quizzes Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {evaluations.map((quiz, index) => (
-            <motion.div
-              key={quiz.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1, duration: 0.3 }}
-              className="bg-gradient-to-b from-[#0c152c] to-[#060b17] rounded-3xl border-2 border-white/10 overflow-hidden shadow-2xl flex flex-col justify-between group hover:border-amber-400/60 transition-all duration-300 backdrop-blur-md"
-            >
-              <div>
-                <div className="relative h-48 overflow-hidden bg-black/40">
-                  <img
-                    src={quiz.coverImage || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=80'}
-                    alt={quiz.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent" />
-                  
-                  <span className="absolute top-3 left-3 px-3.5 py-1 bg-black/70 backdrop-blur-md rounded-full text-xs font-black text-amber-300 uppercase tracking-wider border border-white/10">
-                    {quiz.category}
-                  </span>
-                  
-                  <span className="absolute top-3 right-3 px-3 py-1 bg-[#13234d]/90 backdrop-blur-md rounded-full text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5 shadow border border-white/10">
-                    <Clock className="w-3.5 h-3.5 text-amber-300" />
-                    {quiz.questions.length} {quiz.questions.length === 1 ? 'pregunta' : 'preguntas'}
-                  </span>
-                </div>
-
-                <div className="p-6">
-                  <div className="flex items-center gap-2 mb-2">
-                    {quiz.maxAttemptsPerUser === 1 || (quiz.maxAttemptsPerUser === undefined && quiz.preventRetries) ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-400/20 text-amber-300 border border-amber-400/40">
-                        <Lock className="w-3 h-3" /> 1 Intento Único
-                      </span>
-                    ) : quiz.maxAttemptsPerUser && quiz.maxAttemptsPerUser > 1 ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-500/20 text-blue-300 border border-blue-500/40">
-                        <RotateCcw className="w-3 h-3" /> Máx. {quiz.maxAttemptsPerUser} Intentos
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                        <Sparkles className="w-3 h-3" /> Intentos Ilimitados
-                      </span>
-                    )}
-                  </div>
-
-                  <h3 className="text-xl font-black text-white mb-2 leading-snug group-hover:text-amber-300 transition-colors">
-                    {quiz.title}
-                  </h3>
-                  <p className="text-white/70 text-xs md:text-sm line-clamp-2 leading-relaxed">
-                    {quiz.description}
-                  </p>
-                </div>
+        <div className="activity-section-heading">
+          <div><h2 id="evaluations-heading">Evaluaciones <span>{evaluations.length}</span></h2><p>Refuerza tus conocimientos en cada área.</p></div>
+        </div>
+        <div className="evaluation-grid">
+          {matchingEvaluations.map(quiz => (
+            <article key={quiz.id} className="evaluation-card">
+              <div className="evaluation-card-image">
+                <img src={quiz.coverImage || '/expertos-film.webp'} alt="" loading="lazy" width="600" height="340" />
+                <span>{quiz.category || 'Capacitación'}</span>
               </div>
-
-              <div className="p-6 pt-0 space-y-2.5">
-                <button
-                  onClick={() => handleLaunchSolo(quiz)}
-                  className="quiz-action quiz-action-primary w-full"
-                >
-                  <Play className="w-4 h-4 fill-current" />
-                  <span>Iniciar evaluación</span>
+              <div className="evaluation-card-copy">
+                <span className="evaluation-meta"><BookOpen size={15} aria-hidden="true" />{quiz.questions.length} {quiz.questions.length === 1 ? 'pregunta' : 'preguntas'}
+                  <span>·</span>{quiz.maxAttemptsPerUser === 1 || (quiz.maxAttemptsPerUser === undefined && quiz.preventRetries)
+                    ? '1 intento' : quiz.maxAttemptsPerUser ? `${quiz.maxAttemptsPerUser} intentos` : 'Sin límite de intentos'}</span>
+                <h3>{quiz.title}</h3>
+                {quiz.description && <p>{quiz.description}</p>}
+              </div>
+              <div className="evaluation-card-actions">
+                <button type="button" onClick={() => handleLaunchSolo(quiz)} className="quiz-action quiz-action-primary">
+                  Iniciar evaluación <ArrowRight size={17} aria-hidden="true" />
                 </button>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <button
-                    onClick={() => onHostGame(quiz)}
-                    className="min-h-11 py-2 px-2 rounded-xl btn-cinepolis-glass font-bold text-sm flex items-center justify-center gap-1.5"
-                    title="Compartir esta evaluación con un PIN"
-                  >
-                    <Users className="w-4 h-4 shrink-0 text-blue-300" />
-                    <span>Crear sala</span>
-                  </button>
-
-                  <button
-                    onClick={() => setSharingQuiz(quiz)}
-                    className="min-h-11 py-2 px-2 rounded-xl btn-cinepolis-glass text-amber-300 font-bold text-sm flex items-center justify-center gap-1.5"
-                    title="Compartir enlace o código QR de este cuestionario"
-                  >
-                    <Share2 className="w-4 h-4 shrink-0" />
-                    <span>Compartir</span>
-                  </button>
+                <div className="evaluation-secondary-actions">
+                  <button type="button" onClick={() => onHostGame(quiz)}><Users size={16} aria-hidden="true" />Crear sala</button>
+                  <button type="button" onClick={() => setSharingQuiz(quiz)}><Share2 size={16} aria-hidden="true" />Compartir</button>
                 </div>
               </div>
-            </motion.div>
+            </article>
           ))}
         </div>
-        {!evaluations.length && <p className="survey-empty">Por ahora no hay evaluaciones disponibles.</p>}
+        {!matchingEvaluations.length && <div className="survey-empty"><BookOpen size={25} aria-hidden="true" /><p>{search ? 'No encontramos evaluaciones con esa búsqueda.' : 'Por ahora no hay evaluaciones disponibles.'}</p></div>}
       </section>
 
       {isJoinModalOpen && selectedQuiz && isSurveyQuiz(selectedQuiz) && (
@@ -361,7 +327,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
           <motion.div
             initial={{ scale: 0.9, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
-            className="bg-gradient-to-b from-[#0e172f] via-[#091024] to-[#040815] border-2 border-amber-400/40 rounded-3xl p-5 sm:p-8 max-w-lg w-full shadow-2xl text-center text-white relative my-auto max-h-[92vh] overflow-y-auto"
+            className="utility-dialog border rounded-2xl p-5 sm:p-8 max-w-lg w-full text-center relative my-auto max-h-[92dvh] overflow-y-auto"
           >
             {/* Botón de cierre */}
             <button
@@ -521,7 +487,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                       className="flex-[2] py-3.5 rounded-2xl btn-cinepolis-gold disabled:opacity-40 disabled:cursor-not-allowed text-xs font-black uppercase tracking-wider transition shadow-2xl flex items-center justify-center gap-2"
                     >
                       <Play className="w-4 h-4 fill-current" />
-                      <span>¡Entrar al Cuestionario!</span>
+                      <span>Comenzar evaluación</span>
                     </button>
                   </div>
                 </form>

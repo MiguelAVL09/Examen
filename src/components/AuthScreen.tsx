@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { ArrowLeft, ArrowRight, Check, Eye, EyeOff, IdCard, LockKeyhole } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Eye, EyeOff, GraduationCap, IdCard, LockKeyhole, ShieldCheck } from 'lucide-react';
 import { authService, cloudEmployeeAccess, localAuthService } from '../services/authService';
 import './AuthScreen.css';
+import { PlatformBrand } from './PlatformBrand';
 
 type Mode = 'login' | 'register' | 'recover';
 
@@ -17,10 +18,6 @@ const descriptions: Record<Mode, string> = {
   register: 'Usa el número que aparece en tu credencial de empleado.',
   recover: 'Ingresa tu ID para consultar tu pregunta de seguridad.',
 };
-
-function Brand() {
-  return <span className="auth-brand"><span aria-hidden="true">C!</span> Cinépolis <strong>PRO</strong></span>;
-}
 
 export function AuthScreen({ onAuthenticated }: { onAuthenticated: () => boolean }) {
   const [mode, setMode] = useState<Mode>('login');
@@ -45,7 +42,7 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: () => boolean
         setEntering(false);
         setError('El navegador no pudo abrir la sesión. Intenta de nuevo.');
       }
-    }, 1250);
+    }, 350);
     return () => window.clearTimeout(timer);
   }, [entering, onAuthenticated]);
 
@@ -111,18 +108,20 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: () => boolean
   return (
     <main className="auth-page">
       <section className="auth-stage" aria-label="Cinépolis PRO">
+        <PlatformBrand />
         <div className="auth-stage-image" aria-hidden="true" />
-        <div className="auth-projection" aria-hidden="true" />
-        <div className="auth-curtains" aria-hidden="true"><span /><span /></div>
         <div className="auth-stage-copy">
-          <Brand />
-          <p>Encuestas y<br />capacitación</p>
+          <span className="auth-stage-label"><GraduationCap size={18} aria-hidden="true" /> Capacitación Cinépolis</span>
+          <p>Tu desarrollo<br />en primera fila.</p>
+          <span className="auth-stage-description">Encuestas, evaluaciones y seguimiento de tu equipo en un mismo espacio.</span>
         </div>
+        <span className="auth-stage-footer">Cinépolis PRO · Portal de colaboradores</span>
       </section>
 
       <section className="auth-main" aria-labelledby="auth-heading" inert={entering}>
         <div className="auth-card">
           <div className="auth-form-content" key={mode}>
+            <span className="auth-welcome">Portal de colaboradores</span>
             {mode !== 'login' && <button type="button" className="auth-link auth-back" disabled={busy} onClick={() => changeMode('login')}>
               <ArrowLeft size={18} aria-hidden="true" /> Volver a iniciar sesión
             </button>}
@@ -138,7 +137,7 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: () => boolean
                   <IdCard size={20} aria-hidden="true" />
                   <input name="employeeNumber" autoComplete="username" value={employeeNumber}
                     onChange={event => { setEmployeeNumber(event.target.value); setError(''); }}
-                    readOnly={Boolean(question)} required maxLength={30} placeholder="Ej. 001234" spellCheck={false} />
+                    readOnly={Boolean(question)} required maxLength={30} placeholder="Ej. 001234" spellCheck={false} autoCapitalize="none" autoCorrect="off" />
                 </span>
               </label>
               {mode === 'register' && <label>Área <small>(opcional)</small>
@@ -185,11 +184,11 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: () => boolean
               <button type="button" className="auth-link" disabled={busy} onClick={() => changeMode('register')}>Crear cuenta</button>
             </div>}
           </div>
+          <p className="auth-access-note"><ShieldCheck size={17} aria-hidden="true" /> Acceso exclusivo para personal autorizado</p>
         </div>
+        <p className="auth-copyright">© {new Date().getFullYear()} Cinépolis PRO</p>
       </section>
       {entering && <div className="auth-arrival" role="status">
-        <div className="auth-arrival-lens" aria-hidden="true" />
-        <div className="auth-arrival-strip" aria-hidden="true" />
         <div className="auth-arrival-content">
           <span><Check size={38} aria-hidden="true" /></span>
           <p>Acceso confirmado</p>

@@ -6,6 +6,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { soundEffects } from '../utils/soundEffects';
 import type { UserAccount } from '../types/quiz';
+import { PlatformBrand } from './PlatformBrand';
 
 export type Destination = 'home' | 'expert' | 'admin' | 'kiosk';
 
@@ -61,18 +62,25 @@ export function Navbar({
 
   return (
     <header className="quiz-header">
+      <a className="skip-link" href="#app-content">Ir al contenido</a>
       <div className="quiz-header-content">
         <button type="button" onClick={() => onNavigate('home')} className="quiz-brand" aria-label="Cinépolis PRO, inicio">
-          <span className="quiz-brand-mark" aria-hidden="true">C!</span>
-          <span>Cinépolis <strong>PRO</strong></span>
+          <PlatformBrand />
         </button>
+        <nav className="quiz-desktop-nav" aria-label="Navegación de la plataforma">
+          <button type="button" aria-current={currentView === 'home' ? 'page' : undefined} onClick={() => onNavigate('home')}>Actividades</button>
+          {role === 'expert' && <button type="button" aria-current={currentView === 'expert' ? 'page' : undefined} onClick={() => onNavigate('expert')}>Cinepolito Experto</button>}
+          {role === 'admin' && <button type="button" aria-current={currentView === 'admin' ? 'page' : undefined} onClick={() => onNavigate('admin')}>Administración</button>}
+        </nav>
         <div className="quiz-header-actions">
-          <button type="button" className="quiz-header-surveys" onClick={onOpenSurveys}><ClipboardList size={19} aria-hidden="true" /> Encuestas</button>
-          <button type="button" className="quiz-menu-button" aria-haspopup="dialog" aria-controls="account-menu" aria-expanded={menuOpen} onClick={() => {
+          <button type="button" className="quiz-header-pin" onClick={onOpenPinModal}><Gamepad2 size={18} aria-hidden="true" /> Unirme con PIN</button>
+          <button type="button" className="quiz-menu-button" aria-label="Menú" aria-haspopup="dialog" aria-controls="account-menu" aria-expanded={menuOpen} onClick={() => {
             drawer.current?.showModal();
             setMenuOpen(true);
           }}>
-            <Menu size={22} aria-hidden="true" /> <span>Menú</span>
+            <span className="header-avatar" aria-hidden="true">{(currentUser.name || currentUser.nickname || 'C').trim().charAt(0).toUpperCase()}</span>
+            <span className="header-user" aria-hidden="true"><strong>{currentUser.name || currentUser.nickname}</strong><small>{roleLabel[role]}</small></span>
+            <Menu size={19} aria-hidden="true" />
           </button>
         </div>
       </div>

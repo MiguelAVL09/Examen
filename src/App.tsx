@@ -22,6 +22,7 @@ import { clearExpertLocation, expertHash, isExpertLocation } from './utils/exper
 import { appLinkQuery, isAndroidApp } from './utils/platform';
 import ExpertDashboard from './ExpertDashboard';
 import './QuizNavigation.css';
+import './DesignSystem.css';
 
 export function App() {
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => authService.getCurrentUser());
@@ -397,7 +398,7 @@ export function App() {
   }
 
   return (
-    <div className="quiz-app min-h-screen bg-kahoot-pattern flex flex-col justify-between selection:bg-amber-400 selection:text-black">
+    <div data-view={view} className="quiz-app min-h-screen flex flex-col justify-between selection:bg-blue-200 selection:text-blue-950">
       {view !== 'kiosk' && (
         <Navbar
           currentView={view}
@@ -412,18 +413,16 @@ export function App() {
       )}
 
       {/* Main Content Area */}
-      <main className="flex-1">
+      <main id="app-content" tabIndex={-1} className="flex-1">
         {view === 'expert' ? (
           <ExpertViewBoundary onBack={openSurveys}>
             <ExpertDashboard quizzes={quizzes} quizLoadError={quizLoadError} onReloadQuizzes={refreshQuizzes} onBack={openSurveys}
               user={currentUser} onStartSurvey={startExpertSurvey} />
           </ExpertViewBoundary>
         ) : view === 'home' && isLoading ? (
-          <div className="min-h-[60vh] flex flex-col items-center justify-center text-white">
-            <div className="w-16 h-16 border-4 border-amber-400 border-t-transparent rounded-full animate-spin mb-4" />
-            <span className="text-lg font-black uppercase tracking-wider text-amber-300">
-              Cargando Sistema Cinépolis...
-            </span>
+          <div className="workspace-loading" role="status">
+            <span className="workspace-spinner" aria-hidden="true" />
+            <span>Cargando tus actividades…</span>
           </div>
         ) : (
           <>
@@ -535,16 +534,10 @@ export function App() {
 
       {/* Footer Profesional Sin Exposición de Tecnologías */}
       {view !== 'kiosk' && view !== 'expert' && (
-        <footer className="bg-black/50 border-t border-white/10 py-5 text-center text-xs text-white/50 font-semibold backdrop-blur-md">
-          <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <span className="font-black text-amber-400">Cinépolis PRO</span>
-              <span>•</span>
-              <span>Plataforma Oficial de Capacitación y Evaluación</span>
-            </div>
-            <div className="text-white/60">
-              © 2026 Cinépolis • Todos los derechos reservados. Acceso exclusivo para personal autorizado.
-            </div>
+        <footer className="platform-footer">
+          <div>
+            <span><strong>Cinépolis PRO</strong><span>Capacitación y desarrollo</span></span>
+            <span>© {new Date().getFullYear()} Cinépolis · Portal de colaboradores</span>
           </div>
         </footer>
       )}

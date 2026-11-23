@@ -397,7 +397,7 @@ export default function ExpertDashboard({ quizzes, quizLoadError, onReloadQuizze
     <aside className={'sidebar' + (menu ? ' expanded' : '')}>
       <a className="brand" href={expertHash + '/resumen'} onClick={() => navigate('resumen')}>
         <span className="brand-mark"><Film size={23} /></span>
-        <span><strong>Cinépolis<span className="brand-dot">.</span></strong><small>EXPERTOS</small></span>
+        <span><strong>Cinepolito</strong><small>Experto</small></span>
       </a>
       <button className="icon-button close-nav" aria-label="Cerrar navegación" onClick={() => setMenu(false)}><X size={20} /></button>
       <nav aria-label="Navegación principal">

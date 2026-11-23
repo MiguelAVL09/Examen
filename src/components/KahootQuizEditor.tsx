@@ -148,7 +148,7 @@ export function KahootQuizEditor({ editingQuiz, setEditingQuiz, onClose, onSave,
   return <dialog ref={dialog} aria-labelledby={headingId} onCancel={event => {
     event.preventDefault();
     if (!isSavingQuiz) onClose();
-  }} className="m-auto w-[calc(100%-1rem)] max-w-4xl max-h-[calc(100dvh-1rem)] overflow-y-auto overscroll-contain rounded-3xl border-2 border-white/20 bg-kahoot-purple-dark p-4 text-white shadow-2xl backdrop:bg-black/80 sm:p-6 md:p-8">
+  }} className="kahoot-editor m-auto w-[calc(100%-1rem)] max-w-4xl max-h-[calc(100dvh-1rem)] overflow-y-auto overscroll-contain rounded-3xl border-2 border-white/20 bg-kahoot-purple-dark p-4 text-white shadow-2xl backdrop:bg-black/80 sm:p-6 md:p-8">
     <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-6">
       <div>
         <h3 id={headingId} className="text-2xl font-black tracking-tight">{title}</h3>
@@ -200,10 +200,11 @@ export function KahootQuizEditor({ editingQuiz, setEditingQuiz, onClose, onSave,
       </div>
 
       {(!survey || !editingQuiz.isAnonymousSurvey) && <div>
-        <label className="text-xs uppercase font-bold text-white/70 block mb-1">
+        <label htmlFor={`${headingId}-attempts`} className="text-xs uppercase font-bold text-white/70 block mb-1">
           Oportunidades (Intentos)
         </label>
         <select
+          id={`${headingId}-attempts`}
           value={
             editingQuiz.maxAttemptsPerUser !== undefined
               ? editingQuiz.maxAttemptsPerUser
@@ -301,6 +302,7 @@ export function KahootQuizEditor({ editingQuiz, setEditingQuiz, onClose, onSave,
               <LinkIcon className="w-3.5 h-3.5 text-white/40" />
               <input
                 type="text"
+                aria-label="Enlace de la portada"
                 value={editingQuiz.coverImage || ''}
                 onChange={e => setEditingQuiz({ ...editingQuiz, coverImage: e.target.value })}
                 placeholder="O pega un enlace de imagen (https://...)"
@@ -466,10 +468,11 @@ export function KahootQuizEditor({ editingQuiz, setEditingQuiz, onClose, onSave,
 
             {!expertSurvey && <>
             <div className="md:col-span-2">
-              <label className="text-[11px] font-bold text-white/60 block mb-1">
+              <label htmlFor={`${headingId}-time-${ques.id}`} className="text-[11px] font-bold text-white/60 block mb-1">
                 Tiempo Límite
               </label>
               <select
+                id={`${headingId}-time-${ques.id}`}
                 value={ques.timeLimit}
                 onChange={e => {
                   const updated = [...editingQuiz.questions];
@@ -487,10 +490,11 @@ export function KahootQuizEditor({ editingQuiz, setEditingQuiz, onClose, onSave,
             </div>
 
             <div className="md:col-span-2">
-              <label className="text-[11px] font-bold text-white/60 block mb-1">
+              <label htmlFor={`${headingId}-points-${ques.id}`} className="text-[11px] font-bold text-white/60 block mb-1">
                 Puntaje
               </label>
               <select
+                id={`${headingId}-points-${ques.id}`}
                 value={ques.pointsMultiplier}
                 onChange={e => {
                   const updated = [...editingQuiz.questions];
@@ -593,6 +597,7 @@ export function KahootQuizEditor({ editingQuiz, setEditingQuiz, onClose, onSave,
                   <LinkIcon className="w-3.5 h-3.5 text-white/40 flex-shrink-0" />
                   <input
                     type="text"
+                    aria-label={`Enlace de la imagen de la pregunta ${qIdx + 1}`}
                     value={ques.imageUrl || ''}
                     onChange={e => {
                       const updated = [...editingQuiz.questions];
@@ -780,11 +785,12 @@ export function KahootQuizEditor({ editingQuiz, setEditingQuiz, onClose, onSave,
           {ques.questionType === 'type_answer' && !survey && (
             <div className="space-y-3 pt-2">
               <div>
-                <label className="text-xs font-bold text-amber-300 block mb-1">
+                <label htmlFor={`${headingId}-accepted-${ques.id}`} className="text-xs font-bold text-amber-300 block mb-1">
                   Respuesta(s) Aceptada(s) (separadas por comas):
                 </label>
                 <input
                   type="text"
+                  id={`${headingId}-accepted-${ques.id}`}
                   placeholder="Ej. 1989, el año 1989, en 1989"
                   value={(ques.acceptedAnswers || []).join(', ')}
                   onChange={e => {
@@ -807,12 +813,13 @@ export function KahootQuizEditor({ editingQuiz, setEditingQuiz, onClose, onSave,
 
           {/* Ficha Formativa ("¿Por qué es la correcta?") */}
           {!expertSurvey && <div className="pt-3 border-t border-white/10">
-            <label className="text-[11px] font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5 mb-1.5">
+            <label htmlFor={`${headingId}-explanation-${ques.id}`} className="text-[11px] font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5 mb-1.5">
               <BookOpen className="w-3.5 h-3.5" />
               <span>Cápsula Formativa Cinépolis (¿Por qué es la correcta? - Opcional)</span>
             </label>
             <input
               type="text"
+              id={`${headingId}-explanation-${ques.id}`}
               placeholder={
                 DEFAULT_EXPLANATIONS[ques.id] ||
                 'Ej. De acuerdo al estándar operativo Cinépolis, esta es la respuesta correcta porque...'

@@ -50,7 +50,7 @@ export function PinModal({ isOpen, onClose, onJoin, initialAvatar = '🦊' }: Pi
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md">
       <motion.section role="dialog" aria-modal="true" aria-labelledby="room-pin-title"
         initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
-        className="w-full max-w-md rounded-3xl border-2 border-amber-400/30 bg-slate-950 p-5 text-white sm:p-7">
+        className="utility-dialog w-full max-w-md rounded-3xl border-2 border-amber-400/30 bg-slate-950 p-5 text-white sm:p-7">
         <header className="mb-5 flex items-center justify-between gap-3">
           <h2 id="room-pin-title" className="flex items-center gap-2 text-lg font-black">
             <Gamepad2 className="text-amber-300" aria-hidden="true" /> Unirme con PIN
