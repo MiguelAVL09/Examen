@@ -344,8 +344,3 @@
     margin-top: 36px;
   }
 }
-@media (prefers-reduced-motion: no-preference) {
-  .auth-card {
-    animation: workspace-enter 0.4s ease-out both;
-  }
-}

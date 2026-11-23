@@ -23,6 +23,7 @@ import { appLinkQuery, isAndroidApp } from './utils/platform';
 import ExpertDashboard from './ExpertDashboard';
 import './QuizNavigation.css';
 import './DesignSystem.css';
+import './Motion.css';
 
 export function App() {
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => authService.getCurrentUser());

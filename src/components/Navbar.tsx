@@ -85,7 +85,7 @@ export function Navbar({
         </div>
       </div>
 
-      <dialog id="account-menu" ref={drawer} className="account-drawer" aria-labelledby="account-menu-title" onClose={() => setMenuOpen(false)} onClick={event => {
+      <dialog id="account-menu" ref={drawer} className="account-drawer" aria-labelledby="account-menu-title" onClose={() => setMenuOpen(drawer.current?.open ?? false)} onClick={event => {
         if (event.target === event.currentTarget) {
           const { left, right, top, bottom } = event.currentTarget.getBoundingClientRect();
           if (event.clientX < left || event.clientX > right || event.clientY < top || event.clientY > bottom) drawer.current?.close();

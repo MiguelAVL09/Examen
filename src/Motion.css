@@ -1,0 +1,339 @@
+/* Short entrances and feedback share the timing tokens in DesignSystem.css. */
+@media (prefers-reduced-motion: no-preference) {
+  .auth-form-content,
+  .auth-stage-copy {
+    animation: cp-content-enter var(--cp-motion-ui) var(--cp-ease-out) backwards;
+  }
+
+  .auth-stage-image {
+    animation: cp-cinema-enter 650ms var(--cp-ease-out) backwards;
+  }
+
+  .quiz-hero-content > .section-eyebrow {
+    animation: cp-fade-in 180ms var(--cp-ease-out) backwards;
+  }
+
+  .quiz-hero-content > h1 {
+    animation: cp-content-enter var(--cp-motion-ui) var(--cp-ease-out) backwards;
+  }
+
+  .quiz-hero-content > p {
+    animation: cp-support-enter 220ms var(--cp-ease-out) 40ms backwards;
+  }
+
+  .quiz-hero-actions {
+    animation: cp-support-enter 220ms var(--cp-ease-out) 70ms backwards;
+  }
+
+  .quiz-hero-art img {
+    animation: cp-cinema-enter 650ms var(--cp-ease-out) backwards;
+  }
+
+  .quiz-hero-art {
+    overflow: hidden;
+  }
+
+  .quiz-hero-art::after {
+    content: "";
+    position: absolute;
+    inset: -30% 0;
+    pointer-events: none;
+    background: linear-gradient(
+      110deg,
+      transparent 35%,
+      #b4d8ff26 48%,
+      transparent 60%
+    );
+    opacity: 0;
+    animation: cp-projection-pass 850ms var(--cp-ease-in-out) 70ms backwards;
+  }
+
+  .workspace-welcome,
+  .quiz-home .quiz-section,
+  .expert-app .page-heading,
+  .expert-app .hero,
+  .expert-app .overview-grid,
+  .admin-workspace > div:first-child {
+    animation: cp-support-enter var(--cp-motion-ui) var(--cp-ease-out) backwards;
+  }
+
+  .expert-app .stat-card {
+    animation: cp-support-enter 180ms var(--cp-ease-out) backwards;
+  }
+
+  .expert-app .stat-card:nth-child(2) {
+    animation-delay: 40ms;
+  }
+
+  .expert-app .stat-card:nth-child(3) {
+    animation-delay: 70ms;
+  }
+
+  .expert-app .stat-card:nth-child(4) {
+    animation-delay: 90ms;
+  }
+
+  :is(
+    .quiz-action,
+    .auth-submit,
+    .activity-text-action,
+    .expert-app .button,
+    .expert-app .stat-card,
+    .drawer-close,
+    .quiz-menu-button
+  ) {
+    transition:
+      transform var(--cp-motion-fast) var(--cp-ease-out),
+      background-color var(--cp-motion-fast) ease,
+      border-color var(--cp-motion-fast) ease,
+      color var(--cp-motion-fast) ease;
+  }
+
+  :is(
+      .quiz-action,
+      .auth-submit,
+      .activity-text-action,
+      .expert-app .button,
+      .drawer-close,
+      .quiz-menu-button
+    ):active:not(:disabled) {
+    transform: scale(0.97);
+  }
+
+  :is(.quiz-action, .activity-text-action, .auth-submit, .expert-app .button)
+    > svg,
+  .survey-card-icon,
+  .expert-app .stat-arrow,
+  .drawer-item > svg,
+  .quiz-menu-button > svg {
+    transition: transform var(--cp-motion-ui) var(--cp-ease-out);
+  }
+
+  .quiz-menu-button[aria-expanded="true"] > svg {
+    transform: rotate(90deg);
+  }
+
+  .quiz-desktop-nav button::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 3px;
+    border-radius: 3px 3px 0 0;
+    background: var(--cp-blue);
+    transform: scaleX(0);
+    transition: transform var(--cp-motion-ui) var(--cp-ease-out);
+  }
+
+  .quiz-desktop-nav button[aria-current]::after {
+    transform: scaleX(1);
+  }
+
+  .survey-card,
+  .evaluation-card,
+  .expert-app .course-card {
+    transition:
+      transform var(--cp-motion-ui) var(--cp-ease-out),
+      border-color var(--cp-motion-fast) ease;
+  }
+
+  .evaluation-card-image img {
+    transition: transform var(--cp-motion-dialog) var(--cp-ease-out);
+  }
+
+  .account-drawer,
+  .kahoot-editor,
+  .survey-start-dialog,
+  .expert-app .dialog {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+    transition:
+      opacity 180ms var(--cp-ease-out),
+      transform var(--cp-motion-dialog) var(--cp-ease-out);
+    transition:
+      opacity 180ms var(--cp-ease-out),
+      transform var(--cp-motion-dialog) var(--cp-ease-out),
+      display var(--cp-motion-dialog) allow-discrete,
+      overlay var(--cp-motion-dialog) allow-discrete;
+  }
+
+  .account-drawer {
+    transform: translateX(100%);
+    transition:
+      opacity 180ms var(--cp-ease-out),
+      transform var(--cp-motion-dialog) var(--cp-ease-drawer);
+    transition:
+      opacity 180ms var(--cp-ease-out),
+      transform var(--cp-motion-dialog) var(--cp-ease-drawer),
+      display var(--cp-motion-dialog) allow-discrete,
+      overlay var(--cp-motion-dialog) allow-discrete;
+  }
+
+  .account-drawer[open],
+  .kahoot-editor[open],
+  .survey-start-dialog[open],
+  .expert-app .dialog[open] {
+    opacity: 1;
+    transform: none;
+  }
+
+  :is(
+    .account-drawer,
+    .kahoot-editor,
+    .survey-start-dialog,
+    .expert-app .dialog
+  ):not([open]) {
+    pointer-events: none;
+  }
+
+  :is(
+    .account-drawer,
+    .kahoot-editor,
+    .survey-start-dialog,
+    .expert-app .dialog
+  )::backdrop {
+    opacity: 0;
+    transition:
+      opacity 180ms var(--cp-ease-out),
+      display var(--cp-motion-dialog) allow-discrete,
+      overlay var(--cp-motion-dialog) allow-discrete;
+  }
+
+  :is(
+      .account-drawer,
+      .kahoot-editor,
+      .survey-start-dialog,
+      .expert-app .dialog
+    )[open]::backdrop {
+    opacity: 1;
+  }
+
+  .survey-published,
+  .expert-app .toast {
+    transition:
+      opacity 180ms var(--cp-ease-out),
+      transform var(--cp-motion-ui) var(--cp-ease-out);
+  }
+
+  @starting-style {
+    :is(.kahoot-editor, .survey-start-dialog, .expert-app .dialog)[open] {
+      opacity: 0;
+      transform: translateY(10px) scale(0.98);
+    }
+
+    .account-drawer[open] {
+      opacity: 0;
+      transform: translateX(100%);
+    }
+
+    :is(
+        .account-drawer,
+        .kahoot-editor,
+        .survey-start-dialog,
+        .expert-app .dialog
+      )[open]::backdrop {
+      opacity: 0;
+    }
+
+    .survey-published,
+    .expert-app .toast {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) and (hover: hover) and (pointer: fine) {
+  .survey-card:hover,
+  .evaluation-card:hover,
+  .expert-app .course-card:hover,
+  .expert-app .stat-card:hover {
+    transform: translateY(-4px);
+  }
+
+  .evaluation-card:hover .evaluation-card-image img {
+    transform: scale(1.035);
+  }
+
+  .survey-card:hover .survey-card-icon {
+    transform: translateY(-2px);
+  }
+
+  :is(
+      .quiz-action,
+      .activity-text-action,
+      .auth-submit,
+      .expert-app .button
+    ):hover
+    > .lucide-arrow-right,
+  .expert-app .stat-card:hover .stat-arrow,
+  .drawer-item:hover > svg {
+    transform: translateX(3px);
+  }
+
+  .auth-submit:hover > svg {
+    transform: translateX(5px);
+  }
+
+  .quiz-desktop-nav button:hover::after {
+    transform: scaleX(1);
+  }
+
+  .expert-app .sidebar nav a > svg {
+    transition: transform var(--cp-motion-fast) var(--cp-ease-out);
+  }
+
+  .expert-app .sidebar nav a:hover > svg {
+    transform: translateX(3px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :is(.survey-card, .evaluation-card, .expert-app .course-card, .expert-app .stat-card):hover,
+  .evaluation-card:hover .evaluation-card-image img,
+  :is(.quiz-action, .auth-submit, .expert-app .button):active:not(:disabled) {
+    transform: none;
+  }
+}
+
+@keyframes cp-content-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+@keyframes cp-support-enter {
+  from {
+    opacity: 0.55;
+    transform: translateY(6px);
+  }
+}
+
+@keyframes cp-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes cp-cinema-enter {
+  from {
+    opacity: 0.7;
+    transform: scale(1.035);
+  }
+}
+
+@keyframes cp-projection-pass {
+  0% {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+  35% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}

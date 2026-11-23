@@ -14,6 +14,12 @@
   --cp-line: #e2e7ef;
   --cp-page: #f5f7fb;
   --cp-navy: #0b1830;
+  --cp-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --cp-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --cp-ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --cp-motion-fast: 140ms;
+  --cp-motion-ui: 240ms;
+  --cp-motion-dialog: 300ms;
   color-scheme: light;
   font-synthesis: none;
   -webkit-font-smoothing: antialiased;
@@ -763,16 +769,7 @@ button:disabled {
     scroll-behavior: auto !important;
   }
 }
-@keyframes workspace-enter {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
+
 
 :is(.kahoot-editor, .utility-dialog)
   :is(.bg-kahoot-purple, .bg-kahoot-purple-light) {
