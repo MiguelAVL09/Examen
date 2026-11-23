@@ -29,7 +29,7 @@ export const exportRankingsToExcel = async ({
   deviceUsersMap,
 }: ExcelExportOptions) => {
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = 'Club Cinépolis Master';
+  workbook.creator = 'Cinepolitos · Proyecto personal';
   workbook.created = new Date();
 
   // Hoja 1: Ranking de Participantes
@@ -40,7 +40,7 @@ export const exportRankingsToExcel = async ({
   // Título corporativo
   sheet.mergeCells('A1:M1');
   const titleCell = sheet.getCell('A1');
-  titleCell.value = `REPORTE OFICIAL DE EVALUACIÓN — ${quizTitle.toUpperCase()} (CINÉPOLIS)`;
+  titleCell.value = `REPORTE DE EVALUACIÓN — ${quizTitle.toUpperCase()} (CINEPOLITOS · PROYECTO PERSONAL)`;
   titleCell.font = { name: 'Calibri', size: 14, bold: true, color: { argb: 'FFFFFFFF' } };
   titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0B132B' } };
   titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
@@ -218,5 +218,5 @@ export const exportRankingsToExcel = async ({
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
   const safeTitle = quizTitle.replace(/[^a-zA-Z0-9]/g, '_');
-  return saveDocument(blob, `Reporte_Cinepolis_${safeTitle}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  return saveDocument(blob, `Reporte_Cinepolitos_${safeTitle}_${new Date().toISOString().slice(0, 10)}.xlsx`);
 };

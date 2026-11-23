@@ -24,6 +24,7 @@ import ExpertDashboard from './ExpertDashboard';
 import './QuizNavigation.css';
 import './DesignSystem.css';
 import './Motion.css';
+import { ProjectCredit } from './components/ProjectCredit';
 
 export function App() {
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => authService.getCurrentUser());
@@ -537,8 +538,8 @@ export function App() {
       {view !== 'kiosk' && view !== 'expert' && (
         <footer className="platform-footer">
           <div>
-            <span><strong>Cinépolis PRO</strong><span>Capacitación y desarrollo</span></span>
-            <span>© {new Date().getFullYear()} Cinépolis · Portal de colaboradores</span>
+            <span><strong>Cinepolitos</strong><span>Aprendizaje entre compañeros</span></span>
+            <ProjectCredit />
           </div>
         </footer>
       )}

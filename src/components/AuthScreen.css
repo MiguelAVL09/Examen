@@ -267,12 +267,6 @@
   flex: none;
   color: #76839a;
 }
-.auth-copyright {
-  position: absolute;
-  bottom: 30px;
-  color: var(--cp-muted);
-  font-size: 12px;
-}
 .auth-arrival {
   position: fixed;
   inset: 0;
@@ -338,9 +332,5 @@
   .auth-form {
     margin-top: 28px;
     gap: 20px;
-  }
-  .auth-copyright {
-    position: static;
-    margin-top: 36px;
   }
 }

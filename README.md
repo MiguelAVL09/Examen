@@ -1,6 +1,6 @@
-# Capacitación Cinépolis
+# Cinepolitos · Proyecto personal
 
-Los colaboradores usan Cinépolis PRO para responder encuestas y evaluaciones. El panel de **Cinépolis Expertos** permite registrar tareas y dar seguimiento a los cursos de Learning Center.
+Proyecto personal e independiente creado por un compañero de cine, sin participación ni financiamiento de Cinépolis. Los colaboradores usan Cinepolitos para responder encuestas y evaluaciones. El panel de **Cinepolito Experto** permite registrar tareas y dar seguimiento a los cursos de Learning Center.
 
 ## Abrir el panel
 

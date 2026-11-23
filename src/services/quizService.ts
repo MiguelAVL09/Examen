@@ -26,7 +26,7 @@ export const DEFAULT_DEPARTMENTS: string[] = [
   'Limpieza Profunda',
 ];
 
-// Fichas formativas oficiales ("¿Por qué es la correcta?") para el cuestionario de Cinépolis
+// Fichas formativas ("¿Por qué es la correcta?") para el cuestionario de Cinépolis
 export const DEFAULT_EXPLANATIONS: Record<string, string> = {
   '6eceecf4-9d8b-4bf3-9e3d-c70d746158d5':
     'En Club Cinépolis el nivel Fan acumula 5% en puntos, mientras que Fanático y Súper Fanático acumulan 10%. La diferencia entre estos dos últimos está en los beneficios adicionales, no en el porcentaje.',

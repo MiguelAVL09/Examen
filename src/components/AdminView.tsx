@@ -352,7 +352,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
     await loadData();
   };
 
-  // Export to PDF Oficial
+  // Export to PDF
   const handleExportPDF = () => {
     if (filteredRankings.length === 0) return;
     const currentQuiz = quizzes.find(item => item.id === selectedQuizId);
@@ -365,7 +365,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
     });
   };
 
-  // Exportar diplomas oficiales del Top 3 (1°, 2° y 3° lugar)
+  // Exportar reconocimientos del Top 3 (1°, 2° y 3° lugar)
   const handleExportTop3Diplomas = () => {
     if (filteredRankings.length === 0) return;
     const currentQuiz = quizzes.find(item => item.id === selectedQuizId) || quizzes[0];
@@ -1638,7 +1638,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
                               : 'bg-white/10 text-white/70'
                           }`}
                         >
-                          Intento #{idx + 1} {isFirst ? '⭐ Oficial (1er Intento)' : 'Repetición'}
+                          Intento #{idx + 1} {isFirst ? 'Primer intento' : 'Repetición'}
                         </span>
                         {!isFirst && scoreDiff !== 0 && (
                           <span
@@ -1845,7 +1845,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
                 className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-black text-xs uppercase tracking-wider transition flex items-center justify-center gap-2 shadow-lg active:scale-95"
               >
                 <Award className="w-4 h-4 text-black" />
-                <span>Descargar Diploma Oficial</span>
+                <span>Descargar constancia</span>
               </button>
 
               <button
@@ -2406,7 +2406,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
                     <span>Límite de Oportunidades (Intentos por Colaborador)</span>
                   </h3>
                   <p className="text-xs text-white/60 mt-1 max-w-2xl leading-relaxed">
-                    Configuración individual para este cuestionario. Puedes fijar <strong>1 solo intento</strong> para exámenes oficiales, <strong>2 o 3 intentos</strong> para permitir recuperación, o <strong>ilimitados</strong> para dinámicas libres y encuestas.
+                    Configuración individual para este cuestionario. Puedes fijar <strong>1 solo intento</strong> para evaluaciones individuales, <strong>2 o 3 intentos</strong> para permitir recuperación, o <strong>ilimitados</strong> para dinámicas libres y encuestas.
                   </p>
                 </div>
 
@@ -2613,7 +2613,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
                 type="button"
                 onClick={() => setShowTemplatesModal(true)}
                 className="btn-cinepolis-gold flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-black shadow-lg"
-                title="Crear evaluación al instante usando plantillas oficiales prediseñadas"
+                title="Crear evaluación al instante usando plantillas prediseñadas"
               >
                 <Sparkles className="w-4 h-4 text-black" />
                 <span>⚡ Plantillas Cinépolis</span>
@@ -3554,7 +3554,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
         )}
       </AnimatePresence>
 
-      {/* MODAL: PLANTILLAS OFICIALES CINÉPOLIS */}
+      {/* MODAL: PLANTILLAS DE ACTIVIDADES */}
       <AnimatePresence>
         {showTemplatesModal && (
           <motion.div
@@ -3576,7 +3576,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBackToHome, onOpenKiosk,
                       <Sparkles className="w-5 h-5" />
                     </span>
                     <h3 className="text-2xl font-black uppercase tracking-tight">
-                      Plantillas Oficiales Cinépolis
+                      Plantillas de actividades
                     </h3>
                   </div>
                   <p className="text-xs text-white/70 mt-1">

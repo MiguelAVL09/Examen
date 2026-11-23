@@ -1,20 +1,38 @@
-/* Short entrances and feedback share the timing tokens in DesignSystem.css. */
+.cinema-title-line {
+  display: block;
+  overflow: hidden;
+  padding-bottom: 0.12em;
+  margin-bottom: -0.12em;
+}
+.cinema-title-line > span {
+  display: inline-block;
+}
+
+/* The cinematic introduction plays once, with interaction feedback on the shorter UI scale. */
 @media (prefers-reduced-motion: no-preference) {
-  .auth-form-content,
-  .auth-stage-copy {
+  .auth-form-content {
     animation: cp-content-enter var(--cp-motion-ui) var(--cp-ease-out) backwards;
   }
 
   .auth-stage-image {
-    animation: cp-cinema-enter 650ms var(--cp-ease-out) backwards;
+    animation: cp-cinema-enter 1100ms var(--cp-ease-out) backwards;
   }
 
   .quiz-hero-content > .section-eyebrow {
     animation: cp-fade-in 180ms var(--cp-ease-out) backwards;
   }
 
-  .quiz-hero-content > h1 {
-    animation: cp-content-enter var(--cp-motion-ui) var(--cp-ease-out) backwards;
+  .cinema-title-line > span {
+    animation: cp-title-reveal 750ms var(--cp-ease-out) backwards;
+  }
+
+  .cinema-title-line:nth-of-type(2) > span {
+    animation-delay: 90ms;
+  }
+
+  .auth-stage-label,
+  .auth-stage-description {
+    animation: cp-support-enter 350ms var(--cp-ease-out) 120ms backwards;
   }
 
   .quiz-hero-content > p {
@@ -26,11 +44,12 @@
   }
 
   .quiz-hero-art img {
-    animation: cp-cinema-enter 650ms var(--cp-ease-out) backwards;
+    animation: cp-cinema-enter 1100ms var(--cp-ease-out) backwards;
   }
 
   .quiz-hero-art {
     overflow: hidden;
+    animation: cp-screen-reveal 950ms var(--cp-ease-out) backwards;
   }
 
   .quiz-hero-art::after {
@@ -41,11 +60,11 @@
     background: linear-gradient(
       110deg,
       transparent 35%,
-      #b4d8ff26 48%,
+      #b4d8ff66 48%,
       transparent 60%
     );
     opacity: 0;
-    animation: cp-projection-pass 850ms var(--cp-ease-in-out) 70ms backwards;
+    animation: cp-projection-pass 1100ms var(--cp-ease-in-out) 180ms backwards;
   }
 
   .workspace-welcome,
@@ -139,7 +158,56 @@
   }
 
   .evaluation-card-image img {
+    transition: transform 550ms var(--cp-ease-out);
+  }
+
+  :is(
+    .survey-card,
+    .evaluation-card,
+    .expert-app .course-card,
+    .expert-app .stat-card
+  ) {
+    position: relative;
+  }
+
+  :is(
+    .survey-card,
+    .evaluation-card,
+    .expert-app .course-card,
+    .expert-app .stat-card
+  )::after {
+    content: "";
+    position: absolute;
+    inset: auto 20px 0;
+    height: 2px;
+    background: linear-gradient(90deg, #2557cf, #d9ac55);
+    transform: scaleX(0);
+    transform-origin: left;
     transition: transform var(--cp-motion-dialog) var(--cp-ease-out);
+    pointer-events: none;
+  }
+
+  :is(.auth-submit, .quiz-home .quiz-action-primary) {
+    position: relative;
+    overflow: hidden;
+  }
+
+  :is(.auth-submit, .quiz-home .quiz-action-primary)::after {
+    content: "";
+    position: absolute;
+    inset: -80% 0;
+    background: linear-gradient(
+      115deg,
+      transparent 35%,
+      #ffffff40 50%,
+      transparent 65%
+    );
+    transform: translateX(-120%);
+    opacity: 0;
+    pointer-events: none;
+    transition:
+      transform 500ms var(--cp-ease-out),
+      opacity 180ms ease;
   }
 
   .account-drawer,
@@ -249,11 +317,25 @@
   .evaluation-card:hover,
   .expert-app .course-card:hover,
   .expert-app .stat-card:hover {
-    transform: translateY(-4px);
+    transform: translateY(-6px);
   }
 
   .evaluation-card:hover .evaluation-card-image img {
-    transform: scale(1.035);
+    transform: scale(1.06);
+  }
+
+  :is(
+      .survey-card,
+      .evaluation-card,
+      .expert-app .course-card,
+      .expert-app .stat-card
+    ):hover::after {
+    transform: scaleX(1);
+  }
+
+  :is(.auth-submit, .quiz-home .quiz-action-primary):hover::after {
+    transform: translateX(120%);
+    opacity: 1;
   }
 
   .survey-card:hover .survey-card-icon {
@@ -290,7 +372,12 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  :is(.survey-card, .evaluation-card, .expert-app .course-card, .expert-app .stat-card):hover,
+  :is(
+    .survey-card,
+    .evaluation-card,
+    .expert-app .course-card,
+    .expert-app .stat-card
+  ):hover,
   .evaluation-card:hover .evaluation-card-image img,
   :is(.quiz-action, .auth-submit, .expert-app .button):active:not(:disabled) {
     transform: none;
@@ -320,7 +407,23 @@
 @keyframes cp-cinema-enter {
   from {
     opacity: 0.7;
-    transform: scale(1.035);
+    transform: scale(1.12) translateX(12px) rotate(-2deg);
+  }
+}
+
+@keyframes cp-title-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(115%) rotate(2deg);
+  }
+}
+
+@keyframes cp-screen-reveal {
+  from {
+    clip-path: inset(0 0 0 100%);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
   }
 }
 

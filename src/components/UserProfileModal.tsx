@@ -257,7 +257,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                             exportDiplomaPDF(attempt, 0, quiz?.title || 'Cinepolis Master');
                           }}
                           className="px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-black font-black text-[11px] flex items-center gap-1 transition shadow"
-                          title="Descargar certificado oficial en PDF"
+                          title="Descargar constancia en PDF"
                         >
                           <Download className="w-3.5 h-3.5" />
                           <span>PDF</span>
@@ -327,7 +327,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 <Award className="w-10 h-10 mx-auto mb-2 opacity-30 text-amber-300" />
                 <p className="font-bold text-white/70">Aún no cuentas con diplomas descargables.</p>
                 <p className="text-[11px] text-white/40 mt-1">
-                  Obtén una precisión de al menos 80% en cualquier cuestionario oficial para recibir tu certificado personalizado.
+                  Obtén una precisión de al menos 80% en cualquier cuestionario para recibir tu constancia personalizada.
                 </p>
               </div>
             )}

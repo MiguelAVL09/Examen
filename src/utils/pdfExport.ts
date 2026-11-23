@@ -3,6 +3,7 @@ import autoTable from 'jspdf-autotable';
 import type { Participant, Quiz } from '../types/quiz';
 import type { QuestionAnalytics } from '../services/quizService';
 import { saveDocument } from './platform';
+import { PROJECT_NOTICE } from '../projectIdentity';
 
 export interface PDFExportOptions {
   quizTitle: string;
@@ -34,7 +35,7 @@ export const exportRankingsToPDF = ({
   });
 
   // Header Banner
-  doc.setFillColor(33, 9, 78); // Deep kahoot purple
+  doc.setFillColor(11, 24, 48);
   doc.rect(0, 0, pageWidth, 42, 'F');
 
   // Accent Line
@@ -45,7 +46,7 @@ export const exportRankingsToPDF = ({
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(20);
   doc.setTextColor(255, 255, 255);
-  doc.text('REPORTE OFICIAL DE RANKING', 14, 18);
+  doc.text('REPORTE DE RESULTADOS', 14, 18);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(11);
@@ -87,7 +88,7 @@ export const exportRankingsToPDF = ({
   doc.setTextColor(80, 80, 100);
   doc.text(`Participantes evaluados: ${totalPlayers}`, 20, startY + 16);
   doc.text(`Promedio de puntaje: ${avgScore.toLocaleString()} pts`, 85, startY + 16);
-  doc.text(`1er Lugar: ${topScorerName} (${topScore.toLocaleString()} pts)`, 145, startY + 16);
+  doc.text(doc.splitTextToSize(`1er Lugar: ${topScorerName} (${topScore.toLocaleString()} pts)`, pageWidth - 165), 145, startY + 16);
 
   // Table Data
   const normalize = (name: string) =>
@@ -124,15 +125,16 @@ export const exportRankingsToPDF = ({
 
   autoTable(doc, {
     startY: startY + 28,
-    head: [['Pos.', 'Participante', 'Puntaje', 'Aciertos', 'Precision', 'Racha Max.', 'Trampa / Reintentos', 'Fecha']],
+    head: [['Pos.', 'Participante', 'Puntaje', 'Aciertos', 'Precisión', 'Racha Max.', 'Trampa / Reintentos', 'Fecha']],
     body: tableRows,
     theme: 'striped',
     headStyles: {
-      fillColor: [70, 23, 143], // Kahoot purple
+      fillColor: [37, 87, 207],
       textColor: [255, 255, 255],
       fontStyle: 'bold',
       fontSize: 8.5,
       halign: 'center',
+      cellPadding: 2,
     },
     styles: {
       fontSize: 8,
@@ -144,7 +146,7 @@ export const exportRankingsToPDF = ({
       1: { halign: 'left', fontStyle: 'bold', cellWidth: 44 },
       2: { halign: 'right', fontStyle: 'bold', cellWidth: 22 },
       3: { halign: 'center', cellWidth: 18 },
-      4: { halign: 'center', cellWidth: 18 },
+      4: { halign: 'center', cellWidth: 18, cellPadding: { left: 2, right: 2, top: 3, bottom: 3 } },
       5: { halign: 'center', cellWidth: 16 },
       6: { halign: 'center', fontStyle: 'bold', cellWidth: 24 },
       7: { halign: 'center', cellWidth: 24 },
@@ -169,7 +171,7 @@ export const exportRankingsToPDF = ({
       doc.setFontSize(8);
       doc.setTextColor(150, 150, 150);
       doc.text(
-        `Página ${data.pageNumber} de ${pageNumber} - Kahoot Examen Pro (Cinépolis)`,
+        `Página ${data.pageNumber} de ${pageNumber} - Cinepolitos · Proyecto personal`,
         pageWidth / 2,
         doc.internal.pageSize.getHeight() - 10,
         { align: 'center' }
@@ -225,12 +227,12 @@ export const exportDiplomaPDF = (
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(13);
   doc.setTextColor(11, 19, 43);
-  doc.text('CLUB CINEPOLIS MASTER', width / 2, 27, { align: 'center' });
+  doc.text('CINEPOLITOS · PROYECTO PERSONAL', width / 2, 27, { align: 'center' });
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
   doc.setTextColor(110, 110, 130);
-  doc.text('PROGRAMA OFICIAL DE EVALUACION Y CAPACITACION CONTINUA', width / 2, 33, { align: 'center' });
+  doc.text('APRENDIZAJE Y COLABORACION ENTRE COMPANEROS DE CINE', width / 2, 33, { align: 'center' });
 
   // Divider Accent Line
   doc.setDrawColor(212, 175, 55);
@@ -241,7 +243,7 @@ export const exportDiplomaPDF = (
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(26);
   doc.setTextColor(11, 19, 43);
-  doc.text(isApproval ? 'CERTIFICADO DE APROBACION' : 'DIPLOMA DE RECONOCIMIENTO', width / 2, 50, { align: 'center' });
+  doc.text(isApproval ? 'CONSTANCIA DE APROBACION' : 'DIPLOMA DE RECONOCIMIENTO', width / 2, 50, { align: 'center' });
 
   // Rank Badge Text
   const rankTitle = isApproval
@@ -317,7 +319,7 @@ export const exportDiplomaPDF = (
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(100, 100, 120);
-  doc.text('PUNTAJE OFICIAL', width / 2 - 50, 129, { align: 'center' });
+  doc.text('PUNTAJE OBTENIDO', width / 2 - 50, 129, { align: 'center' });
   doc.text('PRECISION', width / 2, 129, { align: 'center' });
   doc.text('ACIERTOS LOGRADOS', width / 2 + 50, 129, { align: 'center' });
 
@@ -338,32 +340,20 @@ export const exportDiplomaPDF = (
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   doc.setTextColor(110, 110, 120);
-  doc.text(`Expedido formalmente el ${dateStr}`, width / 2, 155, { align: 'center' });
+  doc.text(`Generado el ${dateStr}`, width / 2, 155, { align: 'center' });
 
-  // Signature lines
-  doc.setDrawColor(180, 180, 195);
-  doc.setLineWidth(0.6);
-  // Signature left
-  doc.line(width / 2 - 95, 178, width / 2 - 20, 178);
+  // Personal project attribution accompanies every recognition.
+  doc.setDrawColor(212, 175, 55);
+  doc.setLineWidth(0.5);
+  doc.line(32, 174, width - 32, 174);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
+  doc.setFontSize(9);
   doc.setTextColor(50, 50, 65);
-  doc.text('Coordinacion de Capacitacion', width / 2 - 57.5, 183, { align: 'center' });
+  doc.text('Reconocimiento de aprendizaje entre companeros', width / 2, 180, { align: 'center' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
-  doc.setTextColor(120, 120, 135);
-  doc.text('Club Cinepolis Master', width / 2 - 57.5, 187, { align: 'center' });
-
-  // Signature right
-  doc.line(width / 2 + 20, 178, width / 2 + 95, 178);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  doc.setTextColor(50, 50, 65);
-  doc.text('Administracion General', width / 2 + 57.5, 183, { align: 'center' });
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(120, 120, 135);
-  doc.text('Operaciones Cinepolis', width / 2 + 57.5, 187, { align: 'center' });
+  doc.setTextColor(90, 90, 105);
+  doc.text(doc.splitTextToSize(PROJECT_NOTICE, width - 60), width / 2, 185, { align: 'center' });
 
   if (verifyCode) {
     doc.setFont('helvetica', 'normal');
@@ -373,7 +363,7 @@ export const exportDiplomaPDF = (
   }
 
   const safeName = participant.nickname.replace(/[^a-zA-Z0-9]/g, '_');
-  const fileName = isApproval ? `Certificado_Cinepolis_${safeName}.pdf` : `Diploma_${rank}Lugar_${safeName}.pdf`;
+  const fileName = isApproval ? `Constancia_Cinepolitos_${safeName}.pdf` : `Diploma_${rank}Lugar_${safeName}.pdf`;
   return saveDocument(doc.output('blob'), fileName);
 };
 
@@ -423,7 +413,7 @@ export const exportQuestionAnalyticsPDF = (
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
   doc.setTextColor(220, 225, 235);
-  doc.text(`Evaluacion: ${quizTitle} | Cinepolis`, 14, 26);
+  doc.text(`Evaluacion: ${quizTitle} | Cinepolitos`, 14, 26);
   doc.setFontSize(8.5);
   doc.setTextColor(180, 190, 210);
   doc.text(`Generado: ${today}`, 14, 33);

@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, Check, Eye, EyeOff, GraduationCap, IdCard, LockK
 import { authService, cloudEmployeeAccess, localAuthService } from '../services/authService';
 import './AuthScreen.css';
 import { PlatformBrand } from './PlatformBrand';
+import { ProjectCredit } from './ProjectCredit';
 
 type Mode = 'login' | 'register' | 'recover';
 
@@ -107,21 +108,21 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: () => boolean
 
   return (
     <main className="auth-page">
-      <section className="auth-stage" aria-label="Cinépolis PRO">
+      <section className="auth-stage" aria-label="Cinepolitos, proyecto personal">
         <PlatformBrand />
         <div className="auth-stage-image" aria-hidden="true" />
         <div className="auth-stage-copy">
-          <span className="auth-stage-label"><GraduationCap size={18} aria-hidden="true" /> Capacitación Cinépolis</span>
-          <p>Tu desarrollo<br />en primera fila.</p>
+          <span className="auth-stage-label"><GraduationCap size={18} aria-hidden="true" /> Aprendizaje entre compañeros</span>
+          <p><span className="cinema-title-line"><span>Tu desarrollo</span></span>{' '}<span className="cinema-title-line"><span>en primera fila.</span></span></p>
           <span className="auth-stage-description">Encuestas, evaluaciones y seguimiento de tu equipo en un mismo espacio.</span>
         </div>
-        <span className="auth-stage-footer">Cinépolis PRO · Portal de colaboradores</span>
+        <span className="auth-stage-footer">Cinepolitos · Proyecto personal</span>
       </section>
 
       <section className="auth-main" aria-labelledby="auth-heading" inert={entering}>
         <div className="auth-card">
           <div className="auth-form-content" key={mode}>
-            <span className="auth-welcome">Portal de colaboradores</span>
+            <span className="auth-welcome">Proyecto personal para nuestro cine</span>
             {mode !== 'login' && <button type="button" className="auth-link auth-back" disabled={busy} onClick={() => changeMode('login')}>
               <ArrowLeft size={18} aria-hidden="true" /> Volver a iniciar sesión
             </button>}
@@ -184,9 +185,9 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: () => boolean
               <button type="button" className="auth-link" disabled={busy} onClick={() => changeMode('register')}>Crear cuenta</button>
             </div>}
           </div>
-          <p className="auth-access-note"><ShieldCheck size={17} aria-hidden="true" /> Acceso exclusivo para personal autorizado</p>
+          <p className="auth-access-note"><ShieldCheck size={17} aria-hidden="true" /> Un espacio para los compañeros de nuestro cine</p>
         </div>
-        <p className="auth-copyright">© {new Date().getFullYear()} Cinépolis PRO</p>
+        <ProjectCredit />
       </section>
       {entering && <div className="auth-arrival" role="status">
         <div className="auth-arrival-content">

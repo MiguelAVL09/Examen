@@ -30,7 +30,7 @@ export async function downloadReport(workspace: Workspace, filters: ReportFilter
   const criteria = tasks ? '' : [filters.area && 'Área: ' + filters.area, courseName && 'Curso: ' + courseName].filter(Boolean).join('  |  ')
   doc.setFontSize(9)
   const filterLines: string[] = criteria ? doc.splitTextToSize(criteria, width - 28) : []
-  doc.setProperties({ title: reportLabels[filters.type] + ' | Cinépolis Expertos' })
+  doc.setProperties({ title: reportLabels[filters.type] + ' | Cinepolitos · Proyecto personal' })
 
   const body = tasks
     ? openTasks.map(task => [task.title, task.owner || '—', task.due ? formatDate(task.due, true) : 'Sin fecha', task.priority, task.notes || '—'])
@@ -59,7 +59,7 @@ export async function downloadReport(workspace: Workspace, filters: ReportFilter
       doc.setTextColor(233, 239, 255)
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(10)
-      doc.text('CINÉPOLIS EXPERTOS', 14, 10)
+      doc.text('CINEPOLITOS · PROYECTO PERSONAL', 14, 10)
       doc.setFontSize(20)
       doc.text(reportLabels[filters.type], 14, 21)
       doc.setFont('helvetica', 'normal')
@@ -78,7 +78,10 @@ export async function downloadReport(workspace: Workspace, filters: ReportFilter
     doc.setTextColor(81, 96, 126)
     doc.text('Seguimiento de capacitación y operación', 14, footerY)
     doc.text(page + ' / ' + pages, width - 14, footerY, { align: 'right' })
+    doc.setFontSize(7)
+    doc.text(PROJECT_NOTICE, 14, footerY + 4)
   }
-  return saveDocument(doc.output('blob'), 'cinepolis-expertos-' + filters.type + '.pdf')
+  return saveDocument(doc.output('blob'), 'cinepolitos-' + filters.type + '.pdf')
 }
 import { saveDocument } from './utils/platform'
+import { PROJECT_NOTICE } from './projectIdentity'

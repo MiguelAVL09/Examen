@@ -18,6 +18,7 @@ import {
 import type { Quiz, Participant } from '../types/quiz';
 import { DEFAULT_DEPARTMENTS, quizService } from '../services/quizService';
 import { authService } from '../services/authService';
+import { ProjectCredit } from './ProjectCredit';
 
 interface KioskViewProps {
   quizzes: Quiz[];
@@ -127,7 +128,7 @@ export const KioskView: React.FC<KioskViewProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <span className="text-xl sm:text-2xl font-black text-white tracking-tight uppercase">
-                Cinépolis Kiosco
+                Cinepolitos · Kiosco
               </span>
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-400 text-black shadow-sm">
                 Sala de Descanso
@@ -303,8 +304,8 @@ export const KioskView: React.FC<KioskViewProps> = ({
       </div>
 
       {/* Footer Instructions */}
-      <div className="text-center text-xs text-white/40 border-t border-white/5 pt-3">
-        <span>Cinépolis • Terminal de Auto-Evaluación y Retroalimentación para Sala de Descanso</span>
+      <div className="kiosk-credit text-center text-xs text-white/40 border-t border-white/5 pt-3">
+        <ProjectCredit />
       </div>
 
       {/* Modal Desbloquear / Salir de Kiosco */}

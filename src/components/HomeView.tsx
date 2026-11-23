@@ -99,7 +99,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
     }
   }, [currentUser]);
 
-  // Si alguien escanea el QR de un boleto (?verify=<uuid>), mostrar su constancia oficial
+  // Si alguien escanea el QR de un boleto (?verify=<uuid>), mostrar su constancia guardada
   useEffect(() => {
     let active = true;
     setVerifiedParticipant(null);
@@ -234,8 +234,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
       <section className="quiz-hero" aria-labelledby="quiz-home-heading" data-enter>
         <div className="quiz-hero-content">
-          <span className="section-eyebrow">Capacitación Cinépolis</span>
-          <h1 id="quiz-home-heading">Encuestas y<br />evaluaciones</h1>
+          <span className="section-eyebrow">Nuestro espacio de aprendizaje</span>
+          <h1 id="quiz-home-heading"><span className="cinema-title-line"><span>Encuestas y</span></span>{' '}<span className="cinema-title-line"><span>evaluaciones</span></span></h1>
           <p>Comparte tu opinión, pon a prueba lo que sabes y continúa tu desarrollo.</p>
           <div className="quiz-hero-actions">
             <button type="button" className="quiz-action quiz-action-primary" onClick={() => { setSearch(''); onOpenSurveys(); }}>
@@ -348,7 +348,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
               {currentUser ? `¡Hola, ${currentUser.name || currentUser.nickname}!` : '¿Cuál es tu nombre?'}
             </h3>
             <p className="text-white/80 text-xs sm:text-sm font-medium mb-5">
-              Confirmación de datos para la evaluación oficial:
+              Confirma tus datos para esta evaluación:
               <br />
               <strong className="text-amber-300 font-black text-sm sm:text-base">
                 {selectedQuiz.title}
@@ -517,7 +517,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
               <ShieldCheck className="w-9 h-9" />
             </div>
             <span className="inline-block px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-[11px] font-black uppercase tracking-widest">
-              Folio Oficial Verificado #{verifiedParticipant.id.slice(0, 8).toUpperCase()}
+              Folio verificado #{verifiedParticipant.id.slice(0, 8).toUpperCase()}
             </span>
             <h3 className="text-2xl font-black text-white">
               {verifiedParticipant.avatar} {verifiedParticipant.nickname}

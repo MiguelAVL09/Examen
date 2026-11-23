@@ -7,6 +7,7 @@ import {
 import type { LucideIcon } from 'lucide-react'
 import { CourseForm, PersonForm, ReportForm, TaskForm } from './TrackerDialogs'
 import { SurveyStartDialog } from './components/SurveyStartDialog'
+import { ProjectCredit } from './components/ProjectCredit'
 import { EmployeeImport } from './EmployeeImport'
 import type { EmployeeRow } from './employeePdf'
 import { authService, cloudEmployeeAccess, USERS_STORAGE_KEY } from './services/authService'
@@ -545,7 +546,7 @@ export default function ExpertDashboard({ quizzes, quizLoadError, onReloadQuizze
 
         {page === 'reportes' && <ReportForm workspace={workspace} initial={reportFilters} onDownload={() => setNotice('PDF generado.')} />}
 
-        <footer className="page-footer"><span>Cinépolis Expertos</span><span><Clock3 size={14} />{workspace.updatedAt ? 'Actualizado ' + formatUpdate(workspace.updatedAt) : 'Sin registros actualizados'}</span></footer>
+        <footer className="page-footer"><ProjectCredit /><span><Clock3 size={14} />{workspace.updatedAt ? 'Actualizado ' + formatUpdate(workspace.updatedAt) : 'Sin registros actualizados'}</span></footer>
       </main>
     </div>
 

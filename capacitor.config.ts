@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'mx.cinepolis.capacitacion',
-  appName: 'Cinépolis PRO',
+  appName: 'Cinepolitos',
   webDir: 'dist',
   backgroundColor: '#0a1224',
   server: { androidScheme: 'https' },

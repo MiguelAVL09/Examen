@@ -1,0 +1,93 @@
+.cinema-cursor {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 2147483646;
+  width: 36px;
+  height: 36px;
+  pointer-events: none;
+  opacity: 0;
+}
+
+@media (hover: hover) and (pointer: fine) and (forced-colors: none) {
+  html,
+  body,
+  .quiz-app,
+  .auth-page,
+  :is(.quiz-app, .auth-page) * {
+    cursor:
+      url("/cursors/cinema-arrow.svg") 5 3,
+      auto;
+  }
+
+  :is(
+    button:not(:disabled),
+    a[href],
+    summary,
+    [role="button"]:not([aria-disabled="true"]),
+    label[for]
+  ) {
+    cursor:
+      url("/cursors/cinema-pointer.svg") 14 3,
+      pointer;
+  }
+
+  :is(button:not(:disabled), a[href], summary, [role="button"]) * {
+    cursor: inherit;
+  }
+
+  :is(.quiz-app, .auth-page)
+    :is(input, textarea, [contenteditable="true"], [role="textbox"]) {
+    cursor: text;
+  }
+
+  :is(.quiz-app, .auth-page) select {
+    cursor: pointer;
+  }
+
+  :is(.quiz-app, .auth-page) :is(:disabled, [aria-disabled="true"]) {
+    cursor: not-allowed;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) and (forced-colors: none) {
+  .cinema-cursor {
+    display: block;
+    transition:
+      transform 100ms var(--cp-ease-out),
+      opacity var(--cp-motion-fast) ease;
+  }
+
+  .cinema-cursor[data-visible="true"] {
+    opacity: 1;
+  }
+
+  .cinema-cursor > span {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    border: 1px solid #2557cf66;
+    background: #2557cf05;
+    transition:
+      transform var(--cp-motion-ui) var(--cp-ease-out),
+      background-color var(--cp-motion-fast) ease,
+      border-color var(--cp-motion-fast) ease;
+  }
+
+  .cinema-cursor[data-interactive="true"] > span {
+    transform: scale(1.35);
+    background: #2557cf0b;
+    border-color: #2557cf99;
+  }
+
+  .cinema-cursor[data-tone="light"] > span {
+    border-color: #f5d28a99;
+    background: #f5d28a06;
+  }
+
+  .cinema-cursor[data-pressed="true"] > span {
+    transform: scale(0.75);
+  }
+}

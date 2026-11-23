@@ -36,7 +36,7 @@ try {
     New-Item -ItemType Directory -Force -Path $output | Out-Null
     $version = (Get-Content -Raw -LiteralPath (Join-Path $project 'package.json') | ConvertFrom-Json).version
     $aligned = Join-Path $output 'cinepolis-aligned.tmp'
-    $apk = Join-Path $output "Cinepolis-PRO-$version.apk"
+    $apk = Join-Path $output "Cinepolitos-$version.apk"
     & $zipalign -f -P 16 4 $unsigned $aligned
     if ($LASTEXITCODE -ne 0) { throw 'No se pudo alinear el APK.' }
     & $apksigner sign --ks $Keystore --ks-key-alias cinepolis-pro --ks-pass env:CINEPOLIS_ANDROID_SIGNING_PASSWORD --out $apk $aligned

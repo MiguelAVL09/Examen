@@ -141,6 +141,41 @@ button:disabled {
   line-height: 1;
   letter-spacing: 0.065em;
 }
+
+.project-credit {
+  display: grid;
+  gap: 5px;
+  max-width: 610px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--cp-muted);
+}
+.project-credit strong {
+  font-weight: 550;
+}
+.project-credit > span {
+  display: block;
+}
+.auth-main > .project-credit {
+  width: min(100%, 400px);
+  margin-top: 28px;
+}
+.platform-footer .project-credit {
+  color: inherit;
+}
+.kiosk-credit .project-credit {
+  color: #bac9e0;
+  max-width: none;
+}
+.expert-app .page-footer {
+  align-items: flex-start;
+  gap: 24px;
+}
+@media (max-width: 380px) {
+  .platform-brand-pro {
+    display: none;
+  }
+}
 .platform-footer {
   border-top: 1px solid #ffffff14;
   color: #9baac3;

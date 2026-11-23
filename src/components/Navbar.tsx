@@ -64,7 +64,7 @@ export function Navbar({
     <header className="quiz-header">
       <a className="skip-link" href="#app-content">Ir al contenido</a>
       <div className="quiz-header-content">
-        <button type="button" onClick={() => onNavigate('home')} className="quiz-brand" aria-label="Cinépolis PRO, inicio">
+        <button type="button" onClick={() => onNavigate('home')} className="quiz-brand" aria-label="Cinepolitos, inicio">
           <PlatformBrand />
         </button>
         <nav className="quiz-desktop-nav" aria-label="Navegación de la plataforma">

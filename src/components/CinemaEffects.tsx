@@ -281,11 +281,11 @@ export const CinemaTicketResult: React.FC<CinemaTicketResultProps> = ({
 
   const handleShareWhatsApp = () => {
     const text = encodeURIComponent(
-      `🎬 *¡Certificación Oficial Cinépolis!*\n\n` +
-      `¡Hola! He completado exitosamente la evaluación oficial *"${quiz.title}"* con un puntaje de *${participant.totalScore.toLocaleString()} pts* (${participant.accuracyPercentage}% de precisión).\n\n` +
-      `🎖️ Folio Oficial: #${folio}\n` +
-      `Avalado formalmente por la Dirección y Gerencia de Conjunto Cinépolis.\n` +
-      `Verifica mi resultado aquí: ${verifyUrl}`
+      `Mi resultado en Cinepolitos\n\n` +
+      `Completé la actividad "${quiz.title}" con ${participant.totalScore.toLocaleString()} puntos y ${participant.accuracyPercentage}% de precisión.\n\n` +
+      `Folio: #${folio}\n` +
+      `Proyecto personal e independiente, sin participación ni financiamiento de Cinépolis.\n` +
+      `Consulta mi resultado aquí: ${verifyUrl}`
     );
     void openExternalLink(`https://wa.me/?text=${text}`);
   };
@@ -296,23 +296,20 @@ export const CinemaTicketResult: React.FC<CinemaTicketResultProps> = ({
 
     if (!await exportDiplomaPDF(participant, 0, quiz.title, folio)) return;
 
-    const subject = encodeURIComponent(`¡Felicidades! Acreditación Oficial en Cinépolis: ${quiz.title}`);
+    const subject = encodeURIComponent(`Tu resultado en Cinepolitos: ${quiz.title}`);
     const body = encodeURIComponent(
-      `Estimado/a ${participant.nickname},\n\n` +
-      `Por medio de la presente, la Dirección y Gerencia de Conjunto Cinépolis te extienden una sincera y calurosa felicitación por haber acreditado satisfactoriamente la evaluación oficial:\n\n` +
-      `🎬 EVALUACIÓN: ${quiz.title}\n` +
-      `🏆 PUNTAJE OBTENIDO: ${participant.totalScore.toLocaleString()} puntos\n` +
-      `🎯 PRECISIÓN: ${participant.accuracyPercentage}%\n` +
-      `🎫 FOLIO OFICIAL: #${folio}\n` +
-      `📅 FECHA: ${new Date(participant.completedAt).toLocaleDateString()}\n\n` +
-      `Tu esfuerzo y compromiso reflejan los más altos estándares de hospitalidad y excelencia operativa que distinguen a Cinépolis.\n\n` +
-      `Atentamente,\n` +
-      `Dirección y Gerencia de Conjunto Cinépolis\n` +
-      `"La Capital del Cine"`
+      `Hola, ${participant.nickname}:\n\n` +
+      `Compartimos tu resultado de la actividad "${quiz.title}" en Cinepolitos.\n\n` +
+      `Puntaje: ${participant.totalScore.toLocaleString()} puntos\n` +
+      `Precisión: ${participant.accuracyPercentage}%\n` +
+      `Folio: #${folio}\n` +
+      `Fecha: ${new Date(participant.completedAt).toLocaleDateString('es-MX')}\n\n` +
+      `Gracias por participar en este espacio de aprendizaje entre compañeros.\n\n` +
+      `Cinepolitos es un proyecto personal e independiente, sin participación ni financiamiento de Cinépolis.`
     );
 
     if (!await openExternalLink(`mailto:${recipientEmail.trim()}?subject=${subject}&body=${body}`)) return;
-    setEmailStatus('¡Plantilla oficial preparada y diploma descargado exitosamente!');
+    setEmailStatus('Mensaje preparado y constancia descargada.');
     setTimeout(() => {
       setEmailStatus('');
       setShowEmailModal(false);
@@ -331,7 +328,7 @@ export const CinemaTicketResult: React.FC<CinemaTicketResultProps> = ({
         <div className="bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-black px-5 py-2.5 flex items-center justify-between">
           <div className="flex items-center gap-2 font-black text-xs sm:text-sm uppercase tracking-wider">
             <Ticket className="w-4 h-4" />
-            <span>BOLETO OFICIAL DE EVALUACIÓN • CLUB CINÉPOLIS</span>
+            <span>RESULTADOS DE LA ACTIVIDAD · CINEPOLITOS</span>
           </div>
           <span className="font-mono font-black text-xs bg-black/15 px-2.5 py-0.5 rounded-full">
             FOLIO #{folio}
@@ -376,11 +373,11 @@ export const CinemaTicketResult: React.FC<CinemaTicketResultProps> = ({
                 <ShieldCheck className={`w-6 h-6 shrink-0 ${isApproved ? 'text-emerald-400' : 'text-amber-400'}`} />
                 <div>
                   <span className="text-xs font-black uppercase tracking-wider block">
-                    {isApproved ? '★ CERTIFICADO CINÉPOLIS APROBADO ★' : 'EVALUACIÓN COMPLETADA'}
+                    {isApproved ? '★ EVALUACIÓN APROBADA ★' : 'EVALUACIÓN COMPLETADA'}
                   </span>
                   <span className="text-[11px] opacity-80">
                     {isApproved
-                      ? 'Obtuviste 80% o más de precisión. Tu diploma oficial está listo para descargar.'
+                      ? 'Obtuviste 80% o más de precisión. Tu constancia está lista para descargar.'
                       : 'Revisa las fichas formativas abajo para reforzar los temas de Club Cinépolis.'}
                   </span>
                 </div>
@@ -453,7 +450,7 @@ export const CinemaTicketResult: React.FC<CinemaTicketResultProps> = ({
                   className="w-full py-3 px-4 rounded-2xl btn-cinepolis-gold text-black font-black text-xs uppercase tracking-wider shadow-xl flex items-center justify-center gap-2 transition active:scale-95"
                 >
                   <Award className="w-4 h-4" />
-                  <span>Descargar Mi Diploma PDF</span>
+                  <span>Descargar mi constancia PDF</span>
                 </button>
 
                 <div className="grid grid-cols-2 gap-2">
@@ -610,10 +607,10 @@ export const CinemaTicketResult: React.FC<CinemaTicketResultProps> = ({
 
               <div className="p-3.5 rounded-2xl bg-black/40 border border-white/10 text-xs space-y-1.5 text-white/80">
                 <p className="font-bold text-amber-300">
-                  📜 Felicitación Institucional de Dirección y Gerencia Cinépolis:
+                  Comparte tu resultado de aprendizaje
                 </p>
                 <p className="text-[11px] text-white/60">
-                  Se abrirá tu gestor de correo con el mensaje formal de acreditación avalado por la gerencia y se descargará automáticamente tu Diploma PDF oficial para adjuntarlo.
+                  Se abrirá tu aplicación de correo con un mensaje sobre tu resultado y se descargará tu constancia para adjuntarla. El reconocimiento pertenece a este proyecto personal.
                 </p>
               </div>
 
@@ -625,7 +622,7 @@ export const CinemaTicketResult: React.FC<CinemaTicketResultProps> = ({
                   <input
                     type="email"
                     required
-                    placeholder="tu-correo@cinepolis.com"
+                    placeholder="Tu dirección de correo"
                     value={recipientEmail}
                     onChange={e => setRecipientEmail(e.target.value)}
                     className="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/20 text-white text-xs font-semibold focus:outline-none focus:border-amber-400"
