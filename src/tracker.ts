@@ -1,6 +1,8 @@
 import type { Quiz, UserAccount } from './types/quiz'
 import { isSurveyQuiz } from './utils/quizKind'
 import { employeeKey } from '../supabase/functions/_shared/employeeIdentity'
+import { parseAccreditations } from './accreditations'
+import type { AccreditationData } from './accreditations'
 
 export { employeeKey, validEmployeeId } from '../supabase/functions/_shared/employeeIdentity'
 
@@ -37,6 +39,7 @@ export interface Workspace {
   courses: Course[]
   tasks: Task[]
   updatedAt: string | null
+  accreditations?: AccreditationData
 }
 
 export const emptyWorkspace: Workspace = { people: [], courses: [], tasks: [], updatedAt: null }
@@ -178,5 +181,6 @@ export function parseWorkspace(data: Workspace): Workspace {
         typeof task.priority === 'string' && typeof task.due === 'string')) {
     throw new Error('Invalid workspace records')
   }
-  return { ...data, updatedAt: typeof data.updatedAt === 'string' && Number.isFinite(Date.parse(data.updatedAt)) ? data.updatedAt : null }
+  return { ...data, accreditations: parseAccreditations(data.accreditations),
+    updatedAt: typeof data.updatedAt === 'string' && Number.isFinite(Date.parse(data.updatedAt)) ? data.updatedAt : null }
 }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  ArrowDownToLine, ArrowLeft, ArrowRight, BookOpen, CalendarDays, Check, CheckCircle2, ChevronRight,
+  ArrowDownToLine, ArrowLeft, ArrowRight, BadgeCheck, BookOpen, CalendarDays, Check, CheckCircle2, ChevronRight,
   ClipboardList, Clock3, Database, FileText, FileUp, Film, GraduationCap, LayoutDashboard, Menu,
   Pencil, Plus, Search, Users, X,
 } from 'lucide-react'
@@ -9,6 +9,9 @@ import { CourseForm, PersonForm, ReportForm, TaskForm } from './TrackerDialogs'
 import { SurveyStartDialog } from './components/SurveyStartDialog'
 import { ProjectCredit } from './components/ProjectCredit'
 import { EmployeeImport } from './EmployeeImport'
+import { AccreditationsPanel } from './AccreditationsPanel'
+import { updateAccreditationStates } from './accreditations'
+import type { AccreditationDisplayStatus } from './accreditations'
 import type { EmployeeRow } from './employeePdf'
 import { authService, cloudEmployeeAccess, USERS_STORAGE_KEY } from './services/authService'
 import { quizService } from './services/quizService'
@@ -24,7 +27,7 @@ import type { Quiz, UserAccount } from './types/quiz'
 import { expertHash } from './utils/expertLocation'
 import './ExpertDashboard.css'
 
-type Page = 'resumen' | 'tareas' | 'cinepolitos' | 'cursos' | 'reportes'
+type Page = 'resumen' | 'tareas' | 'cinepolitos' | 'cursos' | 'acreditaciones' | 'reportes'
 type Editor = { kind: 'person'; record?: Cinepolito } | { kind: 'course'; record?: Course } | { kind: 'task'; record?: Task } | { kind: 'report' } | { kind: 'import' }
 type TaskFilter = 'all' | 'open' | 'done'
 const pages: { id: Page; label: string; icon: LucideIcon }[] = [
@@ -32,6 +35,7 @@ const pages: { id: Page; label: string; icon: LucideIcon }[] = [
   { id: 'tareas', label: 'Tareas', icon: ClipboardList },
   { id: 'cinepolitos', label: 'Cinepolitos', icon: Users },
   { id: 'cursos', label: 'Cursos', icon: GraduationCap },
+  { id: 'acreditaciones', label: 'Acreditaciones', icon: BadgeCheck },
   { id: 'reportes', label: 'Reportes', icon: FileText },
 ]
 const pageDescriptions: Record<Page, string> = {
@@ -39,6 +43,7 @@ const pageDescriptions: Record<Page, string> = {
   tareas: 'Organiza las actividades del equipo y registra cuándo se completan.',
   cinepolitos: 'Consulta el avance de cada persona en cursos y encuestas.',
   cursos: 'Administra cursos de Learning Center y consulta el avance en encuestas de Kahoot.',
+  acreditaciones: 'Consulta las acreditaciones completadas y pendientes por persona y por área.',
   reportes: 'Descarga un PDF con los registros que necesitas compartir.',
 }
 
@@ -376,6 +381,15 @@ export default function ExpertDashboard({ quizzes, quizLoadError, onReloadQuizze
     }), 'Curso y asignaciones eliminados.')
   }
 
+  function saveAccreditations(person: Cinepolito, changes: Record<string, AccreditationDisplayStatus>) {
+    return commit(latest => {
+      const current = getDirectoryPeople(latest.people, authService.getDirectoryAccounts()).find(item =>
+        person.accountId ? item.accountId === person.accountId : item.id === person.id)
+      if (!current) throw new DOMException('Esta persona ya no está en el directorio. Actualiza la página.', 'ValidationError')
+      return updateAccreditationStates(latest, current, changes)
+    }, 'Acreditaciones guardadas.')
+  }
+
   function toggleTask(task: Task) {
     void commit(latest => ({
       ...latest, tasks: latest.tasks.map(item => item.id === task.id ? { ...item, done: !task.done } : item),
@@ -432,7 +446,7 @@ export default function ExpertDashboard({ quizzes, quizLoadError, onReloadQuizze
         <header className="page-heading">
           <div><h1>{page === 'resumen' ? 'Panel de seguimiento' : pages.find(item => item.id === page)?.label}</h1><p>{pageDescriptions[page]}</p></div>
           <div className="heading-actions">
-            {page !== 'reportes' && exportButton}
+            {page !== 'reportes' && page !== 'acreditaciones' && exportButton}
             {page === 'cinepolitos' && <>
               <button className="button secondary" onClick={() => openEditor({ kind: 'import' })}><FileUp size={16} /> Importar PDF</button>
               <button className="button primary" onClick={() => openEditor({ kind: 'person' })}><Plus size={17} /> Agregar cinepolito</button>
@@ -543,6 +557,8 @@ export default function ExpertDashboard({ quizzes, quizLoadError, onReloadQuizze
             </article>
           })}
         </div> : <div className="panel"><SectionEmpty icon={BookOpen} title="Aún no hay cursos" description="Agrega un curso para asignarlo a los cinepolitos." /></div>)}
+
+        {page === 'acreditaciones' && <AccreditationsPanel workspace={workspace} busy={busy} onSave={saveAccreditations} />}
 
         {page === 'reportes' && <ReportForm workspace={workspace} initial={reportFilters} onDownload={() => setNotice('PDF generado.')} />}
 
